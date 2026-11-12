@@ -29,7 +29,9 @@ import {
   GuideTriggers,
   KeyboardMouseInput,
   StaticColliders,
+  TouchInput,
 } from '@/07-systems';
+import type { InputSource } from '@/07-systems';
 import { mountUi } from '@/08-ui';
 import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics';
 
@@ -167,11 +169,20 @@ function start(): () => void {
     weather: WEATHER_PRESETS[params.weather],
     reducedMotion: capabilities.reducedMotion,
   });
-  const input = new KeyboardMouseInput({
-    keyboardTarget: window,
-    pointerTarget: window,
-    lookSensitivityRadPerPixel: WORLD.camera.lookSensitivityRadPerPixel,
-  });
+  const input: InputSource =
+    capabilities.touch && ui.touchMoveTarget !== null && ui.touchLookTarget !== null
+      ? new TouchInput({
+          moveTarget: ui.touchMoveTarget,
+          lookTarget: ui.touchLookTarget,
+          pointerTarget: window,
+          moveRadiusPx: WORLD.touch.moveRadiusPx,
+          lookSensitivityRadPerPixel: WORLD.touch.lookSensitivityRadPerPixel,
+        })
+      : new KeyboardMouseInput({
+          keyboardTarget: window,
+          pointerTarget: window,
+          lookSensitivityRadPerPixel: WORLD.camera.lookSensitivityRadPerPixel,
+        });
   const colliders = new StaticColliders({ obstacles: WORLD.collision.obstacles });
   const character = new Character({ parent: context.scene, colliders, events });
   const followCamera = new FollowCamera({ camera: context.camera, input });

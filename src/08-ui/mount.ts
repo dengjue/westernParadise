@@ -6,7 +6,7 @@ import type {
   TimeOfDayId,
   WeatherId,
 } from '@/00-types';
-import { COPY } from '@/01-shared';
+import { COPY, WORLD } from '@/01-shared';
 import { mountGuidePanel } from './GuidePanel';
 import { mountHud } from './Hud';
 
@@ -30,6 +30,9 @@ export interface UiOptions {
 export interface UiHandle {
   /** 3D canvas 的挂载容器。 */
   readonly viewport: HTMLElement;
+  /** 触控移动与视角输入面板；非触屏环境为 null。 */
+  readonly touchMoveTarget: HTMLElement | null;
+  readonly touchLookTarget: HTMLElement | null;
   setStatus(text: string): void;
   showNotice(text: string): void;
   showFatal(title: string, detail: string): void;
@@ -45,6 +48,33 @@ function element(tag: string, className: string, text?: string): HTMLElement {
   return node;
 }
 
+interface TouchControlsHandle {
+  readonly root: HTMLElement;
+  readonly move: HTMLElement;
+  readonly look: HTMLElement;
+}
+
+function mountTouchControls(parent: HTMLElement): TouchControlsHandle {
+  const controls = element('div', 'touch-controls');
+  controls.style.setProperty('--touch-pad-size', `${WORLD.touch.padSizePx}px`);
+  controls.style.setProperty('--touch-pad-edge', `${WORLD.touch.edgeInsetPx}px`);
+  controls.setAttribute('aria-label', '触控操作区');
+
+  const move = element('div', 'touch-pad touch-pad-move');
+  move.setAttribute('aria-label', '触控移动区');
+  move.setAttribute('role', 'application');
+  move.append(element('span', 'touch-pad-thumb'));
+
+  const look = element('div', 'touch-pad touch-pad-look');
+  look.setAttribute('aria-label', '触控视角区');
+  look.setAttribute('role', 'application');
+  look.append(element('span', 'touch-pad-thumb'));
+
+  controls.append(move, look);
+  parent.append(controls);
+  return { root: controls, move, look };
+}
+
 export function mountUi(root: HTMLElement, options: UiOptions): UiHandle {
   const { capabilities } = options;
   document.documentElement.classList.toggle('is-touch', capabilities.touch);
@@ -52,6 +82,7 @@ export function mountUi(root: HTMLElement, options: UiOptions): UiHandle {
 
   const viewport = element('div', 'viewport');
   root.append(viewport);
+  const touchControls = capabilities.touch ? mountTouchControls(root) : null;
   const hud = mountHud({
     parent: root,
     events: options.events,
@@ -70,6 +101,8 @@ export function mountUi(root: HTMLElement, options: UiOptions): UiHandle {
 
   return {
     viewport,
+    touchMoveTarget: touchControls?.move ?? null,
+    touchLookTarget: touchControls?.look ?? null,
     setStatus(text) {
       hud.setStatus(text);
     },
@@ -93,10 +126,14 @@ export function mountUi(root: HTMLElement, options: UiOptions): UiHandle {
       fatalPanel.append(heading, body, hint, about, retry);
       root.append(fatalPanel);
       viewport.hidden = true;
+      if (touchControls) {
+        touchControls.root.hidden = true;
+      }
     },
     dispose() {
       guidePanel.dispose();
       hud.dispose();
+      touchControls?.root.remove();
       viewport.remove();
       fatalPanel?.remove();
       document.documentElement.classList.remove('is-touch', 'is-reduced');

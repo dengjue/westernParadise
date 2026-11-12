@@ -263,6 +263,12 @@ export const WORLD = Object.freeze({
     pitchMaxDeg: 55,
     lerp: 0.12,
   } as const),
+  touch: Object.freeze({
+    padSizePx: 136,
+    edgeInsetPx: 18,
+    moveRadiusPx: 68,
+    lookSensitivityRadPerPixel: 0.006,
+  } as const),
   ground: Object.freeze({
     baseHeight: 0,
     heightAreas: Object.freeze([PLATFORM] as const),
