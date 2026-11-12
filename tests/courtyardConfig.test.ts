@@ -17,6 +17,8 @@ describe('M1 庭院场景配置', () => {
     expect(WORLD.scene.hall.depth).toBeGreaterThan(0);
     expect(WORLD.scene.hall.bracket.layerHeight).toBeGreaterThan(0);
     expect(WORLD.scene.hall.bracket.layerGap).toBeGreaterThan(WORLD.scene.hall.bracket.layerHeight);
+    expect(WORLD.scene.hall.signboard.width).toBeGreaterThan(0);
+    expect(WORLD.scene.hall.signboard.height).toBeGreaterThan(0);
     expect(WORLD.scene.figures).toHaveLength(3);
     expect(WORLD.scene.vegetation.length).toBeGreaterThanOrEqual(3);
     expect(WORLD.scene.mountains.count).toBeGreaterThanOrEqual(12);
@@ -33,6 +35,7 @@ describe('M1 庭院场景配置', () => {
     expect(Object.isFrozen(MATERIALS.texture)).toBe(true);
     expect(Object.isFrozen(MATERIALS.paper)).toBe(true);
     expect(Object.isFrozen(MATERIALS.moss)).toBe(true);
+    expect(Object.isFrozen(MATERIALS.signage)).toBe(true);
     expect(MATERIALS.texture.width).toBeGreaterThan(0);
     expect(MATERIALS.texture.height).toBeGreaterThan(0);
     expect(MATERIALS.texture.cellsX).toBeGreaterThan(0);

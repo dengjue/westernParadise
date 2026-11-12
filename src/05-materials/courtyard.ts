@@ -1,5 +1,5 @@
 import { CanvasTexture, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace } from 'three';
-import { MATERIALS } from '@/01-shared';
+import { COPY, MATERIALS } from '@/01-shared';
 import { valueNoise } from './noise';
 
 /**
@@ -25,6 +25,7 @@ export interface CourtyardMaterials {
   readonly tile: MeshStandardMaterial;
   readonly paving: MeshStandardMaterial;
   readonly paper: MeshStandardMaterial;
+  readonly signage: MeshStandardMaterial;
   readonly leaf: MeshStandardMaterial;
   readonly mountain: MeshStandardMaterial;
   readonly figureBody: MeshStandardMaterial;
@@ -253,6 +254,24 @@ function drawPaperOverlay(context: CanvasRenderingContext2D): void {
   context.restore();
 }
 
+function drawSignageOverlay(context: CanvasRenderingContext2D): void {
+  const palette = MATERIALS.signage;
+  const { width, height } = MATERIALS.texture;
+  context.save();
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = colorString(palette.titleHex);
+  context.font = `700 ${palette.titleFontPx}px ${palette.fontFamily}`;
+  context.fillText(COPY.signage.mainHall.title, width / 2, palette.titleY);
+  context.fillStyle = colorString(palette.subtitleHex);
+  context.font = `${palette.subtitleFontPx}px ${palette.fontFamily}`;
+  context.fillText(COPY.signage.mainHall.subtitle, width / 2, palette.subtitleY);
+  context.strokeStyle = colorString(palette.lightHex, 0.42);
+  context.lineWidth = 1;
+  context.strokeRect(5, 5, width - 10, height - 10);
+  context.restore();
+}
+
 function texturedMaterial(
   texture: CanvasTexture,
   roughness: number,
@@ -341,6 +360,13 @@ export function createCourtyardMaterials(options: CourtyardMaterialsOptions): Co
     drawPaperOverlay,
     options.anisotropy,
   );
+  const signageTexture = createCanvasTexture(
+    options.canvasFactory,
+    MATERIALS.signage,
+    options.seed + 37,
+    drawSignageOverlay,
+    options.anisotropy,
+  );
 
   return {
     ground: texturedMaterial(stoneTexture, MATERIALS.stone.roughness, MATERIALS.stone.metalness),
@@ -363,6 +389,11 @@ export function createCourtyardMaterials(options: CourtyardMaterialsOptions): Co
     tile: texturedMaterial(tileTexture, MATERIALS.tile.roughness, MATERIALS.tile.metalness),
     paving: texturedMaterial(pavingTexture, MATERIALS.paving.roughness, MATERIALS.paving.metalness),
     paper: texturedMaterial(paperTexture, MATERIALS.paper.roughness, MATERIALS.paper.metalness),
+    signage: texturedMaterial(
+      signageTexture,
+      MATERIALS.signage.roughness,
+      MATERIALS.signage.metalness,
+    ),
     leaf: solidMaterial(MATERIALS.leaf.baseHex, MATERIALS.leaf.roughness, MATERIALS.leaf.metalness),
     mountain: solidMaterial(
       MATERIALS.mountain.baseHex,

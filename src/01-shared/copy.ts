@@ -53,4 +53,10 @@ export const COPY = Object.freeze({
   }),
   controlsHint: 'WASD 移动 · 右键拖拽视角 · 滚轮缩放',
   guide: GUIDE_COPY,
+  signage: Object.freeze({
+    mainHall: Object.freeze({
+      title: '主殿',
+      subtitle: '木构空间',
+    }),
+  }),
 } as const);

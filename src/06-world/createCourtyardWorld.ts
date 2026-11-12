@@ -65,6 +65,22 @@ function addBox(
   return mesh;
 }
 
+function addPlane(
+  parent: Group,
+  name: string,
+  width: number,
+  height: number,
+  material: CourtyardMaterials[keyof CourtyardMaterials],
+  x: number,
+  y: number,
+  z: number,
+): Mesh {
+  const mesh = markMesh(new Mesh(new PlaneGeometry(width, height), material), name);
+  mesh.position.set(x, y, z);
+  parent.add(mesh);
+  return mesh;
+}
+
 function addCylinder(
   parent: Group,
   name: string,
@@ -428,6 +444,31 @@ function createHall(root: Group, materials: CourtyardMaterials): void {
       hall.frontZ,
     );
   }
+
+  const signboard = hall.signboard;
+  const signboardZ = frontZ + signboard.frontOffset;
+  addBox(
+    root,
+    'main-hall-signboard',
+    signboard.width,
+    signboard.height,
+    signboard.thickness,
+    materials.wood,
+    0,
+    baseY + signboard.y,
+    signboardZ,
+    true,
+  );
+  addPlane(
+    root,
+    'main-hall-signage',
+    signboard.width - signboard.inset * 2,
+    signboard.height - signboard.inset * 2,
+    materials.signage,
+    0,
+    baseY + signboard.y,
+    signboardZ + signboard.thickness / 2 + signboard.faceOffset,
+  );
 
   const paperScreenZ =
     backZ + hall.wallThickness / 2 + hall.paperScreenThickness / 2 + hall.paperScreenInset;
