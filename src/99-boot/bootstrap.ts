@@ -153,6 +153,8 @@ function start(): () => void {
     canvasFactory,
     seed: rng.seed,
     anisotropy: profile.anisotropy,
+    weather: WEATHER_PRESETS[params.weather],
+    reducedMotion: capabilities.reducedMotion,
   });
   const input = new KeyboardMouseInput({
     keyboardTarget: window,
@@ -215,6 +217,7 @@ function start(): () => void {
     currentWeather = to;
     lightingRig.applyWeather(WEATHER_PRESETS[to]);
     skyDome.applyWeather(WEATHER_PRESETS[to]);
+    world.applyWeather(WEATHER_PRESETS[to]);
     events.emit('weather:changed', { from, to });
   });
   const removeBoundsNotice = events.on('player:boundsExceeded', ({ x, z }) => {

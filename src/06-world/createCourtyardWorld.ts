@@ -9,21 +9,26 @@ import {
   TorusGeometry,
 } from 'three';
 import type { Scene } from 'three';
+import type { WeatherPreset } from '@/00-types';
 import { Rng } from '@/02-core';
-import { WORLD } from '@/01-shared';
+import { WEATHER_PRESETS, WORLD } from '@/01-shared';
 import { createCourtyardMaterials } from '@/05-materials';
 import type { CanvasFactory, CourtyardMaterials } from '@/05-materials';
+import { WeatherEffect } from './WeatherEffect';
 
 export interface CourtyardWorldOptions {
   readonly canvasFactory: CanvasFactory;
   readonly seed: number;
   readonly anisotropy: number;
+  readonly weather: WeatherPreset;
+  readonly reducedMotion: boolean;
 }
 
 export interface WorldHandle {
   readonly root: Group;
-  /** M1 场景没有持续动画，保留统一接口以便后续加入低刺激环境动效。 */
+  /** 固定步长驱动天气粒子，不在主循环重建场景资源。 */
   update(deltaMs: number): void;
+  applyWeather(preset: WeatherPreset): void;
 }
 
 function markMesh<T extends Mesh>(
@@ -682,12 +687,22 @@ export function createCourtyardWorld(scene: Scene, options: CourtyardWorldOption
   createHall(root, materials);
   createVegetation(root, materials);
   createMountains(root, options.seed, materials);
+  const weatherEffect = new WeatherEffect({
+    parent: root,
+    seed: options.seed,
+    presets: Object.values(WEATHER_PRESETS),
+    preset: options.weather,
+    reducedMotion: options.reducedMotion,
+  });
 
   scene.add(root);
   return {
     root,
-    update(_deltaMs: number): void {
-      // M1 保持几何静止，时段与天气变化由 LightingRig / SkyDome 统一处理。
+    update(deltaMs: number): void {
+      weatherEffect.update(deltaMs);
+    },
+    applyWeather(preset: WeatherPreset): void {
+      weatherEffect.applyWeather(preset);
     },
   };
 }

@@ -11,7 +11,7 @@ import {
 } from '@/01-shared';
 
 const TIME_OF_DAY_IDS: readonly TimeOfDayId[] = ['dawn', 'noon', 'dusk'];
-const WEATHER_IDS: readonly WeatherId[] = ['clear', 'mist'];
+const WEATHER_IDS: readonly WeatherId[] = ['clear', 'mist', 'rain'];
 const GUIDE_IDS: readonly GuideId[] = ['taiji', 'zhulie', 'wuyan', 'puzhuang'];
 
 /** 递归检查配置树，防止只冻结外层而让嵌套参数在运行中被改写。 */
@@ -63,10 +63,12 @@ describe('01-shared M1 配置', () => {
     expect(DEFAULT_TIME_OF_DAY_ID).toBe('noon');
   });
 
-  it('天气表包含晴与雾，并保留规范中的倍率', () => {
+  it('天气表包含晴、雾与雨，并保留规范中的倍率和雨效参数', () => {
     expect(Object.keys(WEATHER_PRESETS).sort()).toEqual([...WEATHER_IDS].sort());
     expect(WEATHER_PRESETS.clear.fogScale).toEqual({ near: 1, far: 1 });
     expect(WEATHER_PRESETS.mist.fogScale).toEqual({ near: 0.35, far: 0.45 });
+    expect(WEATHER_PRESETS.rain.precipitation.effect).toBe('rain');
+    expect(WEATHER_PRESETS.rain.precipitation.particleCount).toBeGreaterThan(0);
     expect(DEFAULT_WEATHER_ID).toBe('clear');
   });
 

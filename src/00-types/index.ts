@@ -5,6 +5,7 @@ export type {
   PlatformParams,
   PlatformEnv,
   TimeOfDayId,
+  WeatherEffectId,
   WeatherId,
   GuideId,
   WorldBounds,

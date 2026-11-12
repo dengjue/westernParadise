@@ -43,6 +43,7 @@ export const COPY = Object.freeze({
   weather: Object.freeze({
     clear: '晴',
     mist: '雾',
+    rain: '雨',
   }),
   qualityLabel: '画质',
   aboutLabel: '关于',

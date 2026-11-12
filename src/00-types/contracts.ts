@@ -9,8 +9,10 @@ export type QualityTier = 'low' | 'medium' | 'high' | 'ultra';
 /** M1 只允许三个离散时段，避免配置层提前引入连续插值语义。 */
 export type TimeOfDayId = 'dawn' | 'noon' | 'dusk';
 
-/** M1 的天气开关只提供晴与雾，粒子天气留到后续阶段。 */
-export type WeatherId = 'clear' | 'mist';
+/** 天气预设的程序化粒子类型；阶段 3.3 先落地雨，雪留后续增量。 */
+export type WeatherEffectId = 'none' | 'rain';
+
+export type WeatherId = 'clear' | 'mist' | 'rain';
 
 /** 导览点 ID 与文案表一一对应，避免构件和文案键在运行时错配。 */
 export type GuideId = 'taiji' | 'zhulie' | 'wuyan' | 'puzhuang';
@@ -60,7 +62,7 @@ export interface TimeOfDayPreset {
   readonly exposure: number;
 }
 
-/** 天气预设只描述渲染侧需要的参数，windStrength 先占位不驱动粒子。 */
+/** 天气预设同时描述雾、天空色调和可选的程序化降水参数。 */
 export interface WeatherPreset {
   readonly id: WeatherId;
   readonly label: string;
@@ -70,6 +72,15 @@ export interface WeatherPreset {
   };
   readonly skyTintHex: number;
   readonly windStrength: number;
+  readonly precipitation: {
+    readonly effect: WeatherEffectId;
+    readonly particleCount: number;
+    readonly fallSpeed: number;
+    readonly dropLength: number;
+    readonly areaHeight: number;
+    readonly colorHex: number;
+    readonly opacity: number;
+  };
 }
 
 /** 单个建筑导览触发点；事件层会把文案解析结果直接带给 UI。 */

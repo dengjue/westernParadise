@@ -56,9 +56,9 @@ describe('parseParams', () => {
   });
 
   it('识别合法时段与天气参数', () => {
-    const result = parseParams('?tod=DAWN&weather=MIST');
+    const result = parseParams('?tod=DAWN&weather=RAIN');
     expect(result.tod).toBe('dawn');
-    expect(result.weather).toBe('mist');
+    expect(result.weather).toBe('rain');
   });
 
   it('非法时段与天气回落默认值并发出警告', () => {
