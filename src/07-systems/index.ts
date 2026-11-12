@@ -7,3 +7,13 @@ export type { GuideTriggerTarget, GuideTriggersOptions } from './GuideTriggers';
 export { KeyboardMouseInput, type KeyboardMouseInputOptions } from './input';
 export type { InputSource } from './input';
 export { StaticColliders, type StaticCollidersOptions } from './collision';
+export { GridNavigator, runWalkTest } from './navigation';
+export type {
+  GridNavigatorOptions,
+  GridPath,
+  NavigationPoint,
+  NavigationPoint3d,
+  WalkTestCase,
+  WalkTestReport,
+  WalkTestRoute,
+} from './navigation';

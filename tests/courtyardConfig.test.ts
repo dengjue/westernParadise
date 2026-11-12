@@ -19,6 +19,7 @@ describe('M1 庭院场景配置', () => {
     expect(WORLD.scene.hall.bracket.layerGap).toBeGreaterThan(WORLD.scene.hall.bracket.layerHeight);
     expect(WORLD.scene.hall.signboard.width).toBeGreaterThan(0);
     expect(WORLD.scene.hall.signboard.height).toBeGreaterThan(0);
+    expect(WORLD.navigation.routes.length).toBeGreaterThanOrEqual(3);
     expect(WORLD.scene.figures).toHaveLength(3);
     expect(WORLD.scene.vegetation.length).toBeGreaterThanOrEqual(3);
     expect(WORLD.scene.mountains.count).toBeGreaterThanOrEqual(12);

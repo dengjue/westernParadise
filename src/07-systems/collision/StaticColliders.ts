@@ -143,6 +143,11 @@ export class StaticColliders {
     return height;
   }
 
+  /** 只读占位查询，供寻路和 walktest 复用同一套玩家圆形碰撞口径。 */
+  canOccupy(x: number, z: number, radius = this.playerRadius): boolean {
+    return !this.collides(x, z, radius);
+  }
+
   private collides(x: number, z: number, radius: number): boolean {
     for (const box of this.boxes) {
       if (intersectsCircle(x, z, radius, box)) {

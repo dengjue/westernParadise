@@ -25,6 +25,12 @@ const BOUNDS = Object.freeze({
   maxZ: COURTYARD.depth / 2 - WORLD_BOUNDS_MARGIN,
 } as const satisfies WorldBounds);
 
+const SPAWN = Object.freeze({
+  x: 0,
+  z: 14,
+  yawDeg: 180,
+} as const);
+
 const CAPSULE = Object.freeze({
   radius: 0.35,
   height: 1.6,
@@ -129,6 +135,34 @@ const HALL_OBSTACLES: readonly HorizontalAabb[] = Object.freeze([
   ),
 ]);
 
+const NAVIGATION = Object.freeze({
+  cellSize: 1,
+  maxStepHeight: 0.9,
+  maxSearchNodes: 5000,
+  routes: Object.freeze([
+    Object.freeze({
+      id: 'south-to-platform',
+      start: Object.freeze({ x: SPAWN.x, z: SPAWN.z }),
+      target: Object.freeze({ x: 0, z: -9 }),
+    }),
+    Object.freeze({
+      id: 'platform-to-west-colonnade',
+      start: Object.freeze({ x: 0, z: -9 }),
+      target: Object.freeze({ x: -5, z: -7 }),
+    }),
+    Object.freeze({
+      id: 'platform-to-garden',
+      start: Object.freeze({ x: 0, z: -9 }),
+      target: Object.freeze({ x: 3, z: 4 }),
+    }),
+    Object.freeze({
+      id: 'garden-west-loop',
+      start: Object.freeze({ x: 3, z: 4 }),
+      target: Object.freeze({ x: -14, z: 4 }),
+    }),
+  ] as const),
+} as const);
+
 const SCENE = Object.freeze({
   wall: Object.freeze({
     height: 2.5,
@@ -207,11 +241,7 @@ const SCENE = Object.freeze({
 export const WORLD = Object.freeze({
   courtyard: COURTYARD,
   bounds: BOUNDS,
-  spawn: Object.freeze({
-    x: 0,
-    z: 14,
-    yawDeg: 180,
-  } as const),
+  spawn: SPAWN,
   player: Object.freeze({
     walkSpeed: 3.2,
     accelTime: 0.15,
@@ -242,5 +272,6 @@ export const WORLD = Object.freeze({
     wallThickness: 0.5,
     obstacles: HALL_OBSTACLES,
   } as const),
+  navigation: NAVIGATION,
   headHeight: 1.55,
 } as const);
