@@ -1,17 +1,11 @@
-import {
-  AmbientLight,
-  Color,
-  PerspectiveCamera,
-  Scene,
-  SRGBColorSpace,
-  WebGLRenderer,
-} from 'three';
+import { PerspectiveCamera, Scene } from 'three';
 import type { Material } from 'three';
 import type { QualityProfile } from '@/00-types';
 import { RENDER } from '@/01-shared';
+import { Renderer } from './Renderer';
 
 /**
- * 渲染上下文：唯一持有 scene / camera / renderer 的地方。
+ * 渲染上下文：持有 scene / camera，并把实际渲染职责委托给 Renderer。
  *
  * 分层考虑：本层不读 window、不读 URL、不做画质决策，
  * 所有环境相关数值由 99-boot 从 platform 层取好后传入，
@@ -28,7 +22,7 @@ export interface SceneContextOptions {
 export interface SceneContext {
   readonly scene: Scene;
   readonly camera: PerspectiveCamera;
-  readonly renderer: WebGLRenderer;
+  readonly rendering: Renderer;
   readonly canvas: HTMLCanvasElement;
   resize(width: number, height: number): void;
   render(): void;
@@ -69,52 +63,37 @@ export function createSceneContext(host: HTMLElement, options: SceneContextOptio
   const h = Math.max(1, Math.floor(height));
 
   const scene = new Scene();
-  scene.background = new Color(RENDER.clearColor);
 
   const camera = new PerspectiveCamera(RENDER.fovDeg, w / h, RENDER.near, RENDER.far);
   camera.position.set(RENDER.cameraStart.x, RENDER.cameraStart.y, RENDER.cameraStart.z);
   camera.lookAt(0, 1, 0);
 
-  const renderer = new WebGLRenderer({
-    antialias: profile.antialias,
-    alpha: false,
-    powerPreference: 'high-performance',
+  const rendering = new Renderer(host, {
+    width: w,
+    height: h,
+    pixelRatio,
+    profile,
   });
-  renderer.outputColorSpace = SRGBColorSpace;
-  renderer.setPixelRatio(Math.min(pixelRatio, profile.pixelRatioCap));
-  renderer.setSize(w, h, false);
-  renderer.setClearColor(new Color(RENDER.clearColor), 1);
-  renderer.shadowMap.enabled = profile.shadow;
-
-  const canvas = renderer.domElement;
-  canvas.className = 'viewport-canvas';
-  host.appendChild(canvas);
-
-  // 冒烟阶段给一盏环境光：占位物体用了 MeshStandardMaterial，无光会全黑。
-  const ambient = new AmbientLight(0xffffff, 1.4);
-  scene.add(ambient);
 
   return {
     scene,
     camera,
-    renderer,
-    canvas,
+    rendering,
+    canvas: rendering.canvas,
     resize(nextWidth, nextHeight) {
       const nw = Math.max(1, Math.floor(nextWidth));
       const nh = Math.max(1, Math.floor(nextHeight));
       camera.aspect = nw / nh;
       camera.updateProjectionMatrix();
-      // 第三个参数 false：不写 canvas 行内样式，尺寸由 CSS 统一控制。
-      renderer.setSize(nw, nh, false);
+      rendering.resize(nw, nh);
     },
     render() {
-      renderer.render(scene, camera);
+      rendering.render(scene, camera);
     },
     dispose() {
       disposeObjectTree(scene);
       scene.clear();
-      renderer.dispose();
-      canvas.remove();
+      rendering.dispose();
     },
   };
 }

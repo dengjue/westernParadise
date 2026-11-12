@@ -1,12 +1,4 @@
-import {
-  BoxGeometry,
-  DirectionalLight,
-  GridHelper,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-  PlaneGeometry,
-} from 'three';
+import { BoxGeometry, GridHelper, Group, Mesh, MeshStandardMaterial, PlaneGeometry } from 'three';
 import type { Scene } from 'three';
 import { RENDER } from '@/01-shared';
 
@@ -14,7 +6,7 @@ import { RENDER } from '@/01-shared';
  * ⚠️ 工程冒烟占位场景，不是场景设计，M1 时整体删除替换。
  *
  * 它的唯一用途是验证「Three 初始化 → 主循环 → 渲染 → 单文件产物」整条链路可用，
- * 因此刻意只放中性灰的地面、网格、方块与一盏光：**不含任何题材内容、
+ * 因此刻意只放中性灰的地面、网格与方块：光照由 06-world 的 LightingRig 统一提供，**不含任何题材内容、
  * 不含建筑构件、不含文字、不含宗教元素**。
  *
  * 资源释放由 04-engine 的 dispose() 统一遍历 scene 完成，本模块不重复释放。
@@ -47,10 +39,6 @@ export function createPlaceholderWorld(scene: Scene): WorldHandle {
   );
   marker.position.set(0, 0.4, 0);
   root.add(marker);
-
-  const sun = new DirectionalLight(0xffffff, 1.6);
-  sun.position.set(4, 8, 5);
-  root.add(sun);
 
   scene.add(root);
 

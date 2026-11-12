@@ -22,6 +22,11 @@ export const RENDER = Object.freeze({
   fixedStepMs: 1000 / 60,
   /** 单帧时间上限：切后台回来时防止一次补算上千帧导致卡死。 */
   maxFrameDeltaMs: 250,
+  /** 天空穹顶半径使用远裁剪面的比例，保证相机始终在穹顶内部。 */
+  skyDomeRadiusFactor: 0.95,
+  /** 穹顶只负责渐变背景，分段数控制在足够平滑与低端机成本之间。 */
+  skyDomeWidthSegments: 32,
+  skyDomeHeightSegments: 16,
   cameraStart: Object.freeze({ x: 0, y: 1.7, z: 6 }),
   /** 冒烟占位地面尺寸，M1 场景落地后由场景配置取代。 */
   placeholderGroundSize: 24,
@@ -31,6 +36,7 @@ export const QUALITY_PROFILES: Readonly<Record<QualityTier, QualityProfile>> = O
   low: Object.freeze({
     pixelRatioCap: 1,
     shadow: false,
+    shadowMapSize: 0,
     antialias: false,
     anisotropy: 1,
     maxLights: 1,
@@ -38,6 +44,7 @@ export const QUALITY_PROFILES: Readonly<Record<QualityTier, QualityProfile>> = O
   medium: Object.freeze({
     pixelRatioCap: 1.25,
     shadow: false,
+    shadowMapSize: 0,
     antialias: true,
     anisotropy: 2,
     maxLights: 2,
@@ -45,6 +52,7 @@ export const QUALITY_PROFILES: Readonly<Record<QualityTier, QualityProfile>> = O
   high: Object.freeze({
     pixelRatioCap: 1.75,
     shadow: true,
+    shadowMapSize: 1024,
     antialias: true,
     anisotropy: 4,
     maxLights: 3,
@@ -52,6 +60,7 @@ export const QUALITY_PROFILES: Readonly<Record<QualityTier, QualityProfile>> = O
   ultra: Object.freeze({
     pixelRatioCap: 2,
     shadow: true,
+    shadowMapSize: 2048,
     antialias: true,
     anisotropy: 8,
     maxLights: 4,

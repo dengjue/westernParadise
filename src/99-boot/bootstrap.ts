@@ -1,5 +1,14 @@
 import type { AppEventMap } from '@/00-types';
-import { APP, COPY, QUALITY_PROFILES, RENDER } from '@/01-shared';
+import {
+  APP,
+  COPY,
+  DEFAULT_TIME_OF_DAY_ID,
+  DEFAULT_WEATHER_ID,
+  QUALITY_PROFILES,
+  RENDER,
+  TIME_OF_DAY_PRESETS,
+  WEATHER_PRESETS,
+} from '@/01-shared';
 import { Clock, EventBus, Logger, Rng, toError } from '@/02-core';
 import {
   detectCapabilities,
@@ -11,7 +20,7 @@ import {
   writeStoredQuality,
 } from '@/03-platform';
 import { createSceneContext, Loop } from '@/04-engine';
-import { createPlaceholderWorld } from '@/06-world';
+import { createPlaceholderWorld, LightingRig, SkyDome } from '@/06-world';
 import { mountUi } from '@/08-ui';
 import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics';
 
@@ -91,6 +100,18 @@ function start(): () => void {
     pixelRatio: capabilities.pixelRatio,
     profile,
   });
+  const lightingRig = new LightingRig({
+    scene: context.scene,
+    renderer: context.rendering.renderer,
+    profile,
+    timeOfDay: TIME_OF_DAY_PRESETS[DEFAULT_TIME_OF_DAY_ID],
+    weather: WEATHER_PRESETS[DEFAULT_WEATHER_ID],
+  });
+  const skyDome = new SkyDome({
+    scene: context.scene,
+    timeOfDay: TIME_OF_DAY_PRESETS[DEFAULT_TIME_OF_DAY_ID],
+    weather: WEATHER_PRESETS[DEFAULT_WEATHER_ID],
+  });
   // 占位场景只用于验证链路；M1 落地真实庭院时整体替换此调用。
   const world = createPlaceholderWorld(context.scene);
   const clock = new Clock(RENDER.fixedStepMs, RENDER.maxFrameDeltaMs);
@@ -155,6 +176,8 @@ function start(): () => void {
     window.removeEventListener('resize', onResize);
     window.removeEventListener('pagehide', dispose);
     removeTrap();
+    skyDome.dispose();
+    lightingRig.dispose();
     context.dispose();
     ui.dispose();
     events.clear();

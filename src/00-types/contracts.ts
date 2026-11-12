@@ -75,6 +75,7 @@ export interface GuideEntry {
 export interface QualityProfile {
   readonly pixelRatioCap: number;
   readonly shadow: boolean;
+  readonly shadowMapSize: number;
   readonly antialias: boolean;
   readonly anisotropy: number;
   readonly maxLights: number;
