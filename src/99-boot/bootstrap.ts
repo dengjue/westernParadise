@@ -2,12 +2,11 @@ import type { AppEventMap } from '@/00-types';
 import {
   APP,
   COPY,
-  DEFAULT_TIME_OF_DAY_ID,
-  DEFAULT_WEATHER_ID,
   QUALITY_PROFILES,
   RENDER,
   TIME_OF_DAY_PRESETS,
   WEATHER_PRESETS,
+  createRegistry,
 } from '@/01-shared';
 import { Clock, EventBus, Logger, Rng, toError } from '@/02-core';
 import {
@@ -53,7 +52,12 @@ function showFallbackFatal(detail: string): void {
     hint.textContent = COPY.fatalHint;
     const about = document.createElement('small');
     about.textContent = COPY.about;
-    panel.append(heading, body, hint, about);
+    const retry = document.createElement('button');
+    retry.className = 'fatal-retry';
+    retry.type = 'button';
+    retry.textContent = COPY.fatalRetry;
+    retry.addEventListener('click', () => window.location.reload());
+    panel.append(heading, body, hint, about, retry);
     root.append(panel);
   } catch {
     console.error('[boot] 致命错误且无法上屏：', detail);
@@ -81,7 +85,17 @@ function start(): () => void {
       logger.error('事件订阅异常', String(type), error);
     },
   });
+  const rng = new Rng(params.seed);
   const ui = mountUi(root, { capabilities, smoke: params.smoke });
+  let loop: Loop | null = null;
+  const removeTrap = installFatalTrap((phase, error) => {
+    logger.error('未处理错误', phase, error);
+    const detail = `${phase}: ${error.message}`;
+    markFatal(detail);
+    ui.showFatal(COPY.fatalTitle, detail);
+    events.emit('app:fatal', { error, phase });
+    loop?.stop();
+  });
 
   // ── 3. 无 WebGL 兜底：明确告知，不做静默降级 ────────────────────────
   if (capabilities.webgl === 'none') {
@@ -89,6 +103,7 @@ function start(): () => void {
     markFatal(COPY.noWebgl);
     events.emit('app:fatal', { error: new Error(COPY.noWebgl), phase: 'webgl-check' });
     return () => {
+      removeTrap();
       ui.dispose();
     };
   }
@@ -104,25 +119,29 @@ function start(): () => void {
     scene: context.scene,
     renderer: context.rendering.renderer,
     profile,
-    timeOfDay: TIME_OF_DAY_PRESETS[DEFAULT_TIME_OF_DAY_ID],
-    weather: WEATHER_PRESETS[DEFAULT_WEATHER_ID],
+    timeOfDay: TIME_OF_DAY_PRESETS[params.tod],
+    weather: WEATHER_PRESETS[params.weather],
   });
   const skyDome = new SkyDome({
     scene: context.scene,
-    timeOfDay: TIME_OF_DAY_PRESETS[DEFAULT_TIME_OF_DAY_ID],
-    weather: WEATHER_PRESETS[DEFAULT_WEATHER_ID],
+    timeOfDay: TIME_OF_DAY_PRESETS[params.tod],
+    weather: WEATHER_PRESETS[params.weather],
   });
   // 占位场景只用于验证链路；M1 落地真实庭院时整体替换此调用。
   const world = createPlaceholderWorld(context.scene);
   const clock = new Clock(RENDER.fixedStepMs, RENDER.maxFrameDeltaMs);
-  const rng = new Rng(params.seed);
+  const registry = createRegistry<unknown>();
+  registry.register('world', world);
+  registry.register('lighting', { lightingRig, skyDome });
+  registry.freeze();
 
-  const loop = new Loop({
+  loop = new Loop({
     clock,
     events,
     onStep: capabilities.reducedMotion ? noop : (deltaMs) => world.update(deltaMs),
     onRender: () => context.render(),
   });
+  const activeLoop = loop;
 
   // ── 5. 事件接线 ───────────────────────────────────────────────────
   const onResize = (): void => {
@@ -133,23 +152,12 @@ function start(): () => void {
   };
   window.addEventListener('resize', onResize);
 
-  const removeTrap = installFatalTrap((phase, error) => {
-    logger.error('未处理错误', phase, error);
-    const detail = `${phase}: ${error.message}`;
-    markFatal(detail);
-    ui.showFatal(COPY.fatalTitle, detail);
-    events.emit('app:fatal', { error, phase });
-    loop.stop();
-  });
-
-  installDebugProbe(params.debug || params.smoke || params.bench, {
-    version: APP.version,
-    quality: decision.tier,
-    seed: rng.seed,
-    capabilities,
+  installDebugProbe(import.meta.env.DEV || params.debug, {
     events,
-    clock,
-    loop,
+    rng,
+    tod: params.tod,
+    weather: params.weather,
+    quality: decision.tier,
   });
 
   // ── 6. 用户可见提示 ───────────────────────────────────────────────
@@ -160,7 +168,7 @@ function start(): () => void {
     ui.showNotice(COPY.lowEnd);
   }
 
-  loop.start();
+  activeLoop.start();
   events.emit('app:ready', { startedAt: Date.now() });
   logger.info('启动完成', {
     version: APP.version,
@@ -172,7 +180,7 @@ function start(): () => void {
 
   // ── 7. 统一释放 ───────────────────────────────────────────────────
   const dispose = (): void => {
-    loop.stop();
+    activeLoop.stop();
     window.removeEventListener('resize', onResize);
     window.removeEventListener('pagehide', dispose);
     removeTrap();

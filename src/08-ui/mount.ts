@@ -73,7 +73,12 @@ export function mountUi(root: HTMLElement, options: UiOptions): UiHandle {
       const body = element('p', 'fatal-detail', detail);
       const hint = element('p', 'fatal-hint', COPY.fatalHint);
       const about = element('small', 'fatal-about', COPY.about);
-      fatalPanel.append(heading, body, hint, about);
+      const retry = document.createElement('button');
+      retry.className = 'fatal-retry';
+      retry.type = 'button';
+      retry.textContent = COPY.fatalRetry;
+      retry.addEventListener('click', () => window.location.reload());
+      fatalPanel.append(heading, body, hint, about, retry);
       root.append(fatalPanel);
       viewport.hidden = true;
     },

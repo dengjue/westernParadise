@@ -10,7 +10,7 @@ import buildBudget from './build-budget.json';
 export const APP = Object.freeze({
   name: '数字庭院',
   version: '0.0.1',
-  about: '技术探索原型，非宗教信息服务，不对外提供宗教内容。',
+  about: '技术探索原型，仅供本地离线使用，不对外提供宗教信息服务。',
 } as const);
 
 export const RENDER = Object.freeze({

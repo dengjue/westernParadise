@@ -1,4 +1,5 @@
 export { parseParams } from './parseParams';
+export type { ParamsWarning } from './parseParams';
 export { detectCapabilities, readBrowserEnv } from './detectCapabilities';
 export { selectQuality } from './selectQuality';
 export type { QualityDecision } from './selectQuality';

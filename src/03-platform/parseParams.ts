@@ -1,5 +1,14 @@
-import type { PlatformParams, QualityTier } from '@/00-types';
-import { DEFAULT_SEED, QUALITY_ORDER } from '@/01-shared';
+import type { PlatformParams, QualityTier, TimeOfDayId, WeatherId } from '@/00-types';
+import {
+  DEFAULT_SEED,
+  DEFAULT_TIME_OF_DAY_ID,
+  DEFAULT_WEATHER_ID,
+  QUALITY_ORDER,
+  TIME_OF_DAY_PRESETS,
+  WEATHER_PRESETS,
+} from '@/01-shared';
+
+export type ParamsWarning = (message: string) => void;
 
 /**
  * 解析 URL 调试参数。
@@ -13,6 +22,10 @@ import { DEFAULT_SEED, QUALITY_ORDER } from '@/01-shared';
  */
 
 const FALSE_TOKENS: ReadonlySet<string> = new Set(['0', 'false', 'off', 'no']);
+
+const defaultWarning: ParamsWarning = (message) => {
+  console.warn(`[parseParams] ${message}`);
+};
 
 function flag(params: URLSearchParams, name: string): boolean {
   if (!params.has(name)) {
@@ -41,10 +54,36 @@ function parseSeed(raw: string | null): number {
   return value >>> 0;
 }
 
-export function parseParams(search: string): PlatformParams {
+function parseTimeOfDay(raw: string | null, warn: ParamsWarning): TimeOfDayId {
+  const normalized = raw?.trim().toLowerCase();
+  if (normalized === undefined || normalized === '') {
+    return DEFAULT_TIME_OF_DAY_ID;
+  }
+  if (Object.hasOwn(TIME_OF_DAY_PRESETS, normalized)) {
+    return normalized as TimeOfDayId;
+  }
+  warn(`非法 tod 参数「${raw}」，已回落到 ${DEFAULT_TIME_OF_DAY_ID}`);
+  return DEFAULT_TIME_OF_DAY_ID;
+}
+
+function parseWeather(raw: string | null, warn: ParamsWarning): WeatherId {
+  const normalized = raw?.trim().toLowerCase();
+  if (normalized === undefined || normalized === '') {
+    return DEFAULT_WEATHER_ID;
+  }
+  if (Object.hasOwn(WEATHER_PRESETS, normalized)) {
+    return normalized as WeatherId;
+  }
+  warn(`非法 weather 参数「${raw}」，已回落到 ${DEFAULT_WEATHER_ID}`);
+  return DEFAULT_WEATHER_ID;
+}
+
+export function parseParams(search: string, warn: ParamsWarning = defaultWarning): PlatformParams {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
   return Object.freeze({
     quality: parseQuality(params.get('quality') ?? params.get('q')),
+    tod: parseTimeOfDay(params.get('tod'), warn),
+    weather: parseWeather(params.get('weather'), warn),
     seed: parseSeed(params.get('seed')),
     bench: flag(params, 'bench'),
     smoke: flag(params, 'smoke'),

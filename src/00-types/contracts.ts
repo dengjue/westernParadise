@@ -96,6 +96,8 @@ export interface Capabilities {
 /** URL 调试参数。quality 为 null 表示未显式指定，交给设备能力自动决策。 */
 export interface PlatformParams {
   readonly quality: QualityTier | null;
+  readonly tod: TimeOfDayId;
+  readonly weather: WeatherId;
   readonly seed: number;
   readonly bench: boolean;
   readonly smoke: boolean;

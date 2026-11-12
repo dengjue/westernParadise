@@ -32,6 +32,7 @@ export const COPY = Object.freeze({
   lowEnd: '检测到设备性能有限，已自动降低画质。',
   fatalTitle: '无法启动',
   fatalHint: '请刷新页面重试；若持续出现，请查看控制台错误信息。',
+  fatalRetry: '重新加载',
   about: APP.about,
   smokeBadge: '工程冒烟验证 · 占位场景',
   timeOfDay: Object.freeze({
