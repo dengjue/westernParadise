@@ -424,6 +424,47 @@ function createHall(root: Group, materials: CourtyardMaterials): void {
     );
   }
 
+  const bracket = hall.bracket;
+  for (const [index, x] of hall.columnXs.entries()) {
+    const bracketBaseY = baseY + hall.columnHeight - bracket.baseOffset;
+    addBox(
+      root,
+      `main-hall-bracket-${index}-lower`,
+      bracket.lowerWidth,
+      bracket.layerHeight,
+      bracket.lowerDepth,
+      materials.wood,
+      x,
+      bracketBaseY,
+      hall.frontZ,
+      true,
+    );
+    addBox(
+      root,
+      `main-hall-bracket-${index}-middle`,
+      bracket.middleWidth,
+      bracket.layerHeight,
+      bracket.middleDepth,
+      materials.wood,
+      x,
+      bracketBaseY + bracket.layerGap,
+      hall.frontZ,
+      true,
+    );
+    addBox(
+      root,
+      `main-hall-bracket-${index}-upper`,
+      bracket.upperWidth,
+      bracket.layerHeight,
+      bracket.upperDepth,
+      materials.wood,
+      x,
+      bracketBaseY + bracket.layerGap * 2,
+      hall.frontZ,
+      true,
+    );
+  }
+
   const roofHalfSpan = halfWidth + hall.roofEave;
   const roofSlopeLength = Math.hypot(roofHalfSpan, hall.roofRise);
   const roofPitch = Math.atan2(hall.roofRise, roofHalfSpan);
