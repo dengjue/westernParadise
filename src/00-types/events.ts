@@ -1,4 +1,4 @@
-import type { QualityTier } from './contracts';
+import type { GuideId, QualityTier, TimeOfDayId, WeatherId } from './contracts';
 
 /**
  * 事件总线契约。
@@ -23,6 +23,13 @@ export interface AppEventMap {
   'app:resize': { readonly width: number; readonly height: number };
   'app:fatal': { readonly error: Error; readonly phase: string };
   'quality:changed': { readonly from: QualityTier; readonly to: QualityTier };
+  'tod:request': { readonly to: TimeOfDayId };
+  'tod:changed': { readonly from: TimeOfDayId; readonly to: TimeOfDayId };
+  'weather:request': { readonly to: WeatherId };
+  'weather:changed': { readonly from: WeatherId; readonly to: WeatherId };
+  'guide:show': { readonly id: GuideId; readonly title: string; readonly body: string };
+  'guide:hide': { readonly id: GuideId };
+  'player:boundsExceeded': { readonly x: number; readonly z: number };
 }
 
 export interface EventBusLike<M extends object> {

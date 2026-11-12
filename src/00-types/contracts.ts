@@ -6,6 +6,71 @@
 /** 画质档位，低 → 高。顺序与 01-shared/config.ts 的 QUALITY_ORDER 一致。 */
 export type QualityTier = 'low' | 'medium' | 'high' | 'ultra';
 
+/** M1 只允许三个离散时段，避免配置层提前引入连续插值语义。 */
+export type TimeOfDayId = 'dawn' | 'noon' | 'dusk';
+
+/** M1 的天气开关只提供晴与雾，粒子天气留到后续阶段。 */
+export type WeatherId = 'clear' | 'mist';
+
+/** 导览点 ID 与文案表一一对应，避免构件和文案键在运行时错配。 */
+export type GuideId = 'taiji' | 'zhulie' | 'wuyan' | 'puzhuang';
+
+/** 玩家活动边界的水平 AABB，坐标统一采用世界空间 x / z 轴。 */
+export interface WorldBounds {
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+}
+
+/** 时段光照预设：渲染器一次性读取整组参数，不在配置层做插值。 */
+export interface TimeOfDayPreset {
+  readonly id: TimeOfDayId;
+  readonly label: string;
+  readonly sun: {
+    readonly elevationDeg: number;
+    readonly azimuthDeg: number;
+    readonly colorHex: number;
+    readonly intensity: number;
+  };
+  readonly ambient: {
+    readonly colorHex: number;
+    readonly intensity: number;
+  };
+  readonly skyTopHex: number;
+  readonly skyBottomHex: number;
+  readonly fog: {
+    readonly colorHex: number;
+    readonly near: number;
+    readonly far: number;
+  };
+  readonly exposure: number;
+}
+
+/** 天气预设只描述渲染侧需要的参数，windStrength 先占位不驱动粒子。 */
+export interface WeatherPreset {
+  readonly id: WeatherId;
+  readonly label: string;
+  readonly fogScale: {
+    readonly near: number;
+    readonly far: number;
+  };
+  readonly skyTintHex: number;
+  readonly windStrength: number;
+}
+
+/** 单个建筑导览触发点；事件层会把文案解析结果直接带给 UI。 */
+export interface GuideEntry {
+  readonly id: GuideId;
+  readonly copyKey: GuideId;
+  readonly position: {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+  };
+  readonly radius: number;
+}
+
 /** 单个画质档位的具体渲染参数，集中配置，禁止散落到渲染逻辑里。 */
 export interface QualityProfile {
   readonly pixelRatioCap: number;
