@@ -1,0 +1,41 @@
+# macOS 系统文件
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Python 运行/编译缓存（分析脚本 scan_single_html.py 可复跑，产物已在 04-数据/）
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 编辑器 / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 本地私有配置（凭证、token、环境变量，绝不入库）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 临时/构建产物（阶段 1 之后若引入构建链再按需调整）
+tmp/
+temp/
+*.tmp
+*.log
+node_modules/
+dist/
+
+# 注意：04-数据/ 下的导出文件是本次探索的交付成果，属于需入库内容，不可忽略。

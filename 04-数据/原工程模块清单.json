@@ -1,0 +1,163 @@
+{
+  "filenames": [
+    "01-shared.js",
+    "02-render.js",
+    "03-mats.js",
+    "04-physics.js",
+    "05-props.js",
+    "06-level.js",
+    "07-backdrop.js",
+    "08-ground.js",
+    "10-audio.js",
+    "12-player.js",
+    "14-enemies.js",
+    "16-game.js",
+    "30-maps.js",
+    "31-port-routes.js",
+    "40-frost-level.js",
+    "41-frost-backdrop.js",
+    "42-frost-ground.js",
+    "43-frost-map.js",
+    "44-nav-layers.js",
+    "45-frost-nav.js",
+    "46-frost-snowcover.js",
+    "47-frost-shell.js",
+    "47-frost-shell2-steel.js",
+    "47-frost-shell3-pods.js",
+    "47-frost-shell4-station.js",
+    "47-frost-shell5-merge.js",
+    "48-frost-dress-outdoor.js",
+    "49-frost-dress-interior.js",
+    "50-frost-props-structures.js",
+    "55-frost-sky.js",
+    "56-frost-weather.js",
+    "57-frost-audio.js",
+    "60-walktest.js",
+    "61-navtest.js",
+    "99-boot.js",
+    "game/ui.css"
+  ],
+  "total": 36,
+  "groups": {
+    "audio": [
+      "10-audio.js"
+    ],
+    "backdrop": [
+      "07-backdrop.js"
+    ],
+    "boot": [
+      "99-boot.js"
+    ],
+    "enemies": [
+      "14-enemies.js"
+    ],
+    "frost-audio": [
+      "57-frost-audio.js"
+    ],
+    "frost-backdrop": [
+      "41-frost-backdrop.js"
+    ],
+    "frost-dress-interior": [
+      "49-frost-dress-interior.js"
+    ],
+    "frost-dress-outdoor": [
+      "48-frost-dress-outdoor.js"
+    ],
+    "frost-ground": [
+      "42-frost-ground.js"
+    ],
+    "frost-level": [
+      "40-frost-level.js"
+    ],
+    "frost-map": [
+      "43-frost-map.js"
+    ],
+    "frost-nav": [
+      "45-frost-nav.js"
+    ],
+    "frost-props-structures": [
+      "50-frost-props-structures.js"
+    ],
+    "frost-shell": [
+      "47-frost-shell.js"
+    ],
+    "frost-shell2-steel": [
+      "47-frost-shell2-steel.js"
+    ],
+    "frost-shell3-pods": [
+      "47-frost-shell3-pods.js"
+    ],
+    "frost-shell4-station": [
+      "47-frost-shell4-station.js"
+    ],
+    "frost-shell5-merge": [
+      "47-frost-shell5-merge.js"
+    ],
+    "frost-sky": [
+      "55-frost-sky.js"
+    ],
+    "frost-snowcover": [
+      "46-frost-snowcover.js"
+    ],
+    "frost-weather": [
+      "56-frost-weather.js"
+    ],
+    "game": [
+      "16-game.js"
+    ],
+    "ground": [
+      "08-ground.js"
+    ],
+    "level": [
+      "06-level.js"
+    ],
+    "maps": [
+      "30-maps.js"
+    ],
+    "mats": [
+      "03-mats.js"
+    ],
+    "nav-layers": [
+      "44-nav-layers.js"
+    ],
+    "navtest": [
+      "61-navtest.js"
+    ],
+    "other": [
+      "game/ui.css"
+    ],
+    "physics": [
+      "04-physics.js"
+    ],
+    "player": [
+      "12-player.js"
+    ],
+    "port-routes": [
+      "31-port-routes.js"
+    ],
+    "props": [
+      "05-props.js"
+    ],
+    "render": [
+      "02-render.js"
+    ],
+    "shared": [
+      "01-shared.js"
+    ],
+    "walktest": [
+      "60-walktest.js"
+    ]
+  },
+  "file_marker_comments": [
+    "99-boot.js",
+    "04-physics.js",
+    "14-enemies.js",
+    "40-frost-level.js",
+    "47-frost-shell.js",
+    "47-frost-shell2-steel.js",
+    "47-frost-shell3-pods.js",
+    "47-frost-shell4-station.js",
+    "47-frost-shell5-merge.js",
+    "47-frost-shell.js"
+  ]
+}
