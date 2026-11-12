@@ -1,5 +1,14 @@
-import type { Capabilities } from '@/00-types';
-import { APP, COPY } from '@/01-shared';
+import type {
+  AppEventMap,
+  Capabilities,
+  EventBusLike,
+  QualityTier,
+  TimeOfDayId,
+  WeatherId,
+} from '@/00-types';
+import { COPY } from '@/01-shared';
+import { mountGuidePanel } from './GuidePanel';
+import { mountHud } from './Hud';
 
 /**
  * DOM HUD 挂载。
@@ -11,6 +20,10 @@ import { APP, COPY } from '@/01-shared';
 
 export interface UiOptions {
   readonly capabilities: Capabilities;
+  readonly events: EventBusLike<AppEventMap>;
+  readonly quality: QualityTier;
+  readonly timeOfDay: TimeOfDayId;
+  readonly weather: WeatherId;
   readonly smoke: boolean;
 }
 
@@ -33,36 +46,35 @@ function element(tag: string, className: string, text?: string): HTMLElement {
 }
 
 export function mountUi(root: HTMLElement, options: UiOptions): UiHandle {
-  const { capabilities, smoke } = options;
+  const { capabilities } = options;
   document.documentElement.classList.toggle('is-touch', capabilities.touch);
   document.documentElement.classList.toggle('is-reduced', capabilities.reducedMotion);
 
   const viewport = element('div', 'viewport');
-  const hud = element('div', 'hud');
-  const status = element('div', 'hud-status', COPY.loading);
-  const badge = element('div', 'hud-badge', APP.name);
-  const notice = element('div', 'hud-notice');
-  notice.hidden = true;
-
-  hud.append(badge, status, notice);
-  root.append(viewport, hud);
-
-  if (smoke) {
-    const smokeBadge = element('div', 'hud-badge', COPY.smokeBadge);
-    smokeBadge.style.top = `calc(40px + var(--sat))`;
-    hud.append(smokeBadge);
-  }
+  root.append(viewport);
+  const hud = mountHud({
+    parent: root,
+    events: options.events,
+    quality: options.quality,
+    timeOfDay: options.timeOfDay,
+    weather: options.weather,
+    smoke: options.smoke,
+  });
+  const guidePanel = mountGuidePanel({
+    parent: root,
+    events: options.events,
+    reducedMotion: capabilities.reducedMotion,
+  });
 
   let fatalPanel: HTMLElement | null = null;
 
   return {
     viewport,
     setStatus(text) {
-      status.textContent = text;
+      hud.setStatus(text);
     },
     showNotice(text) {
-      notice.textContent = text;
-      notice.hidden = false;
+      hud.showNotice(text);
     },
     showFatal(title, detail) {
       if (fatalPanel) {
@@ -83,8 +95,9 @@ export function mountUi(root: HTMLElement, options: UiOptions): UiHandle {
       viewport.hidden = true;
     },
     dispose() {
+      guidePanel.dispose();
+      hud.dispose();
       viewport.remove();
-      hud.remove();
       fatalPanel?.remove();
       document.documentElement.classList.remove('is-touch', 'is-reduced');
     },

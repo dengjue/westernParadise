@@ -15,8 +15,9 @@
 **不要直接改它**：标识符已混淆（`gf` / `M2` / `oi` / `en`）、无 source map、最长单行 23.8 万字符。
 正确用法是把它当**规格书**，抽取可复用的设计，重新生成可读代码。
 
-**当前进度**：阶段 0 资料沉淀 + 阶段 2.A 工程底座已完成并通过 `npm run verify`；
-玩法与场景内容**尚未开发**，等 `AGENT_TODO.md` 阶段 1 的方向决策。仓库为工蜂私有。
+**当前进度**：阶段 0 资料沉淀、阶段 2.A 工程底座，以及阶段 2.B1~2.B6
+（配置、渲染、启动装配、第三人称漫游骨架、HUD、建筑说明面板与首个程序化庭院）已完成并通过
+`npm run verify`；版本已升至 0.1.0。仓库为工蜂私有。
 
 ---
 
@@ -69,7 +70,7 @@ npm run verify         # 一条命令跑完所有门禁 + 两种构建（CI 复�
 |---|---|
 | `npm run typecheck` | TypeScript `strict` 类型检查 |
 | `npm run lint` / `format:check` | ESLint / Prettier 一致性 |
-| `npm run test` | Vitest（6 文件 / 53 用例，纯 Node 环境） |
+| `npm run test` | Vitest（11 文件 / 76 用例，纯 Node 环境） |
 | `npm run check:layers` | 单向依赖、目录入口、浏览器 API 边界、循环依赖 |
 | `npm run check:content` | 源码与文案的宗教红线词扫描（37 词） |
 | `npm run build` | `dist/site/` 多文件站点产物 |
@@ -81,7 +82,7 @@ npm run verify         # 一条命令跑完所有门禁 + 两种构建（CI 复�
 核心层因此可在 Node 里直接测。详见 `02-方案/04-工程化架构设计.md` 第 2 节。
 
 **双产物**：`dist/site/` 供将来部署；`dist/single/index.html` 供断网双击、微信转发。
-2026-11-12 实测单文件 **549,981 字节（0.525 MiB）**，约为参考件的 19%。
+2026-11-12 实测单文件 **591,558 字节（0.564 MiB）**，约为参考件的 20%。
 `dist/`、`reports/`、`node_modules/` 均不入库。
 
 **调试参数**：`?q=low|medium|high|ultra`、`?seed=`、`?bench`、`?smoke`、`?debug`、`?noaudio`。
@@ -119,12 +120,13 @@ python3 scan_single_html.py --extract-css --extract-js   # 同时导出内联 CS
 
 **阶段 2.A 的边界**：`npm run verify` 全绿只证明类型、分层、测试、构建与**产物静态零外链**。
 `dist/single/index.html` 的**断网实玩、像素正确性、移动端与帧率**仍属人工验收，尚未执行；
-触控输入也还在阶段 2.B4。静态扫描不冒充运行时实测，见架构文档第 11 节验收清单。
+触控输入仍只保留接口，静态扫描不冒充运行时实测；2.B4~2.B6 的桌面开发页走查已完成，
+见实施规范第 5~8 节。断网双击与 Network 复核仍需在目标交付环境复跑。
 
 ---
 
 ## 下一步
 
-打开 `AGENT_TODO.md`：阶段 1 有五项待你拍板（题材边界、玩法主线、视角、文字尺度、M1 验收），
-它们**阻塞阶段 2.B 及之后的内容开发**，但不阻塞已完成的工程底座。
+打开 `AGENT_TODO.md`：阶段 2.B 的 M1 闭环已完成，下一步进入阶段 3 内容与氛围。
+每项仍要按实施规范回归并通过 `npm run verify`。
 需要我推进时，按你的习惯回「开始」或「继续」即可。

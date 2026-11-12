@@ -8,6 +8,8 @@ export type {
   WeatherId,
   GuideId,
   WorldBounds,
+  HorizontalAabb,
+  GroundHeightArea,
   TimeOfDayPreset,
   WeatherPreset,
   GuideEntry,

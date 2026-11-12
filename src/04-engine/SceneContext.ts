@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Scene } from 'three';
+import { PerspectiveCamera, Scene, Texture } from 'three';
 import type { Material } from 'three';
 import type { QualityProfile } from '@/00-types';
 import { RENDER } from '@/01-shared';
@@ -34,12 +34,49 @@ interface HasDisposableParts {
   readonly material?: Material | Material[];
 }
 
+const MATERIAL_TEXTURE_KEYS = Object.freeze([
+  'alphaMap',
+  'aoMap',
+  'bumpMap',
+  'clearcoatMap',
+  'clearcoatNormalMap',
+  'clearcoatRoughnessMap',
+  'displacementMap',
+  'emissiveMap',
+  'envMap',
+  'iridescenceMap',
+  'lightMap',
+  'map',
+  'metalnessMap',
+  'normalMap',
+  'roughnessMap',
+  'sheenColorMap',
+  'sheenRoughnessMap',
+  'specularColorMap',
+  'specularIntensityMap',
+  'thicknessMap',
+  'transmissionMap',
+] as const);
+
 function hasDisposableParts(value: object): value is object & HasDisposableParts {
   return 'geometry' in value || 'material' in value;
 }
 
-/** 统一释放几何体与材质。长时间运行时不释放会持续占用 GPU 显存。 */
+function disposeMaterial(material: Material, textures: Set<Texture>): void {
+  const candidate = material as Material & Record<string, unknown>;
+  for (const key of MATERIAL_TEXTURE_KEYS) {
+    const value = candidate[key];
+    if (value instanceof Texture && !textures.has(value)) {
+      textures.add(value);
+      value.dispose();
+    }
+  }
+  material.dispose();
+}
+
+/** 统一释放几何体、材质与材质贴图，长时间运行时不释放会持续占用 GPU 显存。 */
 function disposeObjectTree(root: Scene): void {
+  const textures = new Set<Texture>();
   root.traverse((object) => {
     if (!hasDisposableParts(object)) {
       return;
@@ -49,10 +86,12 @@ function disposeObjectTree(root: Scene): void {
     const materials = candidate.material;
     if (Array.isArray(materials)) {
       for (const material of materials) {
-        material.dispose();
+        disposeMaterial(material, textures);
       }
     } else {
-      materials?.dispose();
+      if (materials !== undefined) {
+        disposeMaterial(materials, textures);
+      }
     }
   });
 }

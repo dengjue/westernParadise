@@ -2,10 +2,12 @@ import type { AppEventMap } from '@/00-types';
 import {
   APP,
   COPY,
+  GUIDE_ENTRIES,
   QUALITY_PROFILES,
   RENDER,
   TIME_OF_DAY_PRESETS,
   WEATHER_PRESETS,
+  WORLD,
   createRegistry,
 } from '@/01-shared';
 import { Clock, EventBus, Logger, Rng, toError } from '@/02-core';
@@ -19,7 +21,14 @@ import {
   writeStoredQuality,
 } from '@/03-platform';
 import { createSceneContext, Loop } from '@/04-engine';
-import { createPlaceholderWorld, LightingRig, SkyDome } from '@/06-world';
+import { createCourtyardWorld, LightingRig, SkyDome } from '@/06-world';
+import {
+  Character,
+  FollowCamera,
+  GuideTriggers,
+  KeyboardMouseInput,
+  StaticColliders,
+} from '@/07-systems';
 import { mountUi } from '@/08-ui';
 import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics';
 
@@ -86,7 +95,14 @@ function start(): () => void {
     },
   });
   const rng = new Rng(params.seed);
-  const ui = mountUi(root, { capabilities, smoke: params.smoke });
+  const ui = mountUi(root, {
+    capabilities,
+    events,
+    quality: decision.tier,
+    timeOfDay: params.tod,
+    weather: params.weather,
+    smoke: params.smoke,
+  });
   let loop: Loop | null = null;
   const removeTrap = installFatalTrap((phase, error) => {
     logger.error('未处理错误', phase, error);
@@ -127,23 +143,83 @@ function start(): () => void {
     timeOfDay: TIME_OF_DAY_PRESETS[params.tod],
     weather: WEATHER_PRESETS[params.weather],
   });
-  // 占位场景只用于验证链路；M1 落地真实庭院时整体替换此调用。
-  const world = createPlaceholderWorld(context.scene);
+  const canvasFactory = (width: number, height: number): HTMLCanvasElement => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  };
+  const world = createCourtyardWorld(context.scene, {
+    canvasFactory,
+    seed: rng.seed,
+    anisotropy: profile.anisotropy,
+  });
+  const input = new KeyboardMouseInput({
+    keyboardTarget: window,
+    pointerTarget: window,
+    lookSensitivityRadPerPixel: WORLD.camera.lookSensitivityRadPerPixel,
+  });
+  const colliders = new StaticColliders({ obstacles: WORLD.collision.obstacles });
+  const character = new Character({ parent: context.scene, colliders, events });
+  const followCamera = new FollowCamera({ camera: context.camera, input });
+  followCamera.snapTo(character.position);
+  const guideTriggers = new GuideTriggers({
+    events,
+    player: character,
+    entries: Object.values(GUIDE_ENTRIES),
+  });
   const clock = new Clock(RENDER.fixedStepMs, RENDER.maxFrameDeltaMs);
   const registry = createRegistry<unknown>();
   registry.register('world', world);
+  registry.register('input', input);
+  registry.register('colliders', colliders);
+  registry.register('character', character);
+  registry.register('followCamera', followCamera);
+  registry.register('guideTriggers', guideTriggers);
   registry.register('lighting', { lightingRig, skyDome });
   registry.freeze();
 
   loop = new Loop({
     clock,
     events,
-    onStep: capabilities.reducedMotion ? noop : (deltaMs) => world.update(deltaMs),
+    onStep: (deltaMs) => {
+      followCamera.updateControls();
+      character.update(deltaMs, input, followCamera.yaw);
+      followCamera.updateFollow(deltaMs, character.position);
+      if (!capabilities.reducedMotion) {
+        world.update(deltaMs);
+      }
+    },
     onRender: () => context.render(),
   });
   const activeLoop = loop;
 
   // ── 5. 事件接线 ───────────────────────────────────────────────────
+  let currentTimeOfDay = params.tod;
+  let currentWeather = params.weather;
+  const removeTimeRequest = events.on('tod:request', ({ to }) => {
+    if (to === currentTimeOfDay) {
+      return;
+    }
+    const from = currentTimeOfDay;
+    currentTimeOfDay = to;
+    lightingRig.applyTimeOfDay(TIME_OF_DAY_PRESETS[to]);
+    skyDome.applyTimeOfDay(TIME_OF_DAY_PRESETS[to]);
+    events.emit('tod:changed', { from, to });
+  });
+  const removeWeatherRequest = events.on('weather:request', ({ to }) => {
+    if (to === currentWeather) {
+      return;
+    }
+    const from = currentWeather;
+    currentWeather = to;
+    lightingRig.applyWeather(WEATHER_PRESETS[to]);
+    skyDome.applyWeather(WEATHER_PRESETS[to]);
+    events.emit('weather:changed', { from, to });
+  });
+  const removeBoundsNotice = events.on('player:boundsExceeded', ({ x, z }) => {
+    logger.debug('玩家触及庭院边界', x, z);
+  });
   const onResize = (): void => {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -158,6 +234,10 @@ function start(): () => void {
     tod: params.tod,
     weather: params.weather,
     quality: decision.tier,
+    scene: context.scene,
+    camera: context.camera,
+    character,
+    world,
   });
 
   // ── 6. 用户可见提示 ───────────────────────────────────────────────
@@ -184,6 +264,11 @@ function start(): () => void {
     window.removeEventListener('resize', onResize);
     window.removeEventListener('pagehide', dispose);
     removeTrap();
+    removeTimeRequest();
+    removeWeatherRequest();
+    removeBoundsNotice();
+    guideTriggers.dispose();
+    input.dispose();
     skyDome.dispose();
     lightingRig.dispose();
     context.dispose();

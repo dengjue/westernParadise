@@ -23,6 +23,19 @@ export interface WorldBounds {
   readonly maxZ: number;
 }
 
+/** 静态碰撞只处理水平投影，避免把 M1 的简单漫游提前耦合到物理引擎。 */
+export interface HorizontalAabb {
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+}
+
+/** 矩形地面高度区域，按配置顺序采样以支持后续叠加台阶。 */
+export interface GroundHeightArea extends HorizontalAabb {
+  readonly height: number;
+}
+
 /** 时段光照预设：渲染器一次性读取整组参数，不在配置层做插值。 */
 export interface TimeOfDayPreset {
   readonly id: TimeOfDayId;

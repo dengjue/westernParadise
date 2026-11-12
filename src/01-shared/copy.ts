@@ -34,7 +34,7 @@ export const COPY = Object.freeze({
   fatalHint: '请刷新页面重试；若持续出现，请查看控制台错误信息。',
   fatalRetry: '重新加载',
   about: APP.about,
-  smokeBadge: '工程冒烟验证 · 占位场景',
+  smokeBadge: '工程冒烟验证 · 程序化庭院',
   timeOfDay: Object.freeze({
     dawn: '晨',
     noon: '午',
@@ -44,9 +44,12 @@ export const COPY = Object.freeze({
     clear: '晴',
     mist: '雾',
   }),
+  qualityLabel: '画质',
+  aboutLabel: '关于',
   switchHint: Object.freeze({
     timeOfDay: '点击切换时段',
     weather: '点击切换天气',
   }),
+  controlsHint: 'WASD 移动 · 右键拖拽视角 · 滚轮缩放',
   guide: GUIDE_COPY,
 } as const);

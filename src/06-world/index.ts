@@ -1,5 +1,5 @@
-export { createPlaceholderWorld } from './createPlaceholderWorld';
-export type { WorldHandle } from './createPlaceholderWorld';
+export { createCourtyardWorld } from './createCourtyardWorld';
+export type { CourtyardWorldOptions, WorldHandle } from './createCourtyardWorld';
 export { LightingRig } from './LightingRig';
 export type { LightingRigOptions } from './LightingRig';
 export { SkyDome } from './SkyDome';

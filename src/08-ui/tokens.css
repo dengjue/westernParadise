@@ -38,6 +38,8 @@
   --gr: calc(12px + var(--sar));
   --dur-fast: 140ms;
   --dur-slow: 420ms;
+  --hud-gap: 8px;
+  --hud-radius: 4px;
 }
 
 * {
@@ -73,21 +75,25 @@ body {
   height: 100%;
 }
 
-/* HUD 整体不吃指针事件，避免挡住后续的漫游交互 */
+/* HUD 整体不吃指针事件，只有按钮和关于面板主动接收交互 */
 .hud {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 10;
+  padding: calc(12px + var(--sat)) var(--gr) calc(12px + var(--sab)) var(--gl);
 }
 
-.hud-badge,
+.hud-top-left,
+.hud-top-right,
+.hud-controls,
 .hud-status,
-.hud-notice {
+.hud-notice,
+.hud-smoke-badge {
   position: absolute;
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--hud-radius);
   background: var(--plate);
   box-shadow: var(--shadow);
   color: var(--bone-dim);
@@ -96,15 +102,108 @@ body {
   letter-spacing: 0.04em;
 }
 
-.hud-badge {
+.hud-top-left {
   top: calc(12px + var(--sat));
   left: var(--gl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hud-gap);
+  align-items: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hud-top-right {
+  top: calc(12px + var(--sat));
+  right: var(--gr);
+  display: flex;
+  gap: var(--hud-gap);
+  align-items: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hud-brand,
+.hud-quality,
+.hud-control {
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--hud-radius);
+  background: var(--plate);
+  box-shadow: var(--shadow);
+  color: var(--bone-dim);
+  font: inherit;
+  letter-spacing: 0.04em;
+}
+
+.hud-brand {
   color: var(--signal);
 }
 
-.hud-status {
-  bottom: calc(12px + var(--sab));
+.hud-state {
+  display: flex;
+  gap: var(--hud-gap);
+}
+
+.hud-control {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.hud-control:hover,
+.hud-control:focus-visible {
+  border-color: var(--signal);
+  color: var(--signal-hot);
+  outline: none;
+}
+
+.hud-about-toggle {
+  color: var(--bone);
+}
+
+.hud-about {
+  position: absolute;
+  top: calc(100% + var(--hud-gap));
+  right: 0;
+  width: min(320px, 72vw);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--hud-radius);
+  background: var(--plate);
+  box-shadow: var(--shadow);
+  color: var(--bone-dim);
+  font-family: var(--f-label);
+  font-size: 12px;
+  line-height: 1.6;
+  pointer-events: auto;
+}
+
+.hud-about[hidden] {
+  display: none;
+}
+
+.hud-smoke-badge {
+  top: calc(54px + var(--sat));
   left: var(--gl);
+  color: var(--bone-faint);
+}
+
+.hud-controls {
+  right: var(--gr);
+  bottom: calc(12px + var(--sab));
+  max-width: min(62vw, 480px);
+  color: var(--bone-faint);
+  text-align: right;
+}
+
+.hud-status {
+  left: var(--gl);
+  bottom: calc(12px + var(--sab));
 }
 
 .hud-notice {
@@ -112,6 +211,71 @@ body {
   left: var(--gl);
   max-width: min(70vw, 420px);
   transition: opacity var(--dur-slow) ease;
+}
+
+.hud-guide-panel {
+  position: fixed;
+  left: 50%;
+  bottom: calc(72px + var(--sab));
+  z-index: 11;
+  width: min(560px, calc(100vw - var(--gl) - var(--gr)));
+  max-height: min(32vh, 280px);
+  padding: 14px 18px 16px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--hud-radius);
+  background: var(--plate);
+  box-shadow: var(--shadow);
+  color: var(--bone-dim);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  transition:
+    opacity var(--dur-slow) ease,
+    transform var(--dur-slow) ease;
+}
+
+.hud-guide-panel.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.hud-guide-title {
+  margin: 0 0 6px;
+  color: var(--signal-hot);
+  font-family: var(--f-display);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.hud-guide-body {
+  margin: 0;
+  color: var(--bone-dim);
+  font-family: var(--f-label);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.is-reduced .hud-guide-panel {
+  transition: none;
+}
+
+@media (max-width: 640px) {
+  .hud-top-right {
+    top: calc(58px + var(--sat));
+  }
+
+  .hud-controls {
+    right: var(--gr);
+    bottom: calc(12px + var(--sab));
+    max-width: 76vw;
+  }
+
+  .hud-guide-panel {
+    bottom: calc(82px + var(--sab));
+    width: calc(100vw - var(--gl) - var(--gr));
+  }
 }
 
 .fatal {
@@ -145,7 +309,10 @@ body {
   font-size: 12px;
 }
 
-.is-touch .hud-badge,
+.is-touch .hud-brand,
+.is-touch .hud-quality,
+.is-touch .hud-control,
+.is-touch .hud-controls,
 .is-touch .hud-status,
 .is-touch .hud-notice {
   font-size: 12px;
