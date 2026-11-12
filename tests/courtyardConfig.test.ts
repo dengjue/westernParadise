@@ -31,6 +31,8 @@ describe('M1 庭院场景配置', () => {
   it('材质参数与纹理尺寸全部冻结，避免启动后漂移', () => {
     expect(Object.isFrozen(MATERIALS)).toBe(true);
     expect(Object.isFrozen(MATERIALS.texture)).toBe(true);
+    expect(Object.isFrozen(MATERIALS.paper)).toBe(true);
+    expect(Object.isFrozen(MATERIALS.moss)).toBe(true);
     expect(MATERIALS.texture.width).toBeGreaterThan(0);
     expect(MATERIALS.texture.height).toBeGreaterThan(0);
     expect(MATERIALS.texture.cellsX).toBeGreaterThan(0);

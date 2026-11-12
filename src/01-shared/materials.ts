@@ -48,6 +48,20 @@ export const MATERIALS = Object.freeze({
     roughness: 0.97,
     metalness: 0,
   } as const),
+  paper: Object.freeze({
+    baseHex: 0xc1bdac,
+    darkHex: 0x8f8a7b,
+    lightHex: 0xe2dcc7,
+    roughness: 0.98,
+    metalness: 0,
+  } as const),
+  moss: Object.freeze({
+    baseHex: 0x607763,
+    darkHex: 0x3f5547,
+    lightHex: 0x84917b,
+    roughness: 1,
+    metalness: 0,
+  } as const),
   leaf: Object.freeze({
     baseHex: 0x536b5c,
     darkHex: 0x2f473d,

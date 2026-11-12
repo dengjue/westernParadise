@@ -424,6 +424,22 @@ function createHall(root: Group, materials: CourtyardMaterials): void {
     );
   }
 
+  const paperScreenZ =
+    backZ + hall.wallThickness / 2 + hall.paperScreenThickness / 2 + hall.paperScreenInset;
+  for (const [index, figure] of WORLD.scene.figures.entries()) {
+    addBox(
+      root,
+      `main-hall-paper-screen-${index}`,
+      hall.paperScreenWidth,
+      hall.paperScreenHeight,
+      hall.paperScreenThickness,
+      materials.paper,
+      figure.x,
+      baseY + hall.paperScreenY,
+      paperScreenZ,
+    );
+  }
+
   const bracket = hall.bracket;
   for (const [index, x] of hall.columnXs.entries()) {
     const bracketBaseY = baseY + hall.columnHeight - bracket.baseOffset;

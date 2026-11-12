@@ -24,6 +24,7 @@ export interface CourtyardMaterials {
   readonly wood: MeshStandardMaterial;
   readonly tile: MeshStandardMaterial;
   readonly paving: MeshStandardMaterial;
+  readonly paper: MeshStandardMaterial;
   readonly leaf: MeshStandardMaterial;
   readonly mountain: MeshStandardMaterial;
   readonly figureBody: MeshStandardMaterial;
@@ -166,6 +167,23 @@ function drawPavingOverlay(context: CanvasRenderingContext2D): void {
     context.lineTo(x, MATERIALS.texture.height);
     context.stroke();
   }
+  context.globalAlpha = 0.34;
+  context.strokeStyle = colorString(MATERIALS.moss.baseHex);
+  context.lineWidth = 2;
+  for (let row = 1; row < MATERIALS.texture.cellsY; row += 3) {
+    const y = row * cellHeight + cellHeight * 0.2;
+    context.beginPath();
+    context.moveTo(2, y);
+    context.bezierCurveTo(
+      MATERIALS.texture.width * 0.28,
+      y - 2,
+      MATERIALS.texture.width * 0.62,
+      y + 3,
+      MATERIALS.texture.width - 2,
+      y - 1,
+    );
+    context.stroke();
+  }
   context.restore();
 }
 
@@ -208,6 +226,29 @@ function drawTileOverlay(context: CanvasRenderingContext2D): void {
       context.lineTo(x, (row + 1) * cellHeight);
       context.stroke();
     }
+  }
+  context.restore();
+}
+
+function drawPaperOverlay(context: CanvasRenderingContext2D): void {
+  const palette = MATERIALS.paper;
+  context.save();
+  context.globalAlpha = 0.18;
+  context.strokeStyle = colorString(palette.lightHex);
+  context.lineWidth = 1;
+  for (let x = 5; x < MATERIALS.texture.width; x += 9) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x + 7, MATERIALS.texture.height);
+    context.stroke();
+  }
+  context.globalAlpha = 0.14;
+  context.strokeStyle = colorString(palette.darkHex);
+  for (let y = 12; y < MATERIALS.texture.height; y += 18) {
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(MATERIALS.texture.width, y - 4);
+    context.stroke();
   }
   context.restore();
 }
@@ -293,6 +334,13 @@ export function createCourtyardMaterials(options: CourtyardMaterialsOptions): Co
     },
     options.anisotropy,
   );
+  const paperTexture = createCanvasTexture(
+    options.canvasFactory,
+    MATERIALS.paper,
+    options.seed + 31,
+    drawPaperOverlay,
+    options.anisotropy,
+  );
 
   return {
     ground: texturedMaterial(stoneTexture, MATERIALS.stone.roughness, MATERIALS.stone.metalness),
@@ -314,6 +362,7 @@ export function createCourtyardMaterials(options: CourtyardMaterialsOptions): Co
     wood: texturedMaterial(woodTexture, MATERIALS.wood.roughness, MATERIALS.wood.metalness),
     tile: texturedMaterial(tileTexture, MATERIALS.tile.roughness, MATERIALS.tile.metalness),
     paving: texturedMaterial(pavingTexture, MATERIALS.paving.roughness, MATERIALS.paving.metalness),
+    paper: texturedMaterial(paperTexture, MATERIALS.paper.roughness, MATERIALS.paper.metalness),
     leaf: solidMaterial(MATERIALS.leaf.baseHex, MATERIALS.leaf.roughness, MATERIALS.leaf.metalness),
     mountain: solidMaterial(
       MATERIALS.mountain.baseHex,
