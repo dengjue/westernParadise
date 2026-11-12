@@ -1,0 +1,27 @@
+# 工蜂（GitLab CI 兼容）流水线。
+# 关键约定：CI 与本地跑的是同一条 `npm run verify`，避免「本地过、CI 挂」。
+# 若当前项目未启用 Runner，本文件不影响本地开发，本地门禁仍完整可用。
+image: node:22-alpine
+
+stages:
+  - verify
+
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - .npm/
+
+verify:
+  stage: verify
+  before_script:
+    - npm ci --cache .npm
+  script:
+    - npm run verify
+  artifacts:
+    when: always
+    paths:
+      - dist/single/index.html
+      - reports/
+    expire_in: 1 week

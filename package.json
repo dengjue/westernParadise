@@ -1,0 +1,43 @@
+{
+  "name": "wangshangsimiao",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "传统建筑与园林空间的离线数字漫游技术探索原型（非宗教信息服务，不对外发布）",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:layers": "node scripts/check-layers.mjs",
+    "check:content": "node scripts/check-content.mjs",
+    "build": "vite build",
+    "build:single": "vite build --mode single",
+    "verify:single": "node scripts/verify-single.mjs",
+    "verify": "npm run typecheck && npm run check:layers && npm run check:content && npm run lint && npm run format:check && npm run test && npm run build && npm run build:single && npm run verify:single"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8",
+    "vite-plugin-singlefile": "^2.3.4",
+    "vitest": "^5.1.0"
+  }
+}

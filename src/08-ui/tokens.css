@@ -1,0 +1,167 @@
+/*
+ * UI 设计系统底座。
+ * 变量命名参考 04-数据/CSS设计token与类名.md（原件的 23 个 token 命名方式），
+ * 但**所有取值均为本项目重写**：低饱和、暗底、低刺激，服务于静观漫游，
+ * 不使用红/金等高仪式联想配色，也不加载任何外部字体。
+ */
+
+:root {
+  /* 色板 */
+  --ink: #12181a;
+  --ink-2: #1b2326;
+  --bone: #e6e3da;
+  --bone-dim: #b6b2a8;
+  --bone-faint: #7d7d77;
+  --plate: rgba(18, 24, 26, 0.82);
+  --plate-solid: #1b2326;
+  --line: rgba(230, 227, 218, 0.14);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --signal: #8fa9a3;
+  --signal-hot: #b3c9c3;
+  --rust: #9a7b63;
+  --steel: #5c6a6d;
+  --alarm: #b4695f;
+
+  /* 字体：只用系统字体栈，不产生任何网络请求 */
+  --f-display: 'PingFang SC', 'Hiragino Sans GB', 'Songti SC', 'Noto Serif CJK SC', serif;
+  --f-label: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --f-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* 安全区（刘海屏 / 圆角 / 手势区） */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+
+  /* 栅格与节奏 */
+  --gl: calc(12px + var(--sal));
+  --gr: calc(12px + var(--sar));
+  --dur-fast: 140ms;
+  --dur-slow: 420ms;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--ink);
+}
+
+body {
+  color: var(--bone);
+  font-family: var(--f-label);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.viewport {
+  position: fixed;
+  inset: 0;
+}
+
+.viewport-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* HUD 整体不吃指针事件，避免挡住后续的漫游交互 */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hud-badge,
+.hud-status,
+.hud-notice {
+  position: absolute;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--plate);
+  box-shadow: var(--shadow);
+  color: var(--bone-dim);
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.hud-badge {
+  top: calc(12px + var(--sat));
+  left: var(--gl);
+  color: var(--signal);
+}
+
+.hud-status {
+  bottom: calc(12px + var(--sab));
+  left: var(--gl);
+}
+
+.hud-notice {
+  bottom: calc(48px + var(--sab));
+  left: var(--gl);
+  max-width: min(70vw, 420px);
+  transition: opacity var(--dur-slow) ease;
+}
+
+.fatal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  padding: calc(24px + var(--sat)) calc(24px + var(--sar)) calc(24px + var(--sab))
+    calc(24px + var(--sal));
+  background: var(--ink);
+  text-align: center;
+}
+
+.fatal h1 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--bone);
+}
+
+.fatal p {
+  margin: 0;
+  color: var(--bone-dim);
+}
+
+.fatal small {
+  color: var(--bone-faint);
+  font-size: 12px;
+}
+
+.is-touch .hud-badge,
+.is-touch .hud-status,
+.is-touch .hud-notice {
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+/* 系统级减动效偏好：关闭所有过渡，且由 boot 跳过场景动画更新 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.is-reduced .hud-notice {
+  transition: none;
+}

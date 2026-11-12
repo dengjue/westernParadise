@@ -30,12 +30,16 @@ env/
 *.pem
 *.key
 
-# 临时/构建产物（阶段 1 之后若引入构建链再按需调整）
+# 构建与工具产物（源码与交付物分离，见 02-方案/04-工程化架构设计.md）
 tmp/
 temp/
 *.tmp
 *.log
 node_modules/
 dist/
+coverage/
+reports/
+.vite/
+*.tsbuildinfo
 
 # 注意：04-数据/ 下的导出文件是本次探索的交付成果，属于需入库内容，不可忽略。
