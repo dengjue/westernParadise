@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GuideId, TimeOfDayId, WeatherId } from '@/00-types';
 import {
+  AUDIO,
   COPY,
   DEFAULT_TIME_OF_DAY_ID,
   DEFAULT_WEATHER_ID,
@@ -29,6 +30,7 @@ function expectDeepFrozen(value: unknown): void {
 describe('01-shared M1 配置', () => {
   it('世界、时段、天气、导览和文案配置全部递归冻结', () => {
     expectDeepFrozen(WORLD);
+    expectDeepFrozen(AUDIO);
     expectDeepFrozen(TIME_OF_DAY_PRESETS);
     expectDeepFrozen(WEATHER_PRESETS);
     expectDeepFrozen(GUIDE_ENTRIES);
@@ -70,6 +72,8 @@ describe('01-shared M1 配置', () => {
     expect(WEATHER_PRESETS.rain.precipitation.effect).toBe('rain');
     expect(WEATHER_PRESETS.rain.precipitation.particleCount).toBeGreaterThan(0);
     expect(DEFAULT_WEATHER_ID).toBe('clear');
+    expect(AUDIO.bell.intervalMs).toBeGreaterThan(0);
+    expect(AUDIO.masterGain).toBeGreaterThan(0);
   });
 
   it('文案表恰好包含四条建筑说明，标题正文均非空', () => {

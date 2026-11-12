@@ -208,6 +208,7 @@ export const WORLD = Object.freeze({
     accelTime: 0.15,
     decelTime: 0.2,
     turnSpeed: 10,
+    footstepDistance: 1.55,
     capsule: CAPSULE,
     visual: PLAYER_VISUAL,
   } as const),

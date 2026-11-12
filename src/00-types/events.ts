@@ -29,6 +29,7 @@ export interface AppEventMap {
   'weather:changed': { readonly from: WeatherId; readonly to: WeatherId };
   'guide:show': { readonly id: GuideId; readonly title: string; readonly body: string };
   'guide:hide': { readonly id: GuideId };
+  'player:step': { readonly surface: 'ground' | 'platform' };
   'player:boundsExceeded': { readonly x: number; readonly z: number };
 }
 

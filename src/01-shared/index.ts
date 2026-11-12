@@ -8,6 +8,7 @@ export {
   SINGLE_FILE_BUDGET_BYTES,
   SINGLE_FILE_HARD_LIMIT_BYTES,
 } from './config';
+export { AUDIO } from './audio';
 export { COPY } from './copy';
 export { MATERIALS } from './materials';
 export { WORLD } from './world';

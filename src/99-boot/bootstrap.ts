@@ -13,6 +13,7 @@ import {
 import { Clock, EventBus, Logger, Rng, toError } from '@/02-core';
 import {
   detectCapabilities,
+  AmbientAudio,
   parseParams,
   readBrowserEnv,
   readStoredQuality,
@@ -44,6 +45,16 @@ import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics
 
 function noop(): void {
   // 启动失败或减动效场景下没有需要执行/释放的动作，保留具名空函数便于阅读。
+}
+
+function createAudioContext(): AudioContext {
+  const audioContextConstructor =
+    window.AudioContext ??
+    (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (audioContextConstructor === undefined) {
+    throw new Error('当前浏览器不支持 Web Audio API');
+  }
+  return new audioContextConstructor();
 }
 
 /** 连 UI 都挂不上时的最后兜底：绝不白屏。 */
@@ -165,6 +176,15 @@ function start(): () => void {
   const character = new Character({ parent: context.scene, colliders, events });
   const followCamera = new FollowCamera({ camera: context.camera, input });
   followCamera.snapTo(character.position);
+  const ambientAudio = new AmbientAudio({
+    eventTarget: window,
+    events,
+    contextFactory: createAudioContext,
+    seed: rng.seed,
+    weather: WEATHER_PRESETS[params.weather],
+    weatherPresets: WEATHER_PRESETS,
+    noAudio: params.noAudio,
+  });
   const guideTriggers = new GuideTriggers({
     events,
     player: character,
@@ -177,6 +197,7 @@ function start(): () => void {
   registry.register('colliders', colliders);
   registry.register('character', character);
   registry.register('followCamera', followCamera);
+  registry.register('ambientAudio', ambientAudio);
   registry.register('guideTriggers', guideTriggers);
   registry.register('lighting', { lightingRig, skyDome });
   registry.freeze();
@@ -188,6 +209,7 @@ function start(): () => void {
       followCamera.updateControls();
       character.update(deltaMs, input, followCamera.yaw);
       followCamera.updateFollow(deltaMs, character.position);
+      ambientAudio.update(deltaMs);
       if (!capabilities.reducedMotion) {
         world.update(deltaMs);
       }
@@ -240,6 +262,7 @@ function start(): () => void {
     scene: context.scene,
     camera: context.camera,
     character,
+    audio: ambientAudio,
     world,
   });
 
@@ -271,6 +294,7 @@ function start(): () => void {
     removeWeatherRequest();
     removeBoundsNotice();
     guideTriggers.dispose();
+    ambientAudio.dispose();
     input.dispose();
     skyDome.dispose();
     lightingRig.dispose();

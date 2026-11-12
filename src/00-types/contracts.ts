@@ -80,6 +80,7 @@ export interface WeatherPreset {
     readonly areaHeight: number;
     readonly colorHex: number;
     readonly opacity: number;
+    readonly audioGain: number;
   };
 }
 

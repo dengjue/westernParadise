@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Group, PerspectiveCamera, Vector3 } from 'three';
+import type { AppEventMap } from '@/00-types';
 import { WORLD } from '@/01-shared';
+import { EventBus } from '@/02-core';
 import { Character, FollowCamera, KeyboardMouseInput, StaticColliders } from '@/07-systems';
 import type { InputSource } from '@/07-systems';
 
@@ -123,7 +125,10 @@ describe('Character', () => {
   it('创建程序化人形，并按相机方向移动到高差地面', () => {
     const parent = new Group();
     const colliders = new StaticColliders();
-    const character = new Character({ parent, colliders });
+    const events = new EventBus<AppEventMap>();
+    const surfaces: string[] = [];
+    events.on('player:step', ({ surface }) => surfaces.push(surface));
+    const character = new Character({ parent, colliders, events });
     const input: InputSource = {
       moveAxis: { x: 0, z: 1 },
       consumeLookDelta: () => ({ yaw: 0, pitch: 0 }),
@@ -136,6 +141,7 @@ describe('Character', () => {
       character.update(1000 / 60, input, Math.PI);
     }
     expect(character.position.z).toBeLessThan(initialZ);
+    expect(surfaces.length).toBeGreaterThan(0);
     expect(character.root.getObjectByName('player-body')).not.toBeNull();
     expect(character.root.getObjectByName('player-head')).not.toBeNull();
 

@@ -46,6 +46,7 @@ export class Character {
   private readonly boundsPayload = { x: 0, z: 0 };
   private yawRad: number;
   private boundaryContact = false;
+  private stepDistance = 0;
 
   constructor(options: CharacterOptions) {
     this.colliders = options.colliders;
@@ -122,6 +123,10 @@ export class Character {
       this.root.position.x,
       this.root.position.z,
     );
+    const traveledDistance = Math.hypot(
+      this.root.position.x - startX,
+      this.root.position.z - startZ,
+    );
 
     if (
       Math.abs(deltaX) > MOVEMENT_EPSILON &&
@@ -142,6 +147,16 @@ export class Character {
       this.events?.emit('player:boundsExceeded', this.boundsPayload);
     }
     this.boundaryContact = outsideBounds;
+
+    if (traveledDistance > MOVEMENT_EPSILON) {
+      this.stepDistance += traveledDistance;
+      while (this.stepDistance >= WORLD.player.footstepDistance) {
+        this.stepDistance -= WORLD.player.footstepDistance;
+        this.events?.emit('player:step', {
+          surface: this.root.position.y >= WORLD.scene.platform.height ? 'platform' : 'ground',
+        });
+      }
+    }
 
     if (hasInput) {
       const targetYaw = Math.atan2(desiredX, desiredZ);

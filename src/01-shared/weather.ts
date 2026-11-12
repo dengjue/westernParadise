@@ -12,6 +12,7 @@ const NO_PRECIPITATION = Object.freeze({
   areaHeight: 0,
   colorHex: 0xffffff,
   opacity: 0,
+  audioGain: 0,
 } as const);
 const CLEAR = Object.freeze({
   id: 'clear',
@@ -54,6 +55,7 @@ const RAIN = Object.freeze({
     areaHeight: 12,
     colorHex: 0xbdd8e3,
     opacity: 0.48,
+    audioGain: 1,
   } as const),
 } as const satisfies WeatherPreset);
 
