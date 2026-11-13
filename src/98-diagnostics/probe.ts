@@ -3,7 +3,7 @@ import { toError } from '@/02-core';
 /**
  * 诊断钩子。
  * 参考件把 window.__G 与 window.__fatal 当作工程兜底，这里保留设计但收紧：
- * __G 只在开发模式或 ?debug=1 时挂载，生产单文件不暴露内部对象。
+ * __G 由装配层按开发模式或 debug/bench 开关启用，生产单文件默认不暴露内部对象。
  */
 
 type DebugWindow = Window & {

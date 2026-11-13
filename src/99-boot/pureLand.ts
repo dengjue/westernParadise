@@ -142,7 +142,7 @@ export function startPureLand(): () => void {
   context.canvas.addEventListener('webglcontextlost', contextLost);
   if (capabilities.reducedMotion) ui.showNotice(COPY.reducedMotion);
   else if (decision.tier === 'low') ui.showNotice('流畅画质 · 已降低反射与叶片密度');
-  installDebugProbe(import.meta.env.DEV || params.debug, {
+  installDebugProbe(import.meta.env.DEV || params.debug || params.bench, {
     scene: context.scene,
     camera: context.camera,
     renderer,

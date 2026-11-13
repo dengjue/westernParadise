@@ -1,5 +1,6 @@
 import {
   BoxGeometry,
+  BufferAttribute,
   CatmullRomCurve3,
   CylinderGeometry,
   Matrix4,
@@ -83,22 +84,38 @@ export class LandBuilder {
   }
 
   flush(parent: Group): void {
-    for (const [material, parts] of this.batches) {
-      // 所有构件都含 position/normal/uv；非索引化后可合并不同来源的曲面。
-      const normalized = parts.map((part) => (part.index ? part.toNonIndexed() : part));
-      const geometry = mergeGeometries(normalized, false);
-      if (geometry) {
+    try {
+      for (const [material, parts] of this.batches) {
+        // mergeGeometries 可以混合不同形状，但索引存在性必须一致。
+        // 保留原索引，避免球体/管线展开成三倍逐面顶点；不按位置焊接，保留法线与 UV 接缝。
+        for (const part of parts) {
+          if (part.index) continue;
+          const count = part.getAttribute('position').count;
+          // 非索引输入只补顺序索引；65535 是 WebGL2 的 16 位 primitive-restart 保留值。
+          const indices = count > 65535 ? new Uint32Array(count) : new Uint16Array(count);
+          for (let i = 0; i < count; i++) indices[i] = i;
+          part.setIndex(new BufferAttribute(indices, 1));
+        }
+        const geometry = mergeGeometries(parts, false);
+        if (!geometry) throw new Error(`静态构件合批失败：${material.name || material.type}`);
+        geometry.computeBoundingBox();
+        geometry.computeBoundingSphere();
         const mesh = new Mesh(geometry, material);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.name = 'land-static-batch';
         parent.add(mesh);
+        // 每批完成就释放自己的中间副本，降低大场景构建时的峰值驻留。
+        for (const part of parts) part.dispose();
+        parts.length = 0;
       }
-      for (const part of new Set([...parts, ...normalized])) part.dispose();
+    } finally {
+      // 失败路径也清理尚未合并的副本；输入原型与最终输出几何的生命周期仍归调用方。
+      for (const parts of this.batches.values()) for (const part of parts) part.dispose();
+      this.batches.clear();
+      this.boxGeometry.dispose();
+      this.cylinderGeometry.dispose();
+      this.sphereGeometry.dispose();
     }
-    this.batches.clear();
-    this.boxGeometry.dispose();
-    this.cylinderGeometry.dispose();
-    this.sphereGeometry.dispose();
   }
 }
