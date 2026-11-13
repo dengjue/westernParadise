@@ -17,6 +17,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LAND_RENDER } from '@/01-shared';
 import type { LandDetail } from '@/01-shared';
 import { DistanceLod } from '@/04-engine';
+import type { LandContact } from './ContactShadows';
 
 type Point = readonly [number, number, number];
 interface BuilderOptions {
@@ -27,6 +28,7 @@ interface BuilderOptions {
 
 /** 静态细构件按材质合批。数千栏杆、斗拱、窗格只占少量 draw call。 */
 export class LandBuilder {
+  readonly contacts: LandContact[] = [];
   private readonly batches = new Map<Material, Map<string, BufferGeometry[]>>();
   private readonly objects: Object3D[] = [];
   private readonly boxGeometry = new BoxGeometry(1, 1, 1);

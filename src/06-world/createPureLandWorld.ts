@@ -11,6 +11,7 @@ import { createGarden } from './land/Garden';
 import { createSculptures } from './land/Sculpture';
 import { createFlowerDrift } from './land/FlowerDrift';
 import { partitionGarden } from './land/SpatialGarden';
+import { createContactShadows } from './land/ContactShadows';
 
 export interface PureLandWorldOptions {
   canvasFactory: CanvasFactory;
@@ -47,6 +48,7 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   );
   partitionGarden(root, garden.layout.trees, options.quality, cellSize);
   builder.flush(root);
+  createContactShadows(root, builder.contacts, options.canvasFactory);
   scene.add(root);
   const flowers = createFlowerDrift(root, options.seed, options.quality === 'low' ? 120 : 420);
   const atmosphere = createLandAtmosphere(
@@ -65,12 +67,13 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
     root,
     garden,
     reflection: atmosphere.reflection,
+    lighting: atmosphere.stats,
     cellSize,
     setTime: atmosphere.setTime,
     update(deltaMs: number): void {
       elapsed += deltaMs / 1000;
       garden.update(elapsed);
-      atmosphere.update(elapsed);
+      atmosphere.update(elapsed, deltaMs);
       flowers.update(elapsed);
     },
     dispose: atmosphere.dispose,

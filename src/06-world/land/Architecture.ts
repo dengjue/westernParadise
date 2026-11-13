@@ -1,7 +1,7 @@
 import { ExtrudeGeometry, LatheGeometry, PlaneGeometry, Shape, Vector2 } from 'three';
 import type { Material } from 'three';
 import type { PureLandMaterials } from '@/05-materials';
-import { LAND_CRAFT, LAND_DETAIL, LAND_STRUCTURE, PURE_LAND } from '@/01-shared';
+import { LAND_ATMOSPHERE, LAND_CRAFT, LAND_DETAIL, LAND_STRUCTURE, PURE_LAND } from '@/01-shared';
 import type { LandDetail } from '@/01-shared';
 import type { LandBuilder } from './Builder';
 import { chamferedBox } from './CraftGeometry';
@@ -50,8 +50,15 @@ function column(
   height: number,
   radius: number,
   detail: LandDetail,
+  contactY = base,
 ): void {
   const craft = LAND_CRAFT.column;
+  builder.contacts.push({
+    x,
+    y: contactY,
+    z,
+    radius: radius * LAND_ATMOSPHERE.contact.radiusRatio,
+  });
   const foot = chamferedBox(
     radius * craft.footWidthRatio,
     craft.footHeight,
@@ -364,7 +371,12 @@ export function createArchitecture(
       z = (path.minZ + path.maxZ) / 2;
     builder.box(m.stone, [x, 0.3, z], [width, 1.8, depth]);
     builder.box(m.goldDark, [x, 1.12, z], [width + 0.12, 0.12, depth + 0.12]);
-    builder.box(m.stone, [x, 1.21, z], [width - 0.25, 0.08, depth - 0.25]);
+    const floor = LAND_CRAFT.floor;
+    builder.box(
+      m.stone,
+      [x, path.height + floor.courtPavingRise - floor.courtPavingThickness / 2, z],
+      [width - 0.25, floor.courtPavingThickness, depth - 0.25],
+    );
   }
   // 中轴铺装：嵌金的琉璃青块面与小比例白石砖缝，提供真实尺度参照。
   for (let z = -18; z <= 102; z += 4) {
@@ -392,8 +404,10 @@ export function createArchitecture(
     const corridor = LAND_STRUCTURE.corridor;
     for (let bay = 0; bay < corridor.bays; bay++) {
       const z = -25 + bay * corridor.spacing;
-      column(builder, m, side * 67, z, LAND_STRUCTURE.courtHeight, 4.6, 0.24, 'middle');
-      column(builder, m, side * 59, z, LAND_STRUCTURE.courtHeight, 4.6, 0.24, 'middle');
+      // 柱身自台基起，接触影须在铺装顶面上，不能被最后一层石板遮住。
+      const contactY = LAND_STRUCTURE.courtHeight + LAND_CRAFT.floor.courtPavingRise;
+      column(builder, m, side * 67, z, LAND_STRUCTURE.courtHeight, 4.6, 0.24, 'middle', contactY);
+      column(builder, m, side * 59, z, LAND_STRUCTURE.courtHeight, 4.6, 0.24, 'middle', contactY);
     }
     roof(
       builder,
@@ -410,9 +424,23 @@ export function createArchitecture(
     );
     const distant = LAND_STRUCTURE.distant;
     for (let i = 0; i < distant.count; i++) {
-      const x = side * (distant.startX + i * distant.spacingX),
-        z = distant.startZ - (i % 3) * distant.spacingZ;
-      pavilion(builder, m, { x, z, width: 18, depth: 14, base: 0.8, height: 7 }, 'far');
+      const offset = distant.offsets[i]!,
+        scale = distant.scales[i]!;
+      const x = side * (distant.startX + i * distant.spacingX + offset[0]),
+        z = distant.startZ - (i % 3) * distant.spacingZ + offset[1];
+      pavilion(
+        builder,
+        m,
+        {
+          x,
+          z,
+          width: 18 * scale,
+          depth: 14 * scale,
+          base: distant.bases[i]!,
+          height: distant.heights[i]!,
+        },
+        'far',
+      );
       if (i % 2 === 0) pagoda(builder, m, x + side * 10, z - 30, 0.65, 4);
     }
   }

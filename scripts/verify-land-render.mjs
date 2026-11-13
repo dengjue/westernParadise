@@ -45,6 +45,8 @@ export async function verifyLandRender(page) {
         '循环资源未回稳',
       );
       landCamera.selectView(1, true);
+      // Phase 5 时段为平滑过渡；必须结束后才检查稳态的反射缓存帧。
+      while (world.lighting?.transition.active) await next();
       for (let frame = 0; frame < 60; frame++) await next();
       let updated = 0,
         cached = 0;

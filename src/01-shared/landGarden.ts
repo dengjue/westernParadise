@@ -91,7 +91,7 @@ export const LAND_GARDEN = Object.freeze({
     petalBounds: 0.2,
     lilyBounds: 0.07,
   },
-  water: { distortion: 0.00065, normalScale: 0.024, highlight: 0.85, caustic: 0.13 },
+  water: { distortion: 0.00065, normalScale: 0.024, caustic: 0.13 },
   material: {
     leaf: { roughness: 0.65, metalness: 0.16, bump: 0.018 },
     petal: { roughness: 0.63, metalness: 0.025, bump: 0.009 },

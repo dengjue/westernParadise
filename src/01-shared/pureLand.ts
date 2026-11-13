@@ -1,4 +1,4 @@
-import type { QualityTier, TimeOfDayId } from '@/00-types';
+import type { QualityTier } from '@/00-types';
 import { LAND_STRUCTURE } from './landCraft';
 
 /** 世界采用米制建筑尺度。经籍中的无限尺度转译为可辨认、可进入的空间层级。 */
@@ -20,17 +20,15 @@ export const PURE_LAND = Object.freeze({
     gold: 0xd6ad57,
     goldDark: 0x8e632a,
     jade: 0x1f6660,
-    roof: 0x245c53,
-    wood: 0x5b3026,
+    roof: 0x34766f,
+    wood: 0x765043,
     leaf: 0xf3e7c7,
     water: 0x2e7774,
   },
   rendering: {
-    shadowSpan: 125,
-    shadowBias: -0.0002,
-    bloomStrength: 0.24,
+    bloomStrength: 0.18,
     bloomRadius: 0.6,
-    bloomThreshold: 1.25,
+    bloomThreshold: 1.4,
     reflectionSize: { low: 256, medium: 512, high: 768, ultra: 1024 },
   },
   views: [
@@ -119,56 +117,7 @@ export const PURE_LAND = Object.freeze({
   },
 } as const);
 
-export const LAND_LIGHT: Readonly<
-  Record<
-    TimeOfDayId,
-    {
-      label: string;
-      top: number;
-      horizon: number;
-      fog: number;
-      sun: number;
-      sunIntensity: number;
-      ambient: number;
-      exposure: number;
-      sunPosition: readonly number[];
-    }
-  >
-> = Object.freeze({
-  dawn: {
-    label: '晨光',
-    top: 0x638c9d,
-    horizon: 0xf0cda6,
-    fog: 0xc5c8b3,
-    sun: 0xffe0ac,
-    sunIntensity: 2.8,
-    ambient: 1.2,
-    exposure: 0.85,
-    sunPosition: [-100, 90, -120],
-  },
-  noon: {
-    label: '晴昼',
-    top: 0x548eab,
-    horizon: 0xdce9df,
-    fog: 0xb2c7be,
-    sun: 0xfff1d7,
-    sunIntensity: 3.2,
-    ambient: 1.4,
-    exposure: 0.85,
-    sunPosition: [-100, 170, 70],
-  },
-  dusk: {
-    label: '落照',
-    top: 0x557785,
-    horizon: 0xf2bf8e,
-    fog: 0xb7b49a,
-    sun: 0xffc77a,
-    sunIntensity: 3,
-    ambient: 1.1,
-    exposure: 0.83,
-    sunPosition: [-130, 75, -105],
-  },
-});
+export { LAND_LIGHT } from './landLighting';
 
 export const LAND_QUALITY: Readonly<Record<QualityTier, string>> = Object.freeze({
   low: '流畅',

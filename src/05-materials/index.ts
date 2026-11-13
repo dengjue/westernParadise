@@ -6,3 +6,5 @@ export { createPureLandMaterials, createHallPlaque } from './pureLand';
 export type { PureLandMaterials } from './pureLand';
 export { applyGardenWind, createGardenWind } from './landWind';
 export type { GardenWind } from './landWind';
+export { applyLandAtmosphere, LAND_HAZE_GLSL } from './landAtmosphere';
+export type { LandAtmosphereUniforms } from './landAtmosphere';

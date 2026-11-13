@@ -7,6 +7,7 @@ export type { LogLevel } from './Logger';
 export { FatalError, toError } from './errors';
 export { createGardenLayout, gardenRng, isPondClear, sampleGardenLeaf } from './gardenLayout';
 export { distanceLevel, ReflectionSchedule, AdaptiveRenderBudget } from './renderBudget';
+export { LandLightTransition } from './landLightTransition';
 export type {
   GardenPoint,
   GardenTree,

@@ -7,18 +7,34 @@ import {
   Mesh,
   PCFSoftShadowMap,
   PlaneGeometry,
-  PMREMGenerator,
   PointLight,
-  Scene,
   ShaderMaterial,
   SphereGeometry,
   Vector3,
 } from 'three';
-import type { WebGLRenderer } from 'three';
+import type { Material, Scene, WebGLRenderer } from 'three';
 import type { QualityTier, TimeOfDayId } from '@/00-types';
-import { LAND_GARDEN, LAND_LIGHT, LAND_RENDER, PURE_LAND } from '@/01-shared';
+import {
+  LAND_ATMOSPHERE,
+  LAND_GARDEN,
+  LAND_LIGHT,
+  LAND_LIGHT_QUALITY,
+  LAND_TIMES,
+  LAND_RENDER,
+  PURE_LAND,
+} from '@/01-shared';
+import { LandLightTransition } from '@/02-core';
+import { applyLandAtmosphere, LAND_HAZE_GLSL } from '@/05-materials';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { budgetReflection } from './LandReflection';
+import { createLandEnvironment } from './LandEnvironment';
+
+/** 输入已由 Color 转到线性空间，逐通道累加避免逐帧创建临时 Color。 */
+function addWeightedColor(target: Color, source: Color, weight: number): void {
+  target.r += source.r * weight;
+  target.g += source.g * weight;
+  target.b += source.b * weight;
+}
 
 const SKY_VERTEX = `
   varying vec3 vDirection;
@@ -29,7 +45,8 @@ const SKY_VERTEX = `
 `;
 
 const SKY_FRAGMENT = `
-  uniform vec3 topColor, horizonColor, sunDirection;
+  uniform vec3 topColor, horizonColor, hazeColor, sunDirection;
+  uniform float cloudTime;
   varying vec3 vDirection;
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
   float noise(vec2 p) {
@@ -49,11 +66,11 @@ const SKY_FRAGMENT = `
     sky+=vec3(1.0,0.68,0.31)*pow(sunDot,16.0)*0.38;
     sky+=vec3(4.0,2.6,1.25)*smoothstep(0.99955,0.9998,sunDot);
     vec2 p=d.xz/(h+0.18)*2.2;
-    float clouds=fbm(p+vec2(2.1,0.4));
+    float clouds=fbm(p+vec2(2.1+cloudTime,0.4+cloudTime*0.23));
     float coverage=smoothstep(0.47,0.72,clouds)*smoothstep(0.01,0.16,h);
     vec3 cloudColor=mix(horizonColor*0.7,vec3(1.03,0.96,0.8),smoothstep(0.5,0.8,clouds));
-    sky=mix(sky,cloudColor,coverage*0.82);
-    sky=mix(horizonColor,sky,smoothstep(-0.04,0.08,d.y));
+    sky=mix(sky,cloudColor,coverage*${LAND_ATMOSPHERE.sky.cloudStrength.toFixed(4)});
+    sky=mix(hazeColor,sky,smoothstep(-0.015,0.22,d.y));
     gl_FragColor=vec4(sky,1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -74,9 +91,10 @@ const WATER_VERTEX = `
 const WATER_FRAGMENT = `
   uniform sampler2D tDiffuse;
   uniform vec3 color, fogColor, sunDirection;
-  uniform float time, fogDensity;
+  uniform float time;
   varying vec4 vReflection;
   varying vec3 vWorld;
+  ${LAND_HAZE_GLSL}
   void main() {
     vec2 p=vWorld.xz;
     float a=sin(p.x*0.62+p.y*0.21+time*0.55);
@@ -88,12 +106,10 @@ const WATER_FRAGMENT = `
     vec3 viewDirection=normalize(cameraPosition-vWorld);
     float fresnel=pow(1.0-max(0.0,dot(viewDirection,normal)),3.0);
     float caustic=pow(0.5+0.5*sin(p.x*1.4+sin(p.y*1.3+time*0.3))*sin(p.y*1.7-time*0.15),12.0);
-    vec3 water=mix(color*(0.52+caustic*${LAND_GARDEN.water.caustic.toFixed(4)}),reflected,0.32+fresnel*0.52);
+    vec3 water=mix(color*(0.52+caustic*${LAND_GARDEN.water.caustic.toFixed(4)}),reflected,${LAND_ATMOSPHERE.water.reflection.toFixed(4)}+fresnel*${LAND_ATMOSPHERE.water.fresnel.toFixed(4)});
     vec3 halfDirection=normalize(sunDirection+viewDirection);
-    water+=vec3(1.0,0.85,0.54)*pow(max(0.0,dot(normal,halfDirection)),260.0)*${LAND_GARDEN.water.highlight.toFixed(4)};
-    float distanceToCamera=length(cameraPosition-vWorld);
-    float fog=1.0-exp(-fogDensity*fogDensity*distanceToCamera*distanceToCamera);
-    water=mix(water,fogColor,clamp(fog,0.0,1.0));
+    water+=vec3(1.0,0.85,0.54)*pow(max(0.0,dot(normal,halfDirection)),260.0)*${LAND_ATMOSPHERE.water.highlight.toFixed(4)};
+    water=mix(water,fogColor,landHaze(vWorld));
     gl_FragColor=vec4(water,1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -107,10 +123,24 @@ export function createLandAtmosphere(
   initial: TimeOfDayId,
   reducedMotion = false,
 ) {
+  const config = LAND_ATMOSPHERE;
+  const transition = new LandLightTransition(initial, reducedMotion);
+  const presets = LAND_TIMES.map((id) => ({
+    ...LAND_LIGHT[id],
+    topColor: new Color(LAND_LIGHT[id].top),
+    horizonColor: new Color(LAND_LIGHT[id].horizon),
+    hazeColor: new Color(LAND_LIGHT[id].fog),
+    sunColor: new Color(LAND_LIGHT[id].sun),
+    position: new Vector3().fromArray(LAND_LIGHT[id].sunPosition),
+  }));
+  const fog = new FogExp2(LAND_LIGHT[initial].fog, config.haze.density);
+  scene.fog = fog;
   const uniforms = {
     topColor: { value: new Color() },
     horizonColor: { value: new Color() },
+    hazeColor: { value: fog.color },
     sunDirection: { value: new Vector3() },
+    cloudTime: { value: 0 },
   };
   const skyMaterial = new ShaderMaterial({
     uniforms,
@@ -119,40 +149,46 @@ export function createLandAtmosphere(
     side: BackSide,
     depthWrite: false,
   });
-  const sky = new Mesh(new SphereGeometry(1200, 32, 16), skyMaterial);
+  const sky = new Mesh(new SphereGeometry(config.sky.radius, 32, 16), skyMaterial);
   sky.name = 'land-sky';
   sky.frustumCulled = false;
   scene.add(sky);
   const sun = new DirectionalLight();
   sun.castShadow = quality === 'high' || quality === 'ultra';
   sun.shadow.mapSize.setScalar(quality === 'ultra' ? 4096 : 2048);
-  const span = PURE_LAND.rendering.shadowSpan;
+  const span = config.shadow.span;
   Object.assign(sun.shadow.camera, {
     left: -span,
     right: span,
     top: span,
     bottom: -span,
-    near: 1,
-    far: 650,
+    near: config.shadow.near,
+    far: config.shadow.far,
   });
-  sun.shadow.bias = PURE_LAND.rendering.shadowBias;
-  sun.shadow.normalBias = 0.05;
+  sun.shadow.bias = config.shadow.bias;
+  sun.shadow.normalBias = config.shadow.normalBias;
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.camera.layers.set(LAND_RENDER.layers.shadow);
   renderer.shadowMap.type = PCFSoftShadowMap;
-  // 建筑不运动：阴影生成一次，时段切换才重新提交，避免反射相机重复绘制阴影。
+  // 稳态缓存；过渡时光源方向与阴影拍摄同频更新，避免新光源配旧阴影的漂移。
   renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
-  const ambient = new HemisphereLight(0xe9e5d1, 0x456b68, 1.6);
-  const fill = new DirectionalLight(0xdcefeb, 0.75);
-  fill.position.set(50, 70, 120);
-  const interior = new PointLight(0xffd192, 65, 40, 2);
-  interior.position.set(0, 11, -46);
+  const ambient = new HemisphereLight(config.fill.sky, config.fill.ground);
+  const fill = new DirectionalLight(config.fill.color);
+  fill.position.fromArray(config.fill.position);
+  const interior = new PointLight(
+    config.interior.color,
+    config.interior.intensity,
+    config.interior.distance,
+    2,
+  );
+  interior.position.fromArray(config.interior.position);
+  sun.name = 'land-sun';
+  fill.name = 'land-front-fill';
+  interior.name = 'land-interior-light';
   scene.add(sun, ambient, fill, interior);
-  const fog = new FogExp2(0xdacdb5, 0.0018);
-  scene.fog = fog;
   const reflectionSize = PURE_LAND.rendering.reflectionSize[quality];
-  const water = new Reflector(new PlaneGeometry(1500, 1500), {
+  const water = new Reflector(new PlaneGeometry(config.water.extent, config.water.extent), {
     textureWidth: reflectionSize,
     textureHeight: reflectionSize,
     clipBias: 0.003,
@@ -166,7 +202,6 @@ export function createLandAtmosphere(
         textureMatrix: { value: null },
         time: { value: 0 },
         fogColor: { value: fog.color },
-        fogDensity: { value: fog.density },
         sunDirection: { value: new Vector3() },
       },
       vertexShader: WATER_VERTEX,
@@ -179,42 +214,94 @@ export function createLandAtmosphere(
   scene.add(water);
   const reflection = budgetReflection(water, quality, reducedMotion);
   const waterUniforms = (water.material as ShaderMaterial).uniforms;
-  const generator = new PMREMGenerator(renderer);
-  const environmentScene = new Scene();
-  const environmentSky = new Mesh(sky.geometry, skyMaterial);
-  environmentScene.add(environmentSky);
-  let environment: ReturnType<PMREMGenerator['fromScene']> | null = null;
-
-  function setTime(id: TimeOfDayId): void {
-    const light = LAND_LIGHT[id];
-    uniforms.topColor.value.setHex(light.top);
-    uniforms.horizonColor.value.setHex(light.horizon);
-    sun.position.fromArray(light.sunPosition);
-    uniforms.sunDirection.value.copy(sun.position).normalize();
+  // Reflector 克隆 shader uniforms，必须显式连回共同的线性雾色。
+  waterUniforms['fogColor']!.value = fog.color;
+  const environment = createLandEnvironment(renderer, sky, (index) => {
+    const preset = presets[index]!;
+    uniforms.topColor.value.copy(preset.topColor);
+    uniforms.horizonColor.value.copy(preset.horizonColor);
+    fog.color.copy(preset.hazeColor);
+    uniforms.sunDirection.value.copy(preset.position).normalize();
+  });
+  scene.environment = environment.targets[0]!.texture;
+  scene.environmentIntensity = config.environment.intensity;
+  const materialUniforms = {
+    landHazeColor: { value: fog.color },
+    landLightWeights: { value: transition.weights },
+    landEnvDawn: { value: environment.targets[0]!.texture },
+    landEnvNoon: { value: environment.targets[1]!.texture },
+    landEnvDusk: { value: environment.targets[2]!.texture },
+  };
+  const materials = new Set<Material>();
+  scene.traverse((object) => {
+    const material = (object as Mesh).material;
+    if (!material) return;
+    for (const entry of Array.isArray(material) ? material : [material]) {
+      if (entry instanceof ShaderMaterial || materials.has(entry)) continue;
+      materials.add(entry);
+      applyLandAtmosphere(entry, materialUniforms);
+    }
+  });
+  const stats = { transition, environment: environment.stats, shadowRequests: 0 };
+  const desiredSun = new Vector3();
+  let shadowElapsed = 0;
+  function applyLighting(forceShadow: boolean): void {
+    uniforms.topColor.value.setRGB(0, 0, 0);
+    uniforms.horizonColor.value.setRGB(0, 0, 0);
+    fog.color.setRGB(0, 0, 0);
+    sun.color.setRGB(0, 0, 0);
+    desiredSun.set(0, 0, 0);
+    sun.intensity = ambient.intensity = fill.intensity = renderer.toneMappingExposure = 0;
+    for (let i = 0; i < presets.length; i++) {
+      const preset = presets[i]!,
+        weight = transition.weights[i]!;
+      addWeightedColor(uniforms.topColor.value, preset.topColor, weight);
+      addWeightedColor(uniforms.horizonColor.value, preset.horizonColor, weight);
+      addWeightedColor(fog.color, preset.hazeColor, weight);
+      addWeightedColor(sun.color, preset.sunColor, weight);
+      desiredSun.addScaledVector(preset.position, weight);
+      sun.intensity += preset.sunIntensity * weight;
+      ambient.intensity += preset.ambient * weight;
+      fill.intensity += preset.fill * weight;
+      renderer.toneMappingExposure += preset.exposure * weight;
+    }
+    uniforms.sunDirection.value.copy(desiredSun).normalize();
     (waterUniforms['sunDirection']!.value as Vector3).copy(uniforms.sunDirection.value);
-    sun.color.setHex(light.sun);
-    sun.intensity = light.sunIntensity;
-    ambient.intensity = light.ambient;
-    fog.color.setHex(light.fog);
-    renderer.toneMappingExposure = light.exposure;
-    environment?.dispose();
-    environment = generator.fromScene(environmentScene, 0.05, 0.1, 1600);
-    scene.environment = environment.texture;
-    scene.environmentIntensity = 0.46;
-    renderer.shadowMap.needsUpdate = true;
-    reflection.invalidate();
+    if (
+      !sun.castShadow ||
+      forceShadow ||
+      !transition.active ||
+      shadowElapsed >= 1000 / LAND_LIGHT_QUALITY[quality].shadowHz
+    ) {
+      sun.position.copy(desiredSun);
+      shadowElapsed = 0;
+      if (sun.castShadow) {
+        renderer.shadowMap.needsUpdate = true;
+        stats.shadowRequests++;
+      }
+    }
+    // 连续变化由既有 15–30 Hz 反射预算采样；起止点立即同步。
+    // 每个逻辑步都 invalidate 会绕过预算，在 120 Hz 显示器上重复提交整片世界。
+    if (forceShadow || !transition.active) reflection.invalidate();
   }
-  setTime(initial);
+  applyLighting(true);
   return {
-    setTime,
+    stats,
+    setTime(id: TimeOfDayId): void {
+      if (!transition.request(id)) return;
+      if (reducedMotion) applyLighting(true);
+      reflection.invalidate();
+    },
     reflection,
-    update(seconds: number): void {
-      waterUniforms['time']!.value = seconds;
+    update(seconds: number, deltaMs: number): void {
+      waterUniforms['time']!.value = reducedMotion ? 0 : seconds;
+      uniforms.cloudTime.value = reducedMotion ? 0 : seconds * config.sky.cloudSpeed;
+      shadowElapsed += deltaMs;
+      if (transition.update(deltaMs)) applyLighting(false);
     },
     dispose(): void {
       scene.environment = null;
-      environment?.dispose();
-      generator.dispose();
+      environment.dispose();
       water.dispose();
       water.geometry.dispose();
       scene.remove(water);

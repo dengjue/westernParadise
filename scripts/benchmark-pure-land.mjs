@@ -241,6 +241,15 @@ export async function benchmarkPureLand(
                 reflection: world.reflection.stats,
                 gpuAvailable: renderBudget.telemetry.gpuAvailable,
                 gpuDisjoints: renderBudget.telemetry.gpuDisjoints,
+                lighting: world.lighting
+                  ? {
+                      environment: world.lighting.environment,
+                      target: world.lighting.transition.target,
+                      active: world.lighting.transition.active,
+                      weights: Array.from(world.lighting.transition.weights),
+                      shadowRequests: world.lighting.shadowRequests,
+                    }
+                  : null,
               }
             : null,
           rendererResources: {
