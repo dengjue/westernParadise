@@ -18,11 +18,12 @@ function fixture() {
     [110, 100, 1, 0, 60, 10, 100, 1, 0.1, 0],
     [120, 10, 1, 0, 5, 10, 100, 1, 0.1, 0],
     [130, 10, 1, 0, 2, 5, 50, 0, 0, 0],
+    [140, 10, 1, 1, 2, 5, 50, 0, 0, 0],
   ];
   return {
     columns,
     values: rows.flat(),
-    frames: 3,
+    frames: 4,
     failure: null,
     entryOverflow: false,
     detailed: true,
@@ -101,6 +102,21 @@ describe('光阴逐帧证据的验收口径', () => {
     trace.values[width * 2 + 1] = 16.7;
     expect(summarizeLightingTrace(trace).targetMet).toBe(true);
     trace.values[width + 1] = 16.8;
+    expect(summarizeLightingTrace(trace).targetMet).toBe(false);
+  });
+  it('最后一次过渡绘制拖慢 settle 段，也必须阻止通过；缺失尾帧不能验收', () => {
+    const trace = fixture(),
+      width = trace.columns.length;
+    trace.values[1] = 5;
+    trace.values[width * 3] = 250;
+    trace.values[width * 3 + 1] = 120;
+    const result = summarizeLightingTrace(trace);
+    expect(result.valid).toBe(true);
+    expect(result.segments[0].frameMs.max).toBe(10);
+    expect(result.segments[0].acceptanceFrameMs.max).toBe(120);
+    expect(result.targetMet).toBe(false);
+    trace.values.length = width * 3;
+    trace.frames = 3;
     expect(summarizeLightingTrace(trace).targetMet).toBe(false);
   });
 });

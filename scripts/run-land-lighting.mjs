@@ -1,4 +1,4 @@
-/** node scripts/run-land-lighting.mjs <已观察的 tab-id> [产物路径] [light|detailed] [0,1,2,3] */
+/** A1 默认采样；A2 可追加 phases-on/off 或 plain-on/off 与轮次，条件均真实重挂。 */
 import { spawn, execFileSync } from 'node:child_process';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -6,20 +6,36 @@ import { cpus, totalmem, homedir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const [tab, artifactPath = 'dist/single/index.html', mode = 'detailed', viewsText = '0,1,2,3'] =
-  process.argv.slice(2);
+const [
+  tab,
+  artifactPath = 'dist/single/index.html',
+  mode = 'detailed',
+  viewsText = '0,1,2,3',
+  condition = 'native',
+  roundsText = '3',
+] = process.argv.slice(2);
 if (
   !/^\d+$/.test(tab ?? '') ||
   !['light', 'detailed'].includes(mode) ||
-  !/^[0-3](,[0-3])*$/.test(viewsText)
+  !/^[0-3](,[0-3])*$/.test(viewsText) ||
+  ![
+    'native',
+    'phases-on',
+    'phases-off',
+    'plain-on',
+    'plain-off',
+    'submit-on',
+    'submit-off',
+  ].includes(condition) ||
+  !/^[1-5]$/.test(roundsText)
 )
   throw new Error(
-    '用法：node scripts/run-land-lighting.mjs <tab-id> [产物路径] [light|detailed] [0,1,2,3]',
+    '用法：node scripts/run-land-lighting.mjs <tab-id> [产物路径] [light|detailed] [0,1,2,3] [native|phases-on/off|plain-on/off|submit-on/off] [1–5轮]',
   );
 const views = viewsText.split(',').map(Number);
 if (new Set(views).size !== views.length) throw new Error('景点不能重复；重复实验应使用独立 run');
 const directory = resolve('reports'),
-  run = `${Date.now()}-${mode}`;
+  run = `${Date.now()}-${mode}${condition === 'native' ? '' : `-${condition}`}`;
 await mkdir(directory, { recursive: true });
 const bytes = await readFile(resolve(artifactPath));
 const artifact = {
@@ -34,6 +50,9 @@ const diagnosticFiles = [
   'record-land-frames.mjs',
   'sample-land-lighting.mjs',
   'summarize-lighting-trace.mjs',
+  'phase-clock.mjs',
+  'probe-land-phases.mjs',
+  'summarize-land-phases.mjs',
 ];
 const diagnostics = Object.fromEntries(
   await Promise.all(
@@ -50,6 +69,7 @@ const report = {
   started: new Date().toISOString(),
   artifact,
   mode,
+  condition,
   checkoutHead: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   diagnostics,
   device: { cpu: cpus()[0]?.model, memoryBytes: totalmem() },
@@ -66,10 +86,23 @@ async function invoke(view) {
     page.on('pageerror',error);page.on('console',consoleError);page.on('request',request);
     try {
       await page.goto(${JSON.stringify(source)},{waitUntil:'load'});
+      await page.waitForFunction(()=>window.__G?.startup.firstFrameMs>0);
+      let queryCondition=null;
+      if(${condition !== 'native'}) {
+        const {configureLandGpuQueries}=await import(${JSON.stringify(pathToFileURL(resolve('scripts/probe-land-phases.mjs')).href)});
+        queryCondition=await configureLandGpuQueries(page,${condition.endsWith('-on')});
+      }
       const {sampleLandLighting}=await import(${JSON.stringify(helper)});
-      const trace=await sampleLandLighting(page,{viewIndex:${view},rounds:3,detailed:${mode === 'detailed'},firstUse:true});
+      const trace=await sampleLandLighting(page,{viewIndex:${view},rounds:${Number(roundsText)},detailed:${mode === 'detailed'},firstUse:${condition === 'native'},interruptions:${condition === 'native'},phases:${condition.startsWith('phases-') || condition.startsWith('submit-')},submission:${condition.startsWith('submit-')}});
+      trace.queryCondition=queryCondition;
       trace.artifact=${JSON.stringify(artifact)};trace.errors=errors;trace.requests=requests;
       if(errors.length||requests.length){trace.summary.valid=false;trace.summary.targetMet=false}
+      if(queryCondition && (!queryCondition.extensionRestored || !queryCondition.remounted || queryCondition.canvases!==1 || queryCondition.gpuAvailable!==queryCondition.enabled)) {
+        trace.summary.valid=false;trace.summary.targetMet=false;
+      }
+      const {summarizeLandPhases}=await import(${JSON.stringify(pathToFileURL(resolve('scripts/summarize-land-phases.mjs')).href)});
+      trace.phaseSummary=summarizeLandPhases(trace);
+      if(trace.phaseSummary && !trace.phaseSummary.valid){trace.summary.valid=false;trace.summary.targetMet=false}
       await fs.writeFile(${JSON.stringify(path)},JSON.stringify(trace),{flag:'wx'});
       return {path:${JSON.stringify(path)},viewIndex:${view},frames:trace.frames,valid:trace.summary.valid,targetMet:trace.summary.targetMet};
     } finally {page.off('pageerror',error);page.off('console',consoleError);page.off('request',request)}
@@ -78,7 +111,7 @@ async function invoke(view) {
     const child = spawn(join(homedir(), '.local/bin/tabbit-cli'), [
       'nodejs',
       '--task',
-      '光阴性能采样',
+      condition === 'native' ? '光阴性能采样' : '光阴长帧归因',
       '--tab',
       tab,
       '--request-id',
@@ -114,6 +147,8 @@ async function invoke(view) {
     ...receipt.result.value,
     environment: saved.environment,
     summary: saved.summary,
+    queryCondition: saved.queryCondition,
+    phaseSummary: saved.phaseSummary,
     errors: saved.errors,
     requests: saved.requests,
   };
@@ -132,8 +167,8 @@ try {
         valid: sample.summary.valid,
         targetMet: sample.summary.targetMet,
         frames: sample.frames,
-        p95: measured.map((s) => s.frameMs?.p95),
-        max: measured.map((s) => s.frameMs?.max),
+        p95: measured.map((s) => s.acceptanceFrameMs?.p95),
+        max: measured.map((s) => s.acceptanceFrameMs?.max),
         path: sample.path,
       }),
     );

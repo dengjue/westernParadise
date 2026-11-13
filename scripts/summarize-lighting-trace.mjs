@@ -62,6 +62,13 @@ export function summarizeLightingTrace(trace) {
       const longFrames = trace.entries.filter(
         (e) => e.entryType === 'long-animation-frame' && overlaps(e, segment),
       );
+      // 最后一帧绘制可能拖慢下一段的首个 RAF；原窗口另存，验收必须覆盖该尾间隔。
+      const tailRow = segment.endRow;
+      const trailingCovered =
+        Number.isInteger(tailRow) && tailRow > segment.startRow && tailRow < trace.frames;
+      const tail = trailingCovered ? [read(tailRow, 'deltaMs')] : [];
+      if (trailingCovered && (read(tailRow, 'activityMask') || read(tailRow, 'appFrames') !== 1))
+        invalidFrames++;
       return {
         id: segment.id,
         kind: segment.kind,
@@ -74,6 +81,9 @@ export function summarizeLightingTrace(trace) {
         boundaryFrames,
         invalidFrames,
         frameMs: metric(samples),
+        trailingCovered,
+        trailingFrameMs: metric(tail),
+        acceptanceFrameMs: metric([...samples, ...tail]),
         interiorFrameMs: metric(interior),
         boundaryFrameMs: metric(boundary),
         pipelineCpuMs: metric(cpu),
@@ -111,6 +121,12 @@ export function summarizeLightingTrace(trace) {
       'deltaMs 为相邻 RAF 时间戳之差；CPU/calls 为当前已完成绘制，影响下一 RAF 间隔；observedAtMs 是采样实际墙钟，不能直接按行将 CPU 与间隔相减',
     segments: results,
     targetMet:
-      valid && measured.every((s) => s.frameMs.p95 <= 16.7 + epsilonMs && s.frameMs.over50ms === 0),
+      valid &&
+      measured.every(
+        (s) =>
+          s.trailingCovered &&
+          s.acceptanceFrameMs.p95 <= 16.7 + epsilonMs &&
+          s.acceptanceFrameMs.over50ms === 0,
+      ),
   };
 }

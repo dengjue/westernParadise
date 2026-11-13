@@ -1,10 +1,19 @@
 import { installLandFrameRecorder } from './record-land-frames.mjs';
 import { summarizeLightingTrace } from './summarize-lighting-trace.mjs';
+import { installLandPhaseProbe } from './probe-land-phases.mjs';
 
 /** 一个景点包含首次/预热循环、三组完整切换和可选中断；返回原始时间线及聚合。 */
 export async function sampleLandLighting(
   page,
-  { viewIndex = 0, rounds = 3, detailed = true, firstUse = false, interruptions = true } = {},
+  {
+    viewIndex = 0,
+    rounds = 3,
+    detailed = true,
+    firstUse = false,
+    interruptions = true,
+    phases = false,
+    submission = false,
+  } = {},
 ) {
   if (
     !Number.isInteger(viewIndex) ||
@@ -56,6 +65,7 @@ export async function sampleLandLighting(
   }
   let trace;
   try {
+    if (phases) await installLandPhaseProbe(page, { submission });
     await installLandFrameRecorder(page, { detailed });
     trace = await page.evaluate(async (plan) => {
       const recorder = window.__landFrames;
@@ -70,12 +80,18 @@ export async function sampleLandLighting(
     trace.summary = summarizeLightingTrace(trace);
     return trace;
   } finally {
-    await page.evaluate((saved) => {
-      window.__landFrames?.finish('驱动异常退出');
-      const g = window.__G;
-      g.events.emit('tod:request', { to: saved.to });
-      g.landCamera.selectView(saved.view, true);
-      g.events.emit('land:tour', { enabled: saved.touring });
-    }, original);
+    const result = await page.evaluate(
+      ({ saved, phases }) => {
+        window.__landFrames?.finish('驱动异常退出');
+        const result = phases ? (window.__landPhases?.finish() ?? null) : null;
+        const g = window.__G;
+        g.events.emit('tod:request', { to: saved.to });
+        g.landCamera.selectView(saved.view, true);
+        g.events.emit('land:tour', { enabled: saved.touring });
+        return result;
+      },
+      { saved: original, phases },
+    );
+    if (trace && phases) trace.phases = result;
   }
 }

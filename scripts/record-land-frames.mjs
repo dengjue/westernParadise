@@ -28,6 +28,10 @@ export async function installLandFrameRecorder(page, { capacity = 24000, detaile
         'logicalMs',
         'observedAtMs',
       ];
+      const phases = window.__landPhases;
+      const phaseOffset = columns.length;
+      if (phases) columns.push(...phases.columns);
+      const requestFrame = phases?.requestFrame ?? window.requestAnimationFrame.bind(window);
       const values = new Float64Array(capacity * columns.length);
       const segments = [],
         entries = [],
@@ -140,10 +144,15 @@ export async function installLandFrameRecorder(page, { capacity = 24000, detaile
           values[row + 15] = g.renderer.info.memory.textures;
           values[row + 16] = g.renderer.info.programs.length;
           values[row + 17] = mask();
+          if (phases) values.set(phases.latest, row + phaseOffset);
           values[row + 18] = performance.now() - begin;
           values[row + 19] = logicalMs;
           values[row + 20] = performance.now();
           count++;
+          if (phases && (phases.latest[1] !== now || phases.latest[6] !== 1)) {
+            stop('分段计时与实际 RAF 未配对或调用栈无效');
+            return;
+          }
           if (mask()) {
             stop('采样中页面不可见、失焦、暂停或发生致命错误');
             return;
@@ -173,11 +182,11 @@ export async function installLandFrameRecorder(page, { capacity = 24000, detaile
           stop('逐帧容量耗尽');
           return;
         }
-        raf = requestAnimationFrame(tick);
+        raf = requestFrame(tick);
       }
       // 一次注入覆盖单景点；无渲染/后台冻结也会有明确超时和已采集证据。
       const deadline = setTimeout(() => stop('单景点采样超过 150 秒'), 150000);
-      raf = requestAnimationFrame(tick);
+      raf = requestFrame(tick);
       window.__landFrames = {
         measure(step) {
           if (stopped || pending) throw new Error(failure || '存在未完成采样段');
