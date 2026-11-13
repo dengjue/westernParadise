@@ -1,56 +1,10 @@
 import { Vector3 } from 'three';
 import type { PerspectiveCamera } from 'three';
 import type { AppEventMap, EventBusLike } from '@/00-types';
-import { LAND_CRAFT, LAND_STRUCTURE, PURE_LAND } from '@/01-shared';
+import { LAND_JOURNEY as J, PURE_LAND } from '@/01-shared';
+import { moveLandPosition, sampleLandHeight } from '@/02-core';
 import type { InputSource } from './input/InputSource';
-
-/** 地面与碰撞共用空间配置，禁止步行进入池水；阶梯按连续坡度采样避免镜头抖动。 */
-export function sampleLandHeight(x: number, z: number): number | null {
-  const { hall, stairs, columns, navigation } = LAND_STRUCTURE;
-  let height: number | null = null;
-  for (const path of PURE_LAND.paths) {
-    const inset = navigation.pathInset;
-    if (
-      x >= path.minX + inset &&
-      x <= path.maxX - inset &&
-      z >= path.minZ + inset &&
-      z <= path.maxZ - inset
-    )
-      height = path.height;
-  }
-  if (
-    Math.abs(x - stairs.x) <= stairs.width / 2 - navigation.bodyRadius &&
-    z >= stairs.backZ - navigation.pathInset &&
-    z <= stairs.frontZ + navigation.pathInset
-  )
-    height =
-      LAND_STRUCTURE.courtHeight +
-      Math.min(1, Math.max(0, (stairs.frontZ - z) / (stairs.frontZ - stairs.backZ))) *
-        (hall.base - LAND_STRUCTURE.courtHeight);
-  // 正殿后壁与莲台为实体，柱列半径带上相机所代表的身体余量。
-  if (Math.abs(x - hall.x) < navigation.backWallHalfWidth && z < navigation.backWallZ) return null;
-  for (const figure of LAND_STRUCTURE.figures)
-    if (
-      Math.hypot(x - figure.x, z - figure.z) <
-      navigation.figureRadius * figure.scale + navigation.bodyRadius
-    )
-      return null;
-  const footHalfWidth = (hall.width * columns.radiusRatio * LAND_CRAFT.column.footWidthRatio) / 2;
-  for (let i = 0; i < columns.hallCount; i++) {
-    const columnX =
-      hall.x + (i / (columns.hallCount - 1) - 0.5) * (hall.width - columns.insetX * 2);
-    for (const side of [-1, 1]) {
-      const columnZ = hall.z + side * (hall.depth / 2 - columns.insetZ);
-      // 方柱础采用膨胀矩形，包含角部，不能只按柱身圆半径拦截。
-      if (
-        Math.abs(x - columnX) < footHalfWidth + navigation.bodyRadius &&
-        Math.abs(z - columnZ) < footHalfWidth + navigation.bodyRadius
-      )
-        return null;
-    }
-  }
-  return height;
-}
+export { sampleLandHeight } from '@/02-core';
 
 export class LandCamera {
   private readonly position = new Vector3();
@@ -58,6 +12,11 @@ export class LandCamera {
   private readonly look = new Vector3();
   private readonly desired = new Vector3();
   private readonly offset = new Vector3();
+  private readonly routeStart = new Vector3();
+  private readonly routeLook = new Vector3();
+  private readonly routeEnd = new Vector3();
+  private readonly controlA = new Vector3();
+  private readonly controlB = new Vector3();
   private readonly removes: (() => void)[];
   private yaw = Math.PI;
   private pitch = 0;
@@ -68,6 +27,11 @@ export class LandCamera {
   private walking = false;
   private touring = false;
   private tourElapsed = 0;
+  private traveling = false;
+  private modal = false;
+  private suspended = false;
+  private steps = 0;
+  private readonly stepEvent = { surface: 'platform' as const };
   private zoom = 1;
   private readonly state = { index: 0, walking: false, touring: false };
 
@@ -79,12 +43,23 @@ export class LandCamera {
   ) {
     this.removes = [
       events.on('land:view', ({ index }) => this.selectView(index)),
-      events.on('land:walk', () => this.startWalking()),
+      events.on('land:walk', () => this.startWalking(true)),
       events.on('land:tour', ({ enabled }) => {
+        if (enabled === this.touring) return;
         this.touring = enabled;
-        this.tourElapsed = 0;
-        if (enabled && this.walking) this.selectView(0);
+        if (this.walking) {
+          this.walking = false;
+          this.traveling = false;
+          this.tourElapsed = J.holdSeconds;
+        }
+        this.captureOrbit();
         this.emitState();
+      }),
+      events.on('land:modal', ({ open }) => {
+        this.modal = open;
+      }),
+      events.on('land:suspend', ({ suspended }) => {
+        this.suspended = suspended;
       }),
     ];
     this.selectView(0, true);
@@ -99,6 +74,8 @@ export class LandCamera {
     if (!view) return;
     this.index = index;
     this.walking = false;
+    this.touring = false;
+    this.traveling = false;
     this.zoom = 1;
     this.tourElapsed = 0;
     this.position.fromArray(view.position);
@@ -115,35 +92,67 @@ export class LandCamera {
     this.emitState();
   }
 
-  startWalking(): void {
+  startWalking(entrance = false): void {
+    if (this.walking || this.modal || this.suspended) return;
     this.walking = true;
     this.touring = false;
-    this.position.set(0, PURE_LAND.eyeHeight + LAND_STRUCTURE.courtHeight, 85);
-    this.yaw = Math.PI;
-    this.pitch = 0.055;
+    this.traveling = false;
+    this.tourElapsed = 0;
+    this.position.copy(this.camera.position);
+    this.camera.getWorldDirection(this.offset);
+    this.yaw = Math.atan2(this.offset.x, this.offset.z);
+    this.pitch = Math.max(-J.pitchLimit, Math.min(J.pitchLimit, Math.asin(this.offset.y)));
+    if (entrance) {
+      this.position.x = J.entries[0][0];
+      this.position.z = J.entries[0][1];
+      this.yaw = Math.PI;
+      this.pitch = 0;
+    }
+    if (sampleLandHeight(this.position.x, this.position.z) === null) {
+      let nearest = Infinity;
+      for (const entry of J.entries) {
+        const distance = Math.hypot(
+          entry[0] - this.camera.position.x,
+          entry[1] - this.camera.position.z,
+        );
+        if (distance < nearest) {
+          nearest = distance;
+          this.position.x = entry[0];
+          this.position.z = entry[1];
+        }
+      }
+    }
+    this.position.y = sampleLandHeight(this.position.x, this.position.z)! + J.eyeHeight;
+    this.steps = 0;
     this.camera.position.copy(this.position);
     this.emitState();
   }
 
   update(deltaMs: number): void {
-    const dt = Math.min(deltaMs / 1000, 0.05);
+    const dt = Math.min(deltaMs / 1000, J.maxDeltaSeconds);
     const controls = this.input.consumeLookDelta();
     const zoom = this.input.consumeZoomDelta();
     const axis = this.input.moveAxis;
+    if (this.modal || this.suspended) return;
     if ((axis.x !== 0 || axis.z !== 0) && !this.walking) this.startWalking();
     if (this.walking) {
       this.yaw -= controls.yaw;
-      this.pitch = Math.max(-1.2, Math.min(1.2, this.pitch - controls.pitch));
+      this.pitch = Math.max(-J.pitchLimit, Math.min(J.pitchLimit, this.pitch - controls.pitch));
       const forwardX = Math.sin(this.yaw),
         forwardZ = Math.cos(this.yaw);
       const dx = (forwardX * axis.z - forwardZ * axis.x) * PURE_LAND.walkSpeed * dt;
       const dz = (forwardZ * axis.z + forwardX * axis.x) * PURE_LAND.walkSpeed * dt;
-      // 分轴滑动让靠栏杆走动自然，地面采样同时阻止跨池和穿入造像。
-      if (sampleLandHeight(this.position.x + dx, this.position.z) !== null) this.position.x += dx;
-      if (sampleLandHeight(this.position.x, this.position.z + dz) !== null) this.position.z += dz;
-      const floor =
-        sampleLandHeight(this.position.x, this.position.z) ?? LAND_STRUCTURE.courtHeight;
-      this.position.y += (floor + PURE_LAND.eyeHeight - this.position.y) * Math.min(1, dt * 12);
+      const oldX = this.position.x,
+        oldZ = this.position.z;
+      moveLandPosition(this.position, dx, dz);
+      this.steps += Math.hypot(this.position.x - oldX, this.position.z - oldZ);
+      if (this.steps >= J.stepDistance) {
+        this.steps %= J.stepDistance;
+        this.events.emit('player:step', this.stepEvent);
+      }
+      const floor = sampleLandHeight(this.position.x, this.position.z)!;
+      this.position.y +=
+        (floor + J.eyeHeight - this.position.y) * (1 - Math.exp(-dt * J.heightEase));
       this.camera.position.copy(this.position);
       this.target.set(
         this.position.x + forwardX * Math.cos(this.pitch),
@@ -151,20 +160,26 @@ export class LandCamera {
         this.position.z + forwardZ * Math.cos(this.pitch),
       );
       this.camera.lookAt(this.target);
+      this.look.copy(this.target);
       return;
     }
     if (controls.yaw || controls.pitch || zoom) {
+      if (this.touring || this.traveling) this.captureOrbit();
       this.touring = false;
+      this.traveling = false;
+      this.tourElapsed = 0;
       this.emitState();
     }
-    this.orbitYaw -= controls.yaw;
-    this.orbitPitch = Math.max(-0.45, Math.min(1.2, this.orbitPitch + controls.pitch));
-    this.zoom = Math.max(0.42, Math.min(1.6, this.zoom + zoom * 0.06));
     if (this.touring) {
-      this.tourElapsed += dt;
-      if (!this.reducedMotion) this.orbitYaw += dt * 0.012;
-      if (this.tourElapsed > 16) this.selectView((this.index + 1) % PURE_LAND.views.length);
+      this.updateTour(dt);
+      return;
     }
+    this.orbitYaw -= controls.yaw;
+    this.orbitPitch = Math.max(
+      J.orbitPitch[0],
+      Math.min(J.orbitPitch[1], this.orbitPitch + controls.pitch),
+    );
+    this.zoom = Math.max(J.zoom[0], Math.min(J.zoom[1], this.zoom + zoom * J.zoomStep));
     const distance = this.distance * this.zoom;
     this.desired.set(
       this.target.x + Math.sin(this.orbitYaw) * Math.cos(this.orbitPitch) * distance,
@@ -179,6 +194,52 @@ export class LandCamera {
 
   dispose(): void {
     for (const remove of this.removes) remove();
+  }
+
+  /** 暂停或手动输入时从可见机位接管，不能继续追逐上一个自动目标。 */
+  private captureOrbit(): void {
+    this.target.copy(this.look);
+    this.offset.copy(this.camera.position).sub(this.target);
+    this.distance = Math.max(1, this.offset.length());
+    this.orbitYaw = Math.atan2(this.offset.x, this.offset.z);
+    this.orbitPitch = Math.asin(this.offset.y / this.distance);
+    this.zoom = 1;
+  }
+
+  private updateTour(dt: number): void {
+    this.tourElapsed += dt;
+    if (!this.traveling && this.tourElapsed < J.holdSeconds) return;
+    const nextIndex = (this.index + 1) % PURE_LAND.views.length;
+    const view = PURE_LAND.views[nextIndex]!;
+    if (!this.traveling) {
+      this.traveling = true;
+      this.tourElapsed = 0;
+      this.routeStart.copy(this.camera.position);
+      this.routeLook.copy(this.look);
+      this.routeEnd.fromArray(view.position);
+      const curve = J.curves[this.index]!;
+      this.controlA.fromArray(curve[0]);
+      this.controlB.fromArray(curve[1]);
+    }
+    const t = this.reducedMotion ? 1 : Math.min(1, this.tourElapsed / J.travelSeconds);
+    const ease = t * t * (3 - 2 * t),
+      inverse = 1 - ease;
+    this.camera.position
+      .copy(this.routeStart)
+      .multiplyScalar(inverse ** 3)
+      .addScaledVector(this.controlA, 3 * inverse * inverse * ease)
+      .addScaledVector(this.controlB, 3 * inverse * ease * ease)
+      .addScaledVector(this.routeEnd, ease ** 3);
+    this.target.fromArray(view.target);
+    this.look.copy(this.routeLook).lerp(this.target, ease);
+    this.camera.lookAt(this.look);
+    if (t === 1) {
+      this.index = nextIndex;
+      this.traveling = false;
+      this.tourElapsed = 0;
+      this.captureOrbit();
+      this.emitState();
+    }
   }
 
   private emitState(): void {

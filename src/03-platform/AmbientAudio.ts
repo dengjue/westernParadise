@@ -1,5 +1,5 @@
 import type { AppEventMap, EventBusLike, WeatherId, WeatherPreset } from '@/00-types';
-import { AUDIO } from '@/01-shared';
+import { AUDIO, LAND_SOUND } from '@/01-shared';
 import { Rng } from '@/02-core';
 
 export interface AmbientAudioOptions {
@@ -10,6 +10,20 @@ export interface AmbientAudioOptions {
   readonly weather: WeatherPreset;
   readonly weatherPresets: Readonly<Record<WeatherId, WeatherPreset>>;
   readonly noAudio: boolean;
+  readonly spatial?: boolean;
+}
+
+function distanceWeight(
+  source: { x: number; y: number; z: number; radius: number },
+  x: number,
+  y: number,
+  z: number,
+): number {
+  const t = Math.max(
+    0,
+    1 - Math.hypot(Math.abs(x) - source.x, y - source.y, z - source.z) / source.radius,
+  );
+  return t * t * (3 - 2 * t);
 }
 
 /**
@@ -34,6 +48,17 @@ export class AmbientAudio {
   private started = false;
   private disposed = false;
   private bellElapsedMs = 0;
+  private birdElapsedMs = 0;
+  private suspended = false;
+  private volume = 1;
+  private readonly spatial: boolean;
+  private windGain: GainNode | null = null;
+  private waterGain: GainNode | null = null;
+  private waterWeight = 0;
+  private groveWeight = 0;
+  private bellWeight = 0;
+  private readonly oneShots = new Set<OscillatorNode>();
+  private readonly removes: (() => void)[];
 
   constructor(options: AmbientAudioOptions) {
     this.eventTarget = options.eventTarget;
@@ -42,16 +67,25 @@ export class AmbientAudio {
     this.weatherPresets = options.weatherPresets;
     this.noAudio = options.noAudio;
     this.currentWeather = options.weather;
+    this.spatial = options.spatial ?? false;
+    this.volume = this.spatial ? LAND_SOUND.defaultVolume : 1;
+    this.removes = [
+      options.events.on('land:suspend', ({ suspended }) => {
+        this.suspended = suspended;
+        this.syncPlayback();
+      }),
+      options.events.on('audio:volume', ({ value }) => {
+        this.volume = Math.max(0, Math.min(1, value));
+        this.syncPlayback();
+      }),
+      options.events.on('audio:position', (position) =>
+        this.setPosition(position.x, position.y, position.z),
+      ),
+    ];
     this.removeAudioRequest = options.events.on('audio:request', ({ enabled }) => {
       this.enabled = enabled;
       if (enabled) void this.start();
-      if (this.context && this.masterGain) {
-        this.masterGain.gain.setTargetAtTime(
-          enabled ? AUDIO.masterGain : 0,
-          this.context.currentTime,
-          0.12,
-        );
-      }
+      this.syncPlayback();
     });
     this.removeWeatherChanged = options.events.on('weather:changed', ({ to }) => {
       this.currentWeather = this.weatherPresets[to];
@@ -72,13 +106,20 @@ export class AmbientAudio {
   }
 
   update(stepMs: number): void {
-    if (!this.started || this.context === null) {
+    if (!this.started || this.context === null || !this.enabled || this.suspended) {
       return;
     }
     this.bellElapsedMs += Math.max(0, stepMs);
     if (this.bellElapsedMs >= AUDIO.bell.intervalMs) {
       this.bellElapsedMs %= AUDIO.bell.intervalMs;
       this.playBell();
+    }
+    if (this.spatial) {
+      this.birdElapsedMs += Math.max(0, stepMs);
+      if (this.birdElapsedMs >= LAND_SOUND.bird.intervalMs) {
+        this.birdElapsedMs %= LAND_SOUND.bird.intervalMs;
+        this.playBird();
+      }
     }
   }
 
@@ -90,6 +131,7 @@ export class AmbientAudio {
     this.removeWeatherChanged();
     this.removePlayerStep();
     this.removeAudioRequest();
+    for (const remove of this.removes) remove();
     this.eventTarget.removeEventListener('keydown', this.onUserGesture);
     this.eventTarget.removeEventListener('pointerdown', this.onUserGesture);
     this.stopGraph();
@@ -100,7 +142,7 @@ export class AmbientAudio {
   };
 
   private async start(): Promise<void> {
-    if (this.started || this.disposed || this.noAudio) {
+    if (this.started || this.disposed || this.noAudio || !this.enabled || this.suspended) {
       return;
     }
     this.started = true;
@@ -109,6 +151,7 @@ export class AmbientAudio {
       this.context = context;
       this.createGraph(context);
       await context.resume();
+      if (!this.disposed) this.syncPlayback();
     } catch {
       this.stopGraph();
       this.started = false;
@@ -118,7 +161,7 @@ export class AmbientAudio {
   private createGraph(context: AudioContext): void {
     const now = context.currentTime;
     this.masterGain = context.createGain();
-    this.masterGain.gain.setValueAtTime(this.enabled ? AUDIO.masterGain : 0, now);
+    this.masterGain.gain.setValueAtTime(this.enabled ? AUDIO.masterGain * this.volume : 0, now);
     this.masterGain.connect(context.destination);
 
     const noiseBuffer = this.createNoiseBuffer(context);
@@ -129,6 +172,7 @@ export class AmbientAudio {
     windFilter.type = 'lowpass';
     windFilter.frequency.setValueAtTime(AUDIO.wind.lowPassHz, now);
     const windGain = context.createGain();
+    this.windGain = windGain;
     windGain.gain.setValueAtTime(AUDIO.wind.gain, now);
     windSource.connect(windFilter).connect(windGain).connect(this.masterGain);
 
@@ -153,6 +197,21 @@ export class AmbientAudio {
     rainSource.connect(rainFilter).connect(this.rainGain).connect(this.masterGain);
 
     this.noiseSources.push(windSource, distantSource, rainSource);
+    if (this.spatial) {
+      const source = context.createBufferSource();
+      source.buffer = noiseBuffer;
+      source.loop = true;
+      const low = context.createBiquadFilter(),
+        high = context.createBiquadFilter();
+      low.type = 'lowpass';
+      low.frequency.setValueAtTime(LAND_SOUND.water.lowPassHz, now);
+      high.type = 'highpass';
+      high.frequency.setValueAtTime(LAND_SOUND.water.highPassHz, now);
+      this.waterGain = context.createGain();
+      this.waterGain.gain.setValueAtTime(this.waterWeight * LAND_SOUND.water.gain, now);
+      source.connect(high).connect(low).connect(this.waterGain).connect(this.masterGain);
+      this.noiseSources.push(source);
+    }
     for (const source of this.noiseSources) {
       source.start(now);
     }
@@ -182,7 +241,13 @@ export class AmbientAudio {
   }
 
   private playFootstep(surface: 'ground' | 'platform'): void {
-    if (this.context === null || this.masterGain === null || !this.started) {
+    if (
+      this.context === null ||
+      this.masterGain === null ||
+      !this.started ||
+      !this.enabled ||
+      this.suspended
+    ) {
       return;
     }
     const now = this.context.currentTime;
@@ -199,6 +264,7 @@ export class AmbientAudio {
     gain.gain.linearRampToValueAtTime(AUDIO.footsteps.gain, now + AUDIO.footsteps.attackSeconds);
     gain.gain.linearRampToValueAtTime(0, now + AUDIO.footsteps.releaseSeconds);
     oscillator.connect(gain).connect(this.masterGain);
+    this.trackOneShot(oscillator, gain);
     oscillator.start(now);
     oscillator.stop(now + AUDIO.footsteps.releaseSeconds);
   }
@@ -213,14 +279,89 @@ export class AmbientAudio {
     oscillator.type = 'sine';
     oscillator.frequency.setValueAtTime(AUDIO.bell.frequencyHz, now);
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(AUDIO.bell.gain, now + AUDIO.bell.attackSeconds);
+    gain.gain.linearRampToValueAtTime(
+      AUDIO.bell.gain * (this.spatial ? this.bellWeight : 1),
+      now + AUDIO.bell.attackSeconds,
+    );
     gain.gain.linearRampToValueAtTime(0, now + AUDIO.bell.releaseSeconds);
     oscillator.connect(gain).connect(this.masterGain);
+    this.trackOneShot(oscillator, gain);
     oscillator.start(now);
     oscillator.stop(now + AUDIO.bell.releaseSeconds);
   }
 
+  private syncPlayback(): void {
+    const context = this.context;
+    if (!context || this.disposed) return;
+    const playing = this.enabled && !this.suspended;
+    this.masterGain?.gain.setTargetAtTime(
+      playing ? AUDIO.masterGain * this.volume : 0,
+      context.currentTime,
+      AUDIO.fadeSeconds,
+    );
+    // 后台冻结整个时钟和声源；重新可见沿用用户开关，不自动解静音。
+    if (playing) void context.resume().catch(() => undefined);
+    else void context.suspend().catch(() => undefined);
+  }
+
+  private setPosition(x: number, y: number, z: number): void {
+    if (!this.spatial) return;
+    this.waterWeight = distanceWeight(LAND_SOUND.water, x, y, z);
+    this.groveWeight = distanceWeight(LAND_SOUND.grove, x, y, z);
+    this.bellWeight = distanceWeight(LAND_SOUND.bell, x, y, z);
+    if (this.context) {
+      const now = this.context.currentTime;
+      this.waterGain?.gain.setTargetAtTime(
+        this.waterWeight * LAND_SOUND.water.gain,
+        now,
+        LAND_SOUND.fadeSeconds,
+      );
+      this.windGain?.gain.setTargetAtTime(
+        AUDIO.wind.gain * (0.55 + this.groveWeight * 0.45),
+        now,
+        LAND_SOUND.fadeSeconds,
+      );
+    }
+  }
+
+  private playBird(): void {
+    if (!this.context || !this.masterGain || this.groveWeight < 0.01) return;
+    const c = LAND_SOUND.bird,
+      now = this.context.currentTime;
+    const oscillator = this.context.createOscillator(),
+      gain = this.context.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(c.frequencyHz, now);
+    oscillator.frequency.linearRampToValueAtTime(c.riseHz, now + c.duration / 2);
+    oscillator.frequency.linearRampToValueAtTime(c.frequencyHz, now + c.duration);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(c.gain * this.groveWeight, now + c.duration / 4);
+    gain.gain.linearRampToValueAtTime(0, now + c.duration);
+    oscillator.connect(gain).connect(this.masterGain);
+    this.trackOneShot(oscillator, gain);
+    oscillator.start(now);
+    oscillator.stop(now + c.duration);
+  }
+
+  private trackOneShot(oscillator: OscillatorNode, gain: GainNode): void {
+    this.oneShots.add(oscillator);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      gain.disconnect();
+      this.oneShots.delete(oscillator);
+    };
+  }
+
   private stopGraph(): void {
+    for (const oscillator of this.oneShots) {
+      try {
+        oscillator.stop();
+      } catch {
+        /* 已结束的节点仍可安全断开。 */
+      }
+      oscillator.disconnect();
+    }
+    this.oneShots.clear();
     for (const source of this.noiseSources) {
       try {
         source.stop();
@@ -235,6 +376,7 @@ export class AmbientAudio {
     this.context = null;
     this.masterGain = null;
     this.rainGain = null;
+    this.windGain = this.waterGain = null;
     if (context !== null) {
       void context.close().catch(() => undefined);
     }

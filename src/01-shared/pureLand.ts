@@ -1,13 +1,14 @@
 import type { QualityTier } from '@/00-types';
 import { LAND_STRUCTURE } from './landCraft';
+import { LAND_JOURNEY } from './landJourney';
 
 /** 世界采用米制建筑尺度。经籍中的无限尺度转译为可辨认、可进入的空间层级。 */
 export const PURE_LAND = Object.freeze({
   name: '西方极乐',
   subtitle: '一念清净 · 万象庄严',
   english: 'S U K H Ā V A T Ī',
-  eyeHeight: 2.5,
-  walkSpeed: 8,
+  eyeHeight: LAND_JOURNEY.eyeHeight,
+  walkSpeed: LAND_JOURNEY.walkSpeed,
   cameraEase: 2.2,
   fov: 49,
   near: 0.2,

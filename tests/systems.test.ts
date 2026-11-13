@@ -62,6 +62,29 @@ function idleInput(): InputSource {
 }
 
 describe('KeyboardMouseInput', () => {
+  it('弹窗禁用清掉按键和待消费视角；恢复后的系统重复键不重新启动移动', () => {
+    const target = new EventTarget();
+    const input = new KeyboardMouseInput({
+      keyboardTarget: target,
+      pointerTarget: target,
+      lookSensitivityRadPerPixel: 0.001,
+    });
+    target.dispatchEvent(new KeyEvent('keydown', 'KeyW'));
+    target.dispatchEvent(new PointerEventLike('pointerdown', 2, 10, 10));
+    target.dispatchEvent(new PointerEventLike('pointermove', -1, 20, 20, 2));
+    target.dispatchEvent(new WheelEventLike(120));
+    input.setEnabled(false);
+    expect(input.moveAxis).toEqual({ x: 0, z: 0 });
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
+    expect(input.consumeZoomDelta()).toBe(0);
+    input.setEnabled(true);
+    target.dispatchEvent(Object.assign(new KeyEvent('keydown', 'KeyW'), { repeat: true }));
+    expect(input.moveAxis.z).toBe(0);
+    target.dispatchEvent(new KeyEvent('keyup', 'KeyW'));
+    target.dispatchEvent(new KeyEvent('keydown', 'KeyW'));
+    expect(input.moveAxis.z).toBe(1);
+    input.dispose();
+  });
   it('把键盘轴归一化，并消费右键视角与滚轮增量', () => {
     const target = new EventTarget();
     const input = new KeyboardMouseInput({

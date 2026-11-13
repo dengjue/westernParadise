@@ -23,6 +23,30 @@ class PointerLike extends Event {
 }
 
 describe('TouchInput', () => {
+  it('禁用与失焦清除双指状态，恢复后必须重新按下', () => {
+    const moveTarget = new EventTarget(),
+      lookTarget = new EventTarget(),
+      pointerTarget = new EventTarget();
+    const input = new TouchInput({
+      moveTarget,
+      lookTarget,
+      pointerTarget,
+      moveRadiusPx: 50,
+      lookSensitivityRadPerPixel: 0.01,
+    });
+    moveTarget.dispatchEvent(new PointerLike('pointerdown', 1, 'touch', 0, 0));
+    pointerTarget.dispatchEvent(new PointerLike('pointermove', 1, 'touch', 20, -20));
+    input.setEnabled(false);
+    expect(input.moveAxis).toEqual({ x: 0, z: 0 });
+    input.setEnabled(true);
+    pointerTarget.dispatchEvent(new PointerLike('pointermove', 1, 'touch', 40, -40));
+    expect(input.moveAxis).toEqual({ x: 0, z: 0 });
+    lookTarget.dispatchEvent(new PointerLike('pointerdown', 2, 'touch', 0, 0));
+    pointerTarget.dispatchEvent(new PointerLike('pointermove', 2, 'touch', 20, 20));
+    pointerTarget.dispatchEvent(new Event('blur'));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
+    input.dispose();
+  });
   it('左侧触控区把拖拽归一化为移动轴，并在抬起后归零', () => {
     const moveTarget = new EventTarget();
     const lookTarget = new EventTarget();

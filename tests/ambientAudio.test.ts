@@ -10,6 +10,9 @@ class FakeAudioParam {
   setValueAtTime(value: number): void {
     this.value = value;
   }
+  setTargetAtTime(value: number): void {
+    this.value = value;
+  }
 
   linearRampToValueAtTime(value: number): void {
     this.value = value;
@@ -53,6 +56,7 @@ class FakeAudioContext {
   readonly sampleRate = 100;
   currentTime = 0;
   closed = false;
+  state = 'suspended';
 
   createGain(): FakeAudioNode & { gain: FakeAudioParam } {
     const node = Object.assign(new FakeAudioNode(), { gain: new FakeAudioParam() });
@@ -104,6 +108,11 @@ class FakeAudioContext {
   }
 
   resume(): Promise<void> {
+    this.state = 'running';
+    return Promise.resolve();
+  }
+  suspend(): Promise<void> {
+    this.state = 'suspended';
     return Promise.resolve();
   }
 
@@ -174,5 +183,35 @@ describe('AmbientAudio', () => {
 
     audio.dispose();
     expect(context.closed).toBe(true);
+  });
+  it('静音不创建图；前后台冻结并遵守用户开关，空间声随区域而改变', async () => {
+    const target = new EventTarget(),
+      events = new EventBus<AppEventMap>(),
+      context = new FakeAudioContext();
+    const audio = new AmbientAudio({
+      ...audioOptions(target, events, () => context, false),
+      spatial: true,
+    });
+    events.emit('audio:request', { enabled: false });
+    target.dispatchEvent(new Event('pointerdown'));
+    expect(audio.isStarted).toBe(false);
+    events.emit('audio:request', { enabled: true });
+    await Promise.resolve();
+    expect(context.sources).toHaveLength(4);
+    events.emit('audio:position', { x: 28, y: 0, z: 28 });
+    const near = context.gains.map((g) => g.gain.value);
+    events.emit('audio:position', { x: 500, y: 100, z: 500 });
+    expect(context.gains.some((g, i) => g.gain.value < near[i]!)).toBe(true);
+    events.emit('land:suspend', { suspended: true });
+    expect(context.state).toBe('suspended');
+    events.emit('audio:request', { enabled: false });
+    events.emit('land:suspend', { suspended: false });
+    expect(context.state).toBe('suspended');
+    events.emit('audio:request', { enabled: true });
+    expect(context.state).toBe('running');
+    events.emit('audio:volume', { value: 0.25 });
+    expect(context.gains[0]!.gain.value).toBeCloseTo(AUDIO.masterGain * 0.25);
+    audio.dispose();
+    expect(events.size).toBe(0);
   });
 });

@@ -8,6 +8,7 @@ export { FatalError, toError } from './errors';
 export { createGardenLayout, gardenRng, isPondClear, sampleGardenLeaf } from './gardenLayout';
 export { distanceLevel, ReflectionSchedule, AdaptiveRenderBudget } from './renderBudget';
 export { LandLightTransition } from './landLightTransition';
+export { sampleLandHeight, moveLandPosition } from './landNavigation';
 export type {
   GardenPoint,
   GardenTree,

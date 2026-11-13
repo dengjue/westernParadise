@@ -30,6 +30,7 @@ export class KeyboardMouseInput implements InputSource {
   private lastPointerX = 0;
   private lastPointerY = 0;
   private zoomDelta = 0;
+  private enabled = true;
 
   constructor(options: KeyboardMouseInputOptions) {
     if (options.lookSensitivityRadPerPixel < 0) {
@@ -69,6 +70,20 @@ export class KeyboardMouseInput implements InputSource {
     return result;
   }
 
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    this.reset();
+  }
+
+  reset(): void {
+    this.dragging = false;
+    this.setAllKeys(false);
+    this.updateAxis();
+    this.lookDelta.yaw = this.lookDelta.pitch = 0;
+    this.consumedLookDelta.yaw = this.consumedLookDelta.pitch = 0;
+    this.zoomDelta = 0;
+  }
+
   dispose(): void {
     this.keyboardTarget.removeEventListener('keydown', this.onKeyDown);
     this.keyboardTarget.removeEventListener('keyup', this.onKeyUp);
@@ -90,6 +105,7 @@ export class KeyboardMouseInput implements InputSource {
 
   private readonly onKeyDown = (event: Event): void => {
     const keyboard = event as KeyboardEvent;
+    if (!this.enabled || keyboard.repeat) return;
     const target = keyboard.target as {
       tagName?: string;
       isContentEditable?: boolean;
@@ -118,13 +134,12 @@ export class KeyboardMouseInput implements InputSource {
   };
 
   private readonly onBlur = (): void => {
-    this.dragging = false;
-    this.setAllKeys(false);
-    this.updateAxis();
+    this.reset();
   };
 
   private readonly onPointerDown = (event: Event): void => {
     const pointer = event as PointerEvent;
+    if (!this.enabled || this.isControl(pointer.target)) return;
     if (pointer.button !== 2) {
       return;
     }
@@ -138,6 +153,7 @@ export class KeyboardMouseInput implements InputSource {
 
   private readonly onPointerMove = (event: Event): void => {
     const pointer = event as PointerEvent;
+    if (!this.enabled || this.isControl(pointer.target)) return;
     // 部分浏览器的右键手势会吞掉 down/up，但仍发送带 buttons 的 move。
     // 以移动事件的实际按键状态恢复/结束拖动；恢复时重新取原点，避免镜头跳转。
     if ((pointer.buttons & 2) === 0) {
@@ -169,6 +185,7 @@ export class KeyboardMouseInput implements InputSource {
 
   private readonly onWheel = (event: Event): void => {
     const wheel = event as WheelEvent;
+    if (!this.enabled) return;
     const target = wheel.target as { closest?: (selector: string) => Element | null } | null;
     if (target?.closest?.('dialog[open], select, input')) return;
     const direction = Math.sign(wheel.deltaY);
@@ -181,8 +198,14 @@ export class KeyboardMouseInput implements InputSource {
   };
 
   private readonly onContextMenu = (event: Event): void => {
-    event.preventDefault();
+    if (this.enabled && !this.isControl(event.target)) event.preventDefault();
   };
+
+  private isControl(target: EventTarget | null): boolean {
+    return !!(target as { closest?: (selector: string) => unknown } | null)?.closest?.(
+      'dialog[open], button, select, input, textarea, [contenteditable]',
+    );
+  }
 
   private setKeyState(code: string, pressed: boolean): boolean {
     switch (code) {

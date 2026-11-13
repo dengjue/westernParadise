@@ -24,6 +24,8 @@ interface BuilderOptions {
   cellSize?: number;
   dynamicLod?: boolean;
   detail?: LandDetail;
+  tubeCache?: Map<string, TubeGeometry>;
+  cacheStats?: { hits: number; misses: number; bytes: number };
 }
 
 /** 静态细构件按材质合批。数千栏杆、斗拱、窗格只占少量 draw call。 */
@@ -39,10 +41,14 @@ export class LandBuilder {
   private readonly rotation = new Quaternion();
   private readonly scale = new Vector3();
   private readonly center = new Vector3();
+  private readonly tubeCache: Map<string, TubeGeometry>;
+  readonly cacheStats: { hits: number; misses: number; bytes: number };
 
   constructor(private readonly options: BuilderOptions = {}) {
     const segments = LAND_RENDER.lod.sphereSegments[options.detail ?? 'near'];
     this.sphereGeometry = new SphereGeometry(1, ...segments);
+    this.tubeCache = options.tubeCache ?? new Map();
+    this.cacheStats = options.cacheStats ?? { hits: 0, misses: 0, bytes: 0 };
   }
 
   /** 只在资产顶层构建三级，子构建器禁用递归 LOD；中档阴影副本共享几何与材质。 */
@@ -59,7 +65,12 @@ export class LandBuilder {
     if (best === 'far') {
       // 远景群楼从不升级细节，无需每座保留独立 LOD draw call。
       // 先用远档原型生成完整构件，再把尚未合并的区块批次转交父构建器，避免二次复制顶点。
-      const child = new LandBuilder({ cellSize: this.options.cellSize, detail: best });
+      const child = new LandBuilder({
+        cellSize: this.options.cellSize,
+        detail: best,
+        tubeCache: this.tubeCache,
+        cacheStats: this.cacheStats,
+      });
       try {
         build(child, best);
         for (const [material, cells] of child.batches) {
@@ -83,7 +94,11 @@ export class LandBuilder {
     const levels = details.map((detail, index) => {
       const group = new Group();
       if (index < minimum) return group;
-      const builder = new LandBuilder({ detail });
+      const builder = new LandBuilder({
+        detail,
+        tubeCache: this.tubeCache,
+        cacheStats: this.cacheStats,
+      });
       build(builder, detail);
       builder.flush(group);
       return group;
@@ -155,10 +170,25 @@ export class LandBuilder {
   }
 
   tube(material: Material, points: readonly Point[], radius: number, segments = 12): void {
-    const curve = new CatmullRomCurve3(points.map((point) => new Vector3(...point)));
-    const geometry = new TubeGeometry(curve, segments, radius, 5, false);
-    this.shape(geometry, material);
-    geometry.dispose();
+    // 以首点为原点缓存完整曲线网格。相同屋顶的平移副本复用 Frenet 标架和弧长表，
+    // 不减少曲线采样或三角形；微米级键精度只消除世界坐标相减的浮点尾差。
+    const origin = points[0]!;
+    const local = points.map(
+      (point) => new Vector3(point[0] - origin[0], point[1] - origin[1], point[2] - origin[2]),
+    );
+    const key =
+      `${radius}/${segments}/` +
+      local.map((p) => `${p.x.toFixed(6)},${p.y.toFixed(6)},${p.z.toFixed(6)}`).join('/');
+    let geometry = this.tubeCache.get(key);
+    if (!geometry) {
+      geometry = new TubeGeometry(new CatmullRomCurve3(local), segments, radius, 5, false);
+      this.tubeCache.set(key, geometry);
+      this.cacheStats.misses++;
+      this.cacheStats.bytes +=
+        (geometry.index?.array.byteLength ?? 0) +
+        Object.values(geometry.attributes).reduce((sum, a) => sum + a.array.byteLength, 0);
+    } else this.cacheStats.hits++;
+    this.shape(geometry, material, origin);
   }
 
   rod(material: Material, from: Point, to: Point, radius: number): void {
@@ -220,5 +250,9 @@ export class LandBuilder {
     this.boxGeometry.dispose();
     this.cylinderGeometry.dispose();
     this.sphereGeometry.dispose();
+    if (!this.options.tubeCache) {
+      for (const geometry of this.tubeCache.values()) geometry.dispose();
+      this.tubeCache.clear();
+    }
   }
 }

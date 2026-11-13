@@ -21,8 +21,12 @@ export interface AppEventMap {
   'land:view': { readonly index: number };
   'land:walk': Record<string, never>;
   'land:tour': { readonly enabled: boolean };
+  'land:modal': { readonly open: boolean };
+  'land:suspend': { readonly suspended: boolean };
+  'audio:position': { readonly x: number; readonly y: number; readonly z: number };
   'land:state': { readonly index: number; readonly walking: boolean; readonly touring: boolean };
   'audio:request': { readonly enabled: boolean };
+  'audio:volume': { readonly value: number };
   'app:ready': { readonly startedAt: number };
   'app:frame': FrameTick;
   'app:resize': { readonly width: number; readonly height: number };

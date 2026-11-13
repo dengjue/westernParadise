@@ -1,20 +1,22 @@
 import { ExtrudeGeometry, LatheGeometry, PlaneGeometry, Shape, Vector2 } from 'three';
 import type { Material } from 'three';
 import type { PureLandMaterials } from '@/05-materials';
-import { LAND_ATMOSPHERE, LAND_CRAFT, LAND_DETAIL, LAND_STRUCTURE, PURE_LAND } from '@/01-shared';
-import type { LandDetail } from '@/01-shared';
+import {
+  buildingColumns,
+  LAND_CORRIDOR_COLUMNS,
+  LAND_RAILINGS,
+  LAND_ATMOSPHERE,
+  LAND_CRAFT,
+  LAND_DETAIL,
+  LAND_STRUCTURE,
+  PURE_LAND,
+} from '@/01-shared';
+import type { LandBuilding, LandDetail } from '@/01-shared';
 import type { LandBuilder } from './Builder';
 import { chamferedBox } from './CraftGeometry';
 import { createRoof as roof } from './Roof';
 
-interface Building {
-  x: number;
-  z: number;
-  width: number;
-  depth: number;
-  base: number;
-  height: number;
-}
+type Building = LandBuilding;
 
 /** 雀替轮廓从柱头承接梁枋，使用薄挤出曲面而不是悬空方块。 */
 function corbel(width: number, height: number, depth: number): ExtrudeGeometry {
@@ -160,10 +162,8 @@ function pavilion(
     }
   for (const side of [-1, 1]) {
     const columnCount = b.width > 30 ? columns.hallCount : columns.pavilionCount;
-    for (let i = 0; i < columnCount; i++) {
-      const x = b.x + (i / (columnCount - 1) - 0.5) * (b.width - columns.insetX * 2);
-      const z = b.z + side * (b.depth / 2 - columns.insetZ);
-      column(builder, m, x, z, b.base, b.height, b.width * columns.radiusRatio, detail);
+    for (const { x, z, radius, index: i } of buildingColumns(b).filter((c) => c.side === side)) {
+      column(builder, m, x, z, b.base, b.height, radius, detail);
       if (i < columnCount - 1 && LAND_DETAIL[detail].ornaments) {
         const bay = (b.width - columns.insetX * 2) / (columnCount - 1);
         const panel = new PlaneGeometry(bay - 1.2, 0.54);
@@ -294,25 +294,22 @@ function hall(
   const board = new PlaneGeometry(10, 2.5);
   builder.shape(board, plaque, [0, 15, h.z + h.depth / 2 + 0.15]);
   board.dispose();
-  lattice(builder, m, -16.2, h.z + h.depth / 2 - 0.6, 7.8, 8, base + 1);
-  lattice(builder, m, 16.2, h.z + h.depth / 2 - 0.6, 7.8, 8, base + 1);
-  builder.box(m.dark, [0, 9.7, h.z - 11.8], [40, 13, 0.5]);
-  for (const side of [-1, 1]) {
-    railing(
+  const { screens, backWall } = LAND_STRUCTURE;
+  for (const side of [-1, 1])
+    lattice(
       builder,
       m,
-      [side * (terrace.halfWidth - 1), terrace.backZ + 3],
-      [side * (terrace.halfWidth - 1), stairs.backZ - 0.5],
-      base,
+      side * screens.x,
+      h.z + h.depth / 2 - screens.frontOffset,
+      screens.width,
+      8,
+      base + 1,
     );
-    railing(
-      builder,
-      m,
-      [side * (stairs.width / 2 + 1), stairs.backZ - 0.5],
-      [side * (terrace.halfWidth - 1), stairs.backZ - 0.5],
-      base,
-    );
-  }
+  builder.box(
+    m.dark,
+    [h.x, backWall.centerY, h.z + backWall.offsetZ],
+    [backWall.width, backWall.height, backWall.depth],
+  );
 }
 
 function pagoda(
@@ -384,12 +381,8 @@ export function createArchitecture(
     builder.box(m.gold, [0, 1.3, z - 1.9], [8, 0.035, 0.055]);
     for (const side of [-1, 1]) builder.box(m.gold, [side * 4, 1.31, z], [0.045, 0.03, 3.8]);
   }
+  for (const rail of LAND_RAILINGS) railing(builder, m, rail.from, rail.to, rail.base);
   for (const side of [-1, 1]) {
-    railing(builder, m, [side * 7, -18], [side * 7, 73]);
-    railing(builder, m, [side * 9, 75], [side * 56, 75]);
-    railing(builder, m, [side * 9, -19], [side * 56, -19]);
-    railing(builder, m, [side * 57, -18], [side * 57, 73]);
-    railing(builder, m, [side * 69, -75], [side * 69, 73]);
     for (const building of LAND_STRUCTURE.pavilions)
       pavilion(builder, m, { x: side * LAND_STRUCTURE.corridor.x, ...building }, detail);
     roof(
@@ -402,12 +395,20 @@ export function createArchitecture(
     pagoda(builder, m, side * 98, 18, 0.62, 4);
     // 两侧开放回廊：每个开间能看到池水，而非封闭实体墙。
     const corridor = LAND_STRUCTURE.corridor;
-    for (let bay = 0; bay < corridor.bays; bay++) {
-      const z = -25 + bay * corridor.spacing;
+    for (const { x, z, radius } of LAND_CORRIDOR_COLUMNS.filter((c) => c.x * side > 0)) {
       // 柱身自台基起，接触影须在铺装顶面上，不能被最后一层石板遮住。
       const contactY = LAND_STRUCTURE.courtHeight + LAND_CRAFT.floor.courtPavingRise;
-      column(builder, m, side * 67, z, LAND_STRUCTURE.courtHeight, 4.6, 0.24, 'middle', contactY);
-      column(builder, m, side * 59, z, LAND_STRUCTURE.courtHeight, 4.6, 0.24, 'middle', contactY);
+      column(
+        builder,
+        m,
+        x,
+        z,
+        LAND_STRUCTURE.courtHeight,
+        corridor.columnHeight,
+        radius,
+        'middle',
+        contactY,
+      );
     }
     roof(
       builder,

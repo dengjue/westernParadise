@@ -9,6 +9,8 @@ export interface TouchInputOptions {
   readonly pointerTarget: EventTarget;
   readonly moveRadiusPx: number;
   readonly lookSensitivityRadPerPixel: number;
+  /** 只在指针事件变化时反馈虚拟摇杆，避免逐帧写 DOM。 */
+  readonly feedback?: (pad: 'move' | 'look', active: boolean, x: number, y: number) => void;
 }
 
 /**
@@ -31,6 +33,8 @@ export class TouchInput implements InputSource {
   private moveOriginY = 0;
   private lastLookX = 0;
   private lastLookY = 0;
+  private enabled = true;
+  private readonly feedback: TouchInputOptions['feedback'];
 
   constructor(options: TouchInputOptions) {
     if (options.moveRadiusPx <= 0 || options.lookSensitivityRadPerPixel < 0) {
@@ -41,12 +45,14 @@ export class TouchInput implements InputSource {
     this.pointerTarget = options.pointerTarget;
     this.moveRadiusPx = options.moveRadiusPx;
     this.lookSensitivity = options.lookSensitivityRadPerPixel;
+    this.feedback = options.feedback;
 
     this.moveTarget.addEventListener('pointerdown', this.onMovePointerDown);
     this.lookTarget.addEventListener('pointerdown', this.onLookPointerDown);
     this.pointerTarget.addEventListener('pointermove', this.onPointerMove);
     this.pointerTarget.addEventListener('pointerup', this.onPointerUp);
     this.pointerTarget.addEventListener('pointercancel', this.onPointerUp);
+    this.pointerTarget.addEventListener('blur', this.onBlur);
   }
 
   get moveAxis(): { x: number; z: number } {
@@ -65,12 +71,29 @@ export class TouchInput implements InputSource {
     return 0;
   }
 
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    this.reset();
+  }
+
+  reset(): void {
+    this.resetMove();
+    this.movePointerId = this.lookPointerId = null;
+    this.lookDelta.yaw = this.lookDelta.pitch = 0;
+    this.consumedLookDelta.yaw = this.consumedLookDelta.pitch = 0;
+    this.feedback?.('move', false, 0, 0);
+    this.feedback?.('look', false, 0, 0);
+  }
+
+  private readonly onBlur = (): void => this.reset();
+
   dispose(): void {
     this.moveTarget.removeEventListener('pointerdown', this.onMovePointerDown);
     this.lookTarget.removeEventListener('pointerdown', this.onLookPointerDown);
     this.pointerTarget.removeEventListener('pointermove', this.onPointerMove);
     this.pointerTarget.removeEventListener('pointerup', this.onPointerUp);
     this.pointerTarget.removeEventListener('pointercancel', this.onPointerUp);
+    this.pointerTarget.removeEventListener('blur', this.onBlur);
     this.resetMove();
     this.movePointerId = null;
     this.lookPointerId = null;
@@ -82,7 +105,7 @@ export class TouchInput implements InputSource {
 
   private readonly onMovePointerDown = (event: Event): void => {
     const pointer = event as PointerEvent;
-    if (!this.isTouchPointer(pointer) || this.movePointerId !== null) {
+    if (!this.enabled || !this.isTouchPointer(pointer) || this.movePointerId !== null) {
       return;
     }
     this.movePointerId = pointer.pointerId;
@@ -94,16 +117,18 @@ export class TouchInput implements InputSource {
 
   private readonly onLookPointerDown = (event: Event): void => {
     const pointer = event as PointerEvent;
-    if (!this.isTouchPointer(pointer) || this.lookPointerId !== null) {
+    if (!this.enabled || !this.isTouchPointer(pointer) || this.lookPointerId !== null) {
       return;
     }
     this.lookPointerId = pointer.pointerId;
     this.lastLookX = pointer.clientX;
     this.lastLookY = pointer.clientY;
+    this.feedback?.('look', true, 0, 0);
     pointer.preventDefault();
   };
 
   private readonly onPointerMove = (event: Event): void => {
+    if (!this.enabled) return;
     const pointer = event as PointerEvent;
     if (pointer.pointerId === this.movePointerId) {
       this.updateMove(pointer.clientX, pointer.clientY);
@@ -124,10 +149,12 @@ export class TouchInput implements InputSource {
     if (pointer.pointerId === this.movePointerId) {
       this.movePointerId = null;
       this.resetMove();
+      this.feedback?.('move', false, 0, 0);
       handled = true;
     }
     if (pointer.pointerId === this.lookPointerId) {
       this.lookPointerId = null;
+      this.feedback?.('look', false, 0, 0);
       handled = true;
     }
     if (handled) {
@@ -145,6 +172,7 @@ export class TouchInput implements InputSource {
     }
     this.axis.x = x;
     this.axis.z = z;
+    this.feedback?.('move', true, x, -z);
   }
 
   private resetMove(): void {

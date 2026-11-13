@@ -1,5 +1,5 @@
 import type { AppEventMap, Capabilities, EventBusLike, QualityTier, TimeOfDayId } from '@/00-types';
-import { LAND_LIGHT, LAND_QUALITY, PURE_LAND } from '@/01-shared';
+import { LAND_LIGHT, LAND_QUALITY, LAND_SOUND, PURE_LAND } from '@/01-shared';
 
 interface LandUiOptions {
   events: EventBusLike<AppEventMap>;
@@ -51,6 +51,7 @@ function lotusMark(): SVGSVGElement {
 export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   const { events, capabilities } = options;
   let currentTime = options.time;
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
   const removes: (() => void)[] = [];
   root.classList.add('land-app');
   const viewport = el('div', 'viewport land-viewport');
@@ -75,6 +76,9 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   const headerTools = el('div', 'land-header-tools');
   const sourceButton = button('land-text-button', PURE_LAND.copy.sources);
   const audioButton = button('land-icon-button land-audio', '♫', '开启环境音');
+  const settingsButton = button('land-icon-button land-settings-toggle', '☷', '画面与声音设置');
+  settingsButton.setAttribute('aria-expanded', 'false');
+  settingsButton.setAttribute('aria-controls', 'land-settings');
   audioButton.setAttribute('aria-pressed', 'false');
   let audioEnabled = false;
   audioButton.disabled = options.noAudio;
@@ -85,7 +89,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     audioButton.setAttribute('aria-label', audioEnabled ? '关闭环境音' : '开启环境音');
     events.emit('audio:request', { enabled: audioEnabled });
   });
-  headerTools.append(sourceButton, audioButton);
+  headerTools.append(sourceButton, audioButton, settingsButton);
   header.append(brand, navigation, headerTools);
 
   const title = el('section', 'land-title');
@@ -100,6 +104,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   title.append(titleEyebrow, heading, titleEn, line, subtitle, enter);
 
   const settings = el('aside', 'land-settings');
+  settings.id = 'land-settings';
   settings.setAttribute('aria-label', '场景设置');
   const timeLabel = el('div', 'land-setting-label', '光 阴');
   const timeGroup = el('div', 'land-time-group');
@@ -127,7 +132,32 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     window.location.href = url.href;
   });
   qualityLabel.append(quality);
-  settings.append(timeLabel, timeGroup, qualityLabel);
+  const volumeLabel = el('label', 'land-volume-label', '音量');
+  const volume = el('input', 'land-volume');
+  volume.type = 'range';
+  volume.min = '0';
+  volume.max = '100';
+  volume.value = String(LAND_SOUND.defaultVolume * 100);
+  volume.setAttribute('aria-label', '环境音量');
+  volume.disabled = options.noAudio;
+  volume.addEventListener('input', () =>
+    events.emit('audio:volume', { value: Number(volume.value) / 100 }),
+  );
+  volumeLabel.append(volume);
+  settings.append(timeLabel, timeGroup, qualityLabel, volumeLabel);
+  const closeSettings = (): void => {
+    settings.classList.remove('is-open');
+    settingsButton.setAttribute('aria-expanded', 'false');
+    touch.hidden = !capabilities.touch || dialog.open;
+    events.emit('land:modal', { open: dialog.open });
+  };
+  settingsButton.addEventListener('click', () => {
+    const open = settings.classList.toggle('is-open');
+    settingsButton.setAttribute('aria-expanded', String(open));
+    touch.hidden = open || !capabilities.touch;
+    events.emit('land:modal', { open });
+    notice.hidden = true;
+  });
 
   const footer = el('footer', 'land-footer');
   const viewDetails = el('section', 'land-view-details');
@@ -148,6 +178,8 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   function hideUi(hidden: boolean): void {
     overlay.hidden = hidden;
     restore.hidden = !hidden;
+    closeSettings();
+    (hidden ? restore : hideButton).focus({ preventScroll: true });
   }
   hideButton.addEventListener('click', () => hideUi(true));
   restore.addEventListener('click', () => hideUi(false));
@@ -162,7 +194,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   const notice = el('div', 'land-notice');
   notice.hidden = true;
   notice.setAttribute('role', 'status');
-  overlay.append(header, title, settings, footer, hint, note, notice);
+  overlay.append(header, title, settings, footer, hint, note);
 
   const dialog = el('dialog', 'land-dialog');
   dialog.setAttribute('aria-labelledby', 'land-source-title');
@@ -182,7 +214,17 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     dialog.append(item);
   }
   dialog.append(el('small', '', '文献索引：大正藏 T0366 · T0365　/　建筑与空间艺术设计'));
-  sourceButton.addEventListener('click', () => dialog.showModal());
+  sourceButton.addEventListener('click', () => {
+    closeSettings();
+    events.emit('land:modal', { open: true });
+    touch.hidden = true;
+    dialog.showModal();
+  });
+  dialog.addEventListener('close', () => {
+    events.emit('land:modal', { open: false });
+    touch.hidden = !capabilities.touch;
+    sourceButton.focus({ preventScroll: true });
+  });
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) {
       const rect = dialog.getBoundingClientRect();
@@ -200,16 +242,33 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   move.setAttribute('aria-label', '触控移动区');
   const look = el('div', 'land-touch-pad', '环顾');
   look.setAttribute('aria-label', '触控视角区');
+  move.append(el('span', 'land-touch-thumb'));
+  look.append(el('span', 'land-touch-thumb'));
   touch.append(move, look);
   touch.hidden = !capabilities.touch;
-  root.append(overlay, restore, dialog, touch);
+  root.append(overlay, restore, dialog, touch, notice);
 
   const keyHandler = (event: KeyboardEvent): void => {
-    if (dialog.open || event.target instanceof HTMLSelectElement) return;
+    if (!dialog.open && event.code === 'Escape' && settings.classList.contains('is-open')) {
+      closeSettings();
+      settingsButton.focus({ preventScroll: true });
+      return;
+    }
+    if (
+      dialog.open ||
+      event.repeat ||
+      event.target instanceof HTMLSelectElement ||
+      event.target instanceof HTMLInputElement
+    )
+      return;
     if (event.code === 'KeyH') hideUi(!overlay.hidden);
     if (event.code === 'Escape' && overlay.hidden) hideUi(false);
   };
   window.addEventListener('keydown', keyHandler);
+  const resizeSettings = (): void => {
+    if (settings.classList.contains('is-open') && settingsButton.offsetWidth === 0) closeSettings();
+  };
+  window.addEventListener('resize', resizeSettings);
   removes.push(
     events.on('tod:changed', ({ to }) => {
       currentTime = to;
@@ -244,18 +303,32 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     viewport,
     move,
     look,
-    showNotice(message: string): void {
+    touchFeedback(pad: 'move' | 'look', active: boolean, x: number, y: number): void {
+      const target = pad === 'move' ? move : look;
+      target.dataset['active'] = String(active);
+      target.style.setProperty('--touch-x', `${x * 25}px`);
+      target.style.setProperty('--touch-y', `${y * 25}px`);
+    },
+    showNotice(message: string, temporary = false): void {
+      clearTimeout(noticeTimer);
       notice.textContent = message;
       notice.hidden = false;
+      if (temporary)
+        noticeTimer = setTimeout(() => {
+          notice.hidden = true;
+        }, 5000);
     },
     dispose(): void {
+      clearTimeout(noticeTimer);
       for (const remove of removes) remove();
       window.removeEventListener('keydown', keyHandler);
+      window.removeEventListener('resize', resizeSettings);
       viewport.remove();
       overlay.remove();
       restore.remove();
       dialog.remove();
       touch.remove();
+      notice.remove();
       root.classList.remove('land-app');
     },
   };

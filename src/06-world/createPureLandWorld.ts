@@ -25,6 +25,7 @@ export interface PureLandWorldOptions {
 }
 
 export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions) {
+  const start = performance.now();
   const root = new Group();
   root.name = 'sukhavati';
   const materials = createPureLandMaterials(
@@ -36,8 +37,10 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   const cellSize = options.cellSize ?? LAND_RENDER.cellSize;
   const builder = new LandBuilder({ cellSize, dynamicLod: true });
   const detail = LAND_DETAIL_BY_QUALITY[options.quality];
+  const materialsReady = performance.now();
   createArchitecture(builder, materials, plaque, detail);
   createSculptures(builder, materials, detail);
+  const architectureReady = performance.now();
   const garden = createGarden(
     root,
     builder,
@@ -47,10 +50,12 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
     options.reducedMotion,
   );
   partitionGarden(root, garden.layout.trees, options.quality, cellSize);
+  const gardenReady = performance.now();
   builder.flush(root);
   createContactShadows(root, builder.contacts, options.canvasFactory);
   scene.add(root);
   const flowers = createFlowerDrift(root, options.seed, options.quality === 'low' ? 120 : 420);
+  const batchesReady = performance.now();
   const atmosphere = createLandAtmosphere(
     scene,
     options.renderer,
@@ -65,6 +70,14 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   let elapsed = 0;
   return {
     root,
+    startup: {
+      materialsMs: materialsReady - start,
+      architectureMs: architectureReady - materialsReady,
+      gardenMs: gardenReady - architectureReady,
+      batchesMs: batchesReady - gardenReady,
+      atmosphereMs: performance.now() - batchesReady,
+      curveCache: builder.cacheStats,
+    },
     garden,
     reflection: atmosphere.reflection,
     lighting: atmosphere.stats,

@@ -9,6 +9,8 @@ import {
   Quaternion,
   SphereGeometry,
   Vector3,
+  CatmullRomCurve3,
+  TubeGeometry,
 } from 'three';
 import type { BufferGeometry } from 'three';
 import { LandBuilder } from '@/06-world/land/Builder';
@@ -26,6 +28,39 @@ function geometryBytes(geometry: BufferGeometry): number {
 }
 
 describe('LandBuilder 索引合批', () => {
+  it('平移曲线复用完整网格，位置误差小于 0.1 毫米，法线和三角形不变', () => {
+    const builder = new LandBuilder(),
+      root = new Group(),
+      material = new MeshStandardMaterial();
+    const points = [
+      [10, 2, -35],
+      [12, 2.4, -38],
+      [14, 4, -41],
+    ] as const;
+    const translated = points.map((p) => [p[0] + 126, p[1], p[2]] as const);
+    builder.tube(material, points, 0.075, 10);
+    builder.tube(material, translated, 0.075, 10);
+    builder.flush(root);
+    expect(builder.cacheStats.hits).toBe(1);
+    const actual = output(root).geometry;
+    const expected = new TubeGeometry(
+      new CatmullRomCurve3(points.map((p) => new Vector3(...p))),
+      10,
+      0.075,
+      5,
+      false,
+    );
+    expect(actual.index!.count).toBe(expected.index!.count * 2);
+    for (const attribute of ['position', 'normal', 'uv']) {
+      const a = actual.getAttribute(attribute),
+        e = expected.getAttribute(attribute);
+      for (let i = 0; i < e.array.length; i++)
+        expect(Math.abs(a.array[i]! - e.array[i]!)).toBeLessThan(0.0001);
+    }
+    actual.dispose();
+    expected.dispose();
+    material.dispose();
+  });
   it('不同形状、缩放和旋转合批后逐三角形位置/法线/UV 等价，保留接缝', () => {
     const builder = new LandBuilder();
     const parent = new Group();

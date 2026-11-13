@@ -1,5 +1,13 @@
 import type { AppEventMap } from '@/00-types';
-import { COPY, LAND_RENDER, PURE_LAND, QUALITY_PROFILES, WEATHER_PRESETS } from '@/01-shared';
+import {
+  COPY,
+  LAND_JOURNEY,
+  LAND_RENDER,
+  LAND_SOUND,
+  PURE_LAND,
+  QUALITY_PROFILES,
+  WEATHER_PRESETS,
+} from '@/01-shared';
 import { AdaptiveRenderBudget, Clock, EventBus } from '@/02-core';
 import {
   AmbientAudio,
@@ -19,6 +27,8 @@ import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics
 
 /** 新世界独立装配，历史庭院仍可通过 scene=courtyard 复现。 */
 export function startPureLand(): () => void {
+  const start = performance.now();
+  const startup = { syncMs: 0, firstFrameMs: 0 };
   const root = document.getElementById('app');
   if (!root) throw new Error('缺少 #app 挂载点');
   const params = parseParams(window.location.search);
@@ -98,13 +108,14 @@ export function startPureLand(): () => void {
         moveTarget: ui.move,
         lookTarget: ui.look,
         pointerTarget: window,
-        moveRadiusPx: 46,
-        lookSensitivityRadPerPixel: 0.004,
+        moveRadiusPx: LAND_JOURNEY.moveRadiusPx,
+        lookSensitivityRadPerPixel: LAND_JOURNEY.touchSensitivity,
+        feedback: ui.touchFeedback,
       })
     : new KeyboardMouseInput({
         keyboardTarget: window,
         pointerTarget: window,
-        lookSensitivityRadPerPixel: 0.003,
+        lookSensitivityRadPerPixel: LAND_JOURNEY.mouseSensitivity,
       });
   const camera = new LandCamera(context.camera, input, events, capabilities.reducedMotion);
   const audio = new AmbientAudio({
@@ -115,14 +126,23 @@ export function startPureLand(): () => void {
     weather: WEATHER_PRESETS.clear,
     weatherPresets: WEATHER_PRESETS,
     noAudio: params.noAudio,
+    spatial: true,
   });
   events.emit('audio:request', { enabled: false });
+  let audioElapsed = LAND_SOUND.updateMs;
+  const audioPosition = { x: 0, y: 0, z: 0 };
   renderer.info.autoReset = false;
   const loop = new Loop({
     clock: new Clock(1000 / 60, 150),
     events,
     onStep: (delta) => {
       camera.update(delta);
+      audioElapsed += delta;
+      if (audioElapsed >= LAND_SOUND.updateMs) {
+        audioElapsed %= LAND_SOUND.updateMs;
+        Object.assign(audioPosition, context.camera.position);
+        events.emit('audio:position', audioPosition);
+      }
       audio.update(delta);
       if (!capabilities.reducedMotion) world.update(delta);
     },
@@ -132,6 +152,7 @@ export function startPureLand(): () => void {
       telemetry.begin(performance.now());
       try {
         pipeline.render();
+        if (startup.firstFrameMs === 0) startup.firstFrameMs = performance.now() - start;
       } finally {
         telemetry.end(performance.now());
       }
@@ -143,8 +164,17 @@ export function startPureLand(): () => void {
     world.setTime(to);
     events.emit('tod:changed', { from, to });
   });
+  let modal = false,
+    lost = false,
+    failed = false;
+  const removeModal = events.on('land:modal', ({ open }) => {
+    modal = open;
+    syncActivity();
+  });
   const removeTrap = installFatalTrap((phase, error) => {
+    failed = true;
     loop.stop();
+    syncActivity();
     markFatal(error.message);
     ui.showNotice(`${phase}: ${error.message}`);
   });
@@ -153,19 +183,37 @@ export function startPureLand(): () => void {
     pipeline.resize(window.innerWidth, window.innerHeight);
   };
   window.addEventListener('resize', resize);
-  const visibility = (): void => {
-    if (document.hidden) loop.stop();
+  function syncActivity(): void {
+    const suspended = document.hidden || !document.hasFocus() || lost || failed;
+    input.setEnabled(!modal && !suspended);
+    events.emit('land:suspend', { suspended });
+    if (document.hidden || lost || failed) loop.stop();
     else loop.start();
+  }
+  const visibility = (): void => syncActivity();
+  const pageHide = (event: PageTransitionEvent): void => {
+    if (!event.persisted) {
+      dispose();
+      return;
+    }
+    input.setEnabled(false);
+    events.emit('land:suspend', { suspended: true });
+    loop.stop();
   };
   document.addEventListener('visibilitychange', visibility);
+  window.addEventListener('blur', visibility);
+  window.addEventListener('focus', visibility);
+  window.addEventListener('pageshow', visibility);
   const contextLost = (event: Event): void => {
     event.preventDefault();
+    lost = true;
     loop.stop();
+    syncActivity();
     ui.showNotice('画面连接暂时中断，请刷新页面恢复。');
   };
   context.canvas.addEventListener('webglcontextlost', contextLost);
-  if (capabilities.reducedMotion) ui.showNotice(COPY.reducedMotion);
-  else if (decision.tier === 'low') ui.showNotice('流畅画质 · 已降低反射与叶片密度');
+  if (capabilities.reducedMotion) ui.showNotice(COPY.reducedMotion, true);
+  else if (decision.tier === 'low') ui.showNotice('流畅画质 · 已降低反射与叶片密度', true);
   let disposed = false;
   installDebugProbe(import.meta.env.DEV || params.debug || params.bench, {
     scene: context.scene,
@@ -178,6 +226,7 @@ export function startPureLand(): () => void {
     quality: decision.tier,
     seed: params.seed,
     renderBudget: { adaptive, pipeline: pipeline.stats, telemetry: telemetry.stats },
+    startup,
     // 仅诊断页暴露真实释放/重挂入口，回归检测同一文档里的资源与监听器，而非只测刷新。
     dispose,
     restart: () => {
@@ -185,7 +234,8 @@ export function startPureLand(): () => void {
       return startPureLand();
     },
   });
-  loop.start();
+  startup.syncMs = performance.now() - start;
+  syncActivity();
   events.emit('app:ready', { startedAt: Date.now() });
   function dispose(): void {
     if (disposed) return;
@@ -194,9 +244,13 @@ export function startPureLand(): () => void {
     removeTime();
     removeBudget();
     removeTrap();
+    removeModal();
     window.removeEventListener('resize', resize);
-    window.removeEventListener('pagehide', dispose);
+    window.removeEventListener('pagehide', pageHide);
     document.removeEventListener('visibilitychange', visibility);
+    window.removeEventListener('blur', visibility);
+    window.removeEventListener('focus', visibility);
+    window.removeEventListener('pageshow', visibility);
     context.canvas.removeEventListener('webglcontextlost', contextLost);
     input.dispose();
     camera.dispose();
@@ -208,6 +262,6 @@ export function startPureLand(): () => void {
     ui.dispose();
     events.clear();
   }
-  window.addEventListener('pagehide', dispose, { once: true });
+  window.addEventListener('pagehide', pageHide);
   return dispose;
 }
