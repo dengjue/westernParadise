@@ -17,6 +17,8 @@ import { createGardenWind } from '@/05-materials';
 import { createGarden } from '@/06-world/land/Garden';
 import { LandBuilder } from '@/06-world/land/Builder';
 import { lilyGeometry, lotusPetalGeometry, treeLeafGeometry } from '@/06-world/land/GardenGeometry';
+import { partitionGarden } from '@/06-world/land/SpatialGarden';
+import { DistanceLod } from '@/04-engine';
 
 function materials(): PureLandMaterials {
   return {
@@ -138,6 +140,66 @@ describe('稳定园林布局', () => {
 });
 
 describe('曲面植物与风动', () => {
+  it.each([24, 48])(
+    '%d 米植物分块无实例丢失，三级共享矩阵/颜色/风属性，远景仍覆盖每棵树',
+    (cellSize) => {
+      const root = new Group(),
+        fixture = materials(),
+        builder = new LandBuilder();
+      const garden = createGarden(root, builder, fixture, 20261113, 'high', false);
+      builder.flush(root);
+      const sources = new Map(
+        root.children
+          .filter(
+            (object): object is InstancedMesh =>
+              object instanceof InstancedMesh && object.name !== 'garden-crown-shadow-proxy',
+          )
+          .map((object) => [object.name, object]),
+      );
+      partitionGarden(root, garden.layout.trees, 'high', cellSize);
+      root.updateMatrixWorld(true);
+      const covered = new Map<string, Set<number>>();
+      for (const lod of root.children) {
+        if (!(lod instanceof DistanceLod)) continue;
+        const base = lod.children[0] as InstancedMesh,
+          original = sources.get(base.name)!;
+        const indices = base.userData['sourceIndices'] as Uint32Array;
+        const seen = covered.get(base.name) ?? new Set<number>();
+        covered.set(base.name, seen);
+        for (let i = 0; i < indices.length; i++) {
+          const source = indices[i]!;
+          expect(seen.has(source)).toBe(false);
+          seen.add(source);
+          expect(base.instanceMatrix.array.slice(i * 16, i * 16 + 16)).toEqual(
+            original.instanceMatrix.array.slice(source * 16, source * 16 + 16),
+          );
+        }
+        const version = base.instanceMatrix.version;
+        garden.update(120);
+        expect(base.instanceMatrix.version).toBe(version);
+        for (const object of lod.children) {
+          const mesh = object as InstancedMesh;
+          expect(mesh.instanceMatrix).toBe(base.instanceMatrix);
+          expect(mesh.instanceColor).toBe(base.instanceColor);
+          expect(mesh.geometry.getAttribute('gardenWind')).toBe(
+            base.geometry.getAttribute('gardenWind'),
+          );
+          expect(mesh.geometry.index!.count).toBeLessThanOrEqual(base.geometry.index!.count);
+          if (base.name !== 'jewel-tree-leaves') expect(mesh.count).toBe(base.count);
+          else {
+            const trees = (ids: Uint32Array) =>
+              new Set(
+                Array.from(ids, (id) => Math.floor(id / LAND_GARDEN_QUALITY.high.leavesPerTree)),
+              );
+            expect(trees(indices.slice(0, mesh.count))).toEqual(trees(indices));
+          }
+        }
+      }
+      for (const [name, source] of sources) expect(covered.get(name)!.size).toBe(source.count);
+      dispose(root, fixture);
+    },
+  );
+
   it('四档曲面坐标与法线有限；莲叶朝上且边缘高于叶心', () => {
     for (const quality of ['low', 'medium', 'high', 'ultra'] as const) {
       for (const geometry of [

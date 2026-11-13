@@ -23,6 +23,8 @@
 
 **Phase 3 已完成**：四档画质共用稳定树木/花叶布局，加入错层枝叶、渐细树干、连接枝端的珠网、曲面莲叶与 GPU 轻风。107 个测试、三光阴近景、离线、减动效和触控模拟通过；high/low 提交三角形 +7.59% / +0.21%，静态缓冲 +3.26% / +2.28%，均在预算内。high 全境 p95 16.7→25.2ms 的回退已记录，下一阶段重点降低渲染成本。[Phase 3 细节与验收](02-方案/13-Phase3-莲池与宝林自然细节.md)。
 
+**Phase 4 已完成本机验收**：48 米空间分块、距离细节分级、独立倒影视图、静止反射限频与自动像素预算。主殿/宝林 high 反射更新帧提交三角形较 P3 减少 **67.54% / 53.05%**，low 减少 **53.55% / 39.12%**；同轮 high 全境 p95 为 P3 16.7 / P4 16.6ms。121 项测试、离线、触控模拟及重复挂载资源归零检查通过。high 静态几何驻留增加 13.58%，low 减少 13.04%；真实手机 30 FPS 长测待补验。[Phase 4 数据、取舍与复跑](02-方案/14-Phase4-空间分块与渲染预算.md)。
+
 以下为原始工程的背景与阶段记录。
 
 参考作品是一个 **2.87 MB 的单文件 HTML**，内含完整 Three.js 引擎 + 一款 FPS 游戏，
@@ -89,7 +91,7 @@ npm run verify         # 一条命令跑完所有门禁 + 两种构建（CI 复�
 |---|---|
 | `npm run typecheck` | TypeScript `strict` 类型检查 |
 | `npm run lint` / `format:check` | ESLint / Prettier 一致性 |
-| `npm run test` | Vitest（19 文件 / 107 用例，纯 Node 环境） |
+| `npm run test` | Vitest（22 文件 / 121 用例，纯 Node 环境） |
 | `npm run walktest` | 单独执行 3.6 多层寻路与路线可达性走查 |
 | `npm run check:layers` | 单向依赖、目录入口、浏览器 API 边界、循环依赖 |
 | `npm run check:content` | 源码与文案的宗教红线词扫描（37 词） |
@@ -107,6 +109,7 @@ npm run verify         # 一条命令跑完所有门禁 + 两种构建（CI 复�
 
 **调试参数**：`?q=low|medium|high|ultra`、`?seed=`、`?bench`、`?smoke`、`?debug`、`?noaudio`。
 生产单文件默认不暴露内部对象；默认极乐世界用 `?debug` / `?bench` 开启 `window.__G`，历史庭院用 `?debug`。
+Phase 4 的 `&chunk=24` 只在诊断模式比较候选粒度，默认 48 米。`scripts/benchmark-pure-land.mjs` 分开记录帧间隔、提交/GPU 耗时与更新/缓存帧；`scripts/verify-land-render.mjs` 复跑反射与生命周期检查。
 
 ---
 
@@ -146,7 +149,7 @@ python3 scan_single_html.py --extract-css --extract-js   # 同时导出内联 CS
 
 ## 下一步
 
-极乐世界下一项为 [Phase 4 · 空间分块与渲染预算](02-方案/14-Phase4-空间分块与渲染预算.md)，包括分区裁剪、距离 LOD、反射分级与移动端像素预算。
+极乐世界下一项为 [Phase 5 · 光影与远景空间层次](02-方案/15-Phase5-光影与远景空间层次.md)，重点改善檐下明暗、地平线过渡与晨昼暮层次。
 
 打开 `AGENT_TODO.md`：阶段 3.1~3.6 与阶段 4.1~4.5 已完成，4.4 只读 P0/P1 审查无阻塞项；
 4.6 已整理送审包但外部合规评估仍按规范阻塞，不在探索期擅自发布。每项仍要按实施规范回归并通过 `npm run verify`。

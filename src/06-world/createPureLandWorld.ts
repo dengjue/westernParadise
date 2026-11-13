@@ -1,7 +1,7 @@
 import { Group } from 'three';
 import type { Scene, WebGLRenderer } from 'three';
 import type { QualityTier, TimeOfDayId } from '@/00-types';
-import { LAND_DETAIL_BY_QUALITY } from '@/01-shared';
+import { LAND_DETAIL_BY_QUALITY, LAND_RENDER } from '@/01-shared';
 import { createHallPlaque, createPureLandMaterials } from '@/05-materials';
 import type { CanvasFactory } from '@/05-materials';
 import { createArchitecture } from './land/Architecture';
@@ -10,6 +10,7 @@ import { LandBuilder } from './land/Builder';
 import { createGarden } from './land/Garden';
 import { createSculptures } from './land/Sculpture';
 import { createFlowerDrift } from './land/FlowerDrift';
+import { partitionGarden } from './land/SpatialGarden';
 
 export interface PureLandWorldOptions {
   canvasFactory: CanvasFactory;
@@ -19,6 +20,7 @@ export interface PureLandWorldOptions {
   anisotropy: number;
   time: TimeOfDayId;
   reducedMotion: boolean;
+  cellSize?: number;
 }
 
 export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions) {
@@ -30,7 +32,8 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
     options.anisotropy,
   );
   const plaque = createHallPlaque(options.canvasFactory);
-  const builder = new LandBuilder();
+  const cellSize = options.cellSize ?? LAND_RENDER.cellSize;
+  const builder = new LandBuilder({ cellSize, dynamicLod: true });
   const detail = LAND_DETAIL_BY_QUALITY[options.quality];
   createArchitecture(builder, materials, plaque, detail);
   createSculptures(builder, materials, detail);
@@ -42,14 +45,27 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
     options.quality,
     options.reducedMotion,
   );
+  partitionGarden(root, garden.layout.trees, options.quality, cellSize);
   builder.flush(root);
   scene.add(root);
   const flowers = createFlowerDrift(root, options.seed, options.quality === 'low' ? 120 : 420);
-  const atmosphere = createLandAtmosphere(scene, options.renderer, options.quality, options.time);
+  const atmosphere = createLandAtmosphere(
+    scene,
+    options.renderer,
+    options.quality,
+    options.time,
+    options.reducedMotion,
+  );
+  scene.traverse((object) => {
+    if (object.layers.isEnabled(LAND_RENDER.layers.main))
+      object.layers.enable(LAND_RENDER.layers.reflection);
+  });
   let elapsed = 0;
   return {
     root,
     garden,
+    reflection: atmosphere.reflection,
+    cellSize,
     setTime: atmosphere.setTime,
     update(deltaMs: number): void {
       elapsed += deltaMs / 1000;

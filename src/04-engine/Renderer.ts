@@ -62,6 +62,8 @@ export class Renderer {
 
   dispose(): void {
     this.renderer.dispose();
+    // 此上下文随 canvas 一起销毁；主动归还驱动资源，避免重复挂载等待 GC 回收内置阴影缓存。
+    this.renderer.forceContextLoss();
     this.canvas.remove();
   }
 }

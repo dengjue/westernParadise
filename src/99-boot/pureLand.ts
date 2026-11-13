@@ -1,6 +1,6 @@
 import type { AppEventMap } from '@/00-types';
-import { COPY, PURE_LAND, QUALITY_PROFILES, WEATHER_PRESETS } from '@/01-shared';
-import { Clock, EventBus } from '@/02-core';
+import { COPY, LAND_RENDER, PURE_LAND, QUALITY_PROFILES, WEATHER_PRESETS } from '@/01-shared';
+import { AdaptiveRenderBudget, Clock, EventBus } from '@/02-core';
 import {
   AmbientAudio,
   detectCapabilities,
@@ -11,7 +11,7 @@ import {
   selectQuality,
   writeStoredQuality,
 } from '@/03-platform';
-import { createCinematicPipeline, createSceneContext, Loop } from '@/04-engine';
+import { createCinematicPipeline, createSceneContext, Loop, RenderTelemetry } from '@/04-engine';
 import { createPureLandWorld } from '@/06-world';
 import { KeyboardMouseInput, LandCamera, TouchInput } from '@/07-systems';
 import { mountPureLandUi } from '@/08-ui';
@@ -25,8 +25,10 @@ export function startPureLand(): () => void {
   const raw = new URLSearchParams(window.location.search);
   const capabilities = detectCapabilities(readBrowserEnv());
   const storage = resolveStorage();
-  const decision = selectQuality(params, capabilities, readStoredQuality(storage));
-  writeStoredQuality(storage, decision.tier);
+  const storedQuality = readStoredQuality(storage);
+  const decision = selectQuality(params, capabilities, storedQuality);
+  if (params.quality !== null) writeStoredQuality(storage, decision.tier);
+  const adaptive = new AdaptiveRenderBudget(params.quality !== null || storedQuality !== null);
   const profile = {
     ...QUALITY_PROFILES[decision.tier],
     pixelRatioCap:
@@ -67,6 +69,10 @@ export function startPureLand(): () => void {
     seed: params.seed,
     time,
     reducedMotion: capabilities.reducedMotion,
+    cellSize:
+      (params.bench || params.debug) && raw.get('chunk') === '24'
+        ? LAND_RENDER.cellCandidates[0]
+        : LAND_RENDER.cellSize,
   });
   const pipeline = createCinematicPipeline(
     renderer,
@@ -76,6 +82,17 @@ export function startPureLand(): () => void {
     window.innerWidth,
     window.innerHeight,
   );
+  const telemetry = new RenderTelemetry(renderer, params.bench || params.debug);
+  const basePixelRatio = renderer.getPixelRatio();
+  let elapsedMs = 0;
+  const removeBudget = events.on('app:frame', (frame) => {
+    elapsedMs = frame.elapsedMs;
+    if (adaptive.update(frame.deltaMs)) {
+      renderer.setPixelRatio(basePixelRatio * adaptive.scale);
+      pipeline.setScale(adaptive.scale);
+      world.reflection.setScale(adaptive.scale);
+    }
+  });
   const input = capabilities.touch
     ? new TouchInput({
         moveTarget: ui.move,
@@ -111,7 +128,13 @@ export function startPureLand(): () => void {
     },
     onRender: () => {
       renderer.info.reset();
-      pipeline.render();
+      world.reflection.beginFrame(elapsedMs);
+      telemetry.begin(performance.now());
+      try {
+        pipeline.render();
+      } finally {
+        telemetry.end(performance.now());
+      }
     },
   });
   const removeTime = events.on('tod:request', ({ to }) => {
@@ -143,6 +166,7 @@ export function startPureLand(): () => void {
   context.canvas.addEventListener('webglcontextlost', contextLost);
   if (capabilities.reducedMotion) ui.showNotice(COPY.reducedMotion);
   else if (decision.tier === 'low') ui.showNotice('流畅画质 · 已降低反射与叶片密度');
+  let disposed = false;
   installDebugProbe(import.meta.env.DEV || params.debug || params.bench, {
     scene: context.scene,
     camera: context.camera,
@@ -153,12 +177,22 @@ export function startPureLand(): () => void {
     audio,
     quality: decision.tier,
     seed: params.seed,
+    renderBudget: { adaptive, pipeline: pipeline.stats, telemetry: telemetry.stats },
+    // 仅诊断页暴露真实释放/重挂入口，回归检测同一文档里的资源与监听器，而非只测刷新。
+    dispose,
+    restart: () => {
+      dispose();
+      return startPureLand();
+    },
   });
   loop.start();
   events.emit('app:ready', { startedAt: Date.now() });
   function dispose(): void {
+    if (disposed) return;
+    disposed = true;
     loop.stop();
     removeTime();
+    removeBudget();
     removeTrap();
     window.removeEventListener('resize', resize);
     window.removeEventListener('pagehide', dispose);
@@ -169,6 +203,7 @@ export function startPureLand(): () => void {
     audio.dispose();
     world.dispose();
     pipeline.dispose();
+    telemetry.dispose();
     context.dispose();
     ui.dispose();
     events.clear();

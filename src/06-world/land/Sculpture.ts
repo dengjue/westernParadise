@@ -1,5 +1,5 @@
 import { LatheGeometry, Vector2 } from 'three';
-import { LAND_CRAFT, LAND_DETAIL, LAND_STRUCTURE } from '@/01-shared';
+import { LAND_CRAFT, LAND_DETAIL, LAND_STRUCTURE, LAND_RENDER } from '@/01-shared';
 import type { LandDetail } from '@/01-shared';
 import type { PureLandMaterials } from '@/05-materials';
 import type { LandBuilder } from './Builder';
@@ -21,8 +21,19 @@ function seatedFigure(
   scale: number,
   detail: LandDetail,
 ): void {
+  if (
+    builder.lod(
+      [x, LAND_STRUCTURE.hall.base + LAND_CRAFT.figure.baseOffset, z],
+      LAND_STRUCTURE.navigation.figureRadius * scale,
+      'sculpture',
+      detail,
+      (level, next) => seatedFigure(level, m, x, z, scale, next),
+    )
+  )
+    return;
   const craft = LAND_CRAFT.figure,
     settings = LAND_DETAIL[detail];
+  const decoration = LAND_RENDER.decoration[detail];
   const base = LAND_STRUCTURE.hall.base + craft.baseOffset;
   const body = m.sculpture;
   const p = (px: number, py: number, pz: number): [number, number, number] => [
@@ -67,7 +78,7 @@ function seatedFigure(
   builder.sphere(m.dark, p(0, 7.83, -0.09), s(0.75, 0.4, 0.65));
   builder.sphere(m.dark, p(0, 8.28, -0.1), s(0.32, 0.38, 0.3));
   for (let row = 0; row < 5; row++)
-    for (let curl = 0; curl < 18; curl++) {
+    for (let curl = 0; curl < 18; curl += decoration.curlStep) {
       const angle = ((curl + row * 0.5) / 18) * Math.PI * 2;
       const radius = 0.74 * Math.cos(((row / 6) * Math.PI) / 2);
       builder.sphere(
@@ -161,7 +172,7 @@ function seatedFigure(
       (2.3 + i * 0.22) * scale,
       (i === 1 ? 0.025 : 0.05) * scale,
     );
-  for (let i = 0; i < 48; i++) {
+  for (let i = 0; i < 48; i += decoration.haloStep) {
     const a = (i / 48) * Math.PI * 2;
     builder.sphere(
       m.gold,

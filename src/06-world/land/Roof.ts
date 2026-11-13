@@ -104,11 +104,17 @@ export function createRoof(
   b: RoofSpec,
   detail: LandDetail,
 ): void {
+  if (
+    builder.lod([b.x, b.base, b.z], Math.max(b.width, b.depth) / 2, 'roof', detail, (level, next) =>
+      createRoof(level, m, b, next),
+    )
+  )
+    return;
   const settings = LAND_DETAIL[detail],
     craft = LAND_CRAFT.roof;
   const geometry = roofGeometry(b, detail);
   builder.shape(geometry, m.roof, [b.x, b.base, b.z]);
-  if (detail !== 'far') {
+  {
     const underside = geometry.clone().translate(0, -craft.thickness, 0);
     const index = underside.index!;
     for (let i = 0; i < index.count; i += 3) {

@@ -16,8 +16,9 @@ import {
 } from 'three';
 import type { WebGLRenderer } from 'three';
 import type { QualityTier, TimeOfDayId } from '@/00-types';
-import { LAND_GARDEN, LAND_LIGHT, PURE_LAND } from '@/01-shared';
+import { LAND_GARDEN, LAND_LIGHT, LAND_RENDER, PURE_LAND } from '@/01-shared';
 import { Reflector } from 'three/addons/objects/Reflector.js';
+import { budgetReflection } from './LandReflection';
 
 const SKY_VERTEX = `
   varying vec3 vDirection;
@@ -104,6 +105,7 @@ export function createLandAtmosphere(
   renderer: WebGLRenderer,
   quality: QualityTier,
   initial: TimeOfDayId,
+  reducedMotion = false,
 ) {
   const uniforms = {
     topColor: { value: new Color() },
@@ -136,6 +138,7 @@ export function createLandAtmosphere(
   sun.shadow.bias = PURE_LAND.rendering.shadowBias;
   sun.shadow.normalBias = 0.05;
   sun.shadow.camera.updateProjectionMatrix();
+  sun.shadow.camera.layers.set(LAND_RENDER.layers.shadow);
   renderer.shadowMap.type = PCFSoftShadowMap;
   // 建筑不运动：阴影生成一次，时段切换才重新提交，避免反射相机重复绘制阴影。
   renderer.shadowMap.autoUpdate = false;
@@ -174,6 +177,7 @@ export function createLandAtmosphere(
   water.position.y = PURE_LAND.waterY;
   water.name = 'seven-jewel-water';
   scene.add(water);
+  const reflection = budgetReflection(water, quality, reducedMotion);
   const waterUniforms = (water.material as ShaderMaterial).uniforms;
   const generator = new PMREMGenerator(renderer);
   const environmentScene = new Scene();
@@ -198,10 +202,12 @@ export function createLandAtmosphere(
     scene.environment = environment.texture;
     scene.environmentIntensity = 0.46;
     renderer.shadowMap.needsUpdate = true;
+    reflection.invalidate();
   }
   setTime(initial);
   return {
     setTime,
+    reflection,
     update(seconds: number): void {
       waterUniforms['time']!.value = seconds;
     },
@@ -210,6 +216,7 @@ export function createLandAtmosphere(
       environment?.dispose();
       generator.dispose();
       water.dispose();
+      water.geometry.dispose();
       scene.remove(water);
       sun.shadow.dispose();
     },

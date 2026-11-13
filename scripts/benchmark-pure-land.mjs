@@ -27,11 +27,13 @@ export async function benchmarkPureLand(
   await page.waitForFunction(() => window.__G?.renderer.info.render.calls > 0);
   return page.evaluate(
     async ({ warmupFrames, sampleFrames, viewIndices, sampleTimeoutMs }) => {
-      const { scene, renderer, landCamera, events, quality, seed } = window.__G;
+      const { scene, renderer, landCamera, events, quality, seed, world, renderBudget } =
+        window.__G;
       if (document.hidden) throw new Error('请在可见页面采样');
       if (landCamera.isWalking) throw new Error('请先返回观景模式再采样');
 
       function summary(values) {
+        if (values.length === 0) return null;
         const sorted = Array.from(values).sort((a, b) => a - b);
         const percentile = (p) => sorted[Math.max(0, Math.ceil(sorted.length * p) - 1)];
         return {
@@ -42,6 +44,22 @@ export async function benchmarkPureLand(
           mean: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
         };
       }
+
+      // 对历史产物也可复用的 CPU 口径：累计最外层 renderer.render 的同步提交时间。
+      // 反射是嵌套 render，不重复计时；pipelineCpuMs 另含 composer 编排与查询开销。
+      const originalRender = renderer.render;
+      let renderDepth = 0,
+        submissionMs = 0;
+      renderer.render = function (...args) {
+        const outer = renderDepth++ === 0,
+          start = outer ? performance.now() : 0;
+        try {
+          return originalRender.apply(this, args);
+        } finally {
+          renderDepth--;
+          if (outer) submissionMs += performance.now() - start;
+        }
+      };
 
       function geometryStats() {
         const geometries = new Set();
@@ -106,6 +124,14 @@ export async function benchmarkPureLand(
         const frameMs = new Float64Array(sampleFrames);
         const calls = new Float64Array(sampleFrames);
         const triangles = new Float64Array(sampleFrames);
+        const submission = [],
+          pipelineCpu = [],
+          gpu = [];
+        const reflection = {
+          updated: { calls: [], triangles: [], cpuMs: [] },
+          cached: { calls: [], triangles: [], cpuMs: [] },
+        };
+        let previousGpuSamples = renderBudget?.telemetry.gpuSamples ?? 0;
         let seen = 0;
         return new Promise((resolve, reject) => {
           const cleanup = () => {
@@ -121,12 +147,28 @@ export async function benchmarkPureLand(
             if (document.hidden) fail('采样期间页面进入后台，本组数据作废');
           };
           const remove = events.on('app:frame', ({ deltaMs }) => {
+            const cpuMs = submissionMs;
+            submissionMs = 0;
             if (seen++ < warmupFrames) return;
             const i = seen - warmupFrames - 1;
             // app:frame 在本帧绘制前发出，info 对应刚完成的上一帧；机位预热后再统计。
             frameMs[i] = deltaMs;
             calls[i] = renderer.info.render.calls;
             triangles[i] = renderer.info.render.triangles;
+            submission.push(cpuMs);
+            if (renderBudget) {
+              pipelineCpu.push(renderBudget.telemetry.cpuMs);
+              if (renderBudget.telemetry.gpuSamples > previousGpuSamples) {
+                gpu.push(renderBudget.telemetry.gpuMs);
+                previousGpuSamples = renderBudget.telemetry.gpuSamples;
+              }
+              const bucket = world.reflection.stats.rendered
+                ? reflection.updated
+                : reflection.cached;
+              bucket.calls.push(calls[i]);
+              bucket.triangles.push(triangles[i]);
+              bucket.cpuMs.push(cpuMs);
+            }
             if (i + 1 === sampleFrames) {
               cleanup();
               resolve({
@@ -134,6 +176,23 @@ export async function benchmarkPureLand(
                 frameMs: summary(frameMs),
                 calls: summary(calls),
                 triangles: summary(triangles),
+                submissionMs: summary(submission),
+                pipelineCpuMs: summary(pipelineCpu),
+                gpuMs: summary(gpu),
+                gpuSamples: gpu.length,
+                reflection: renderBudget
+                  ? Object.fromEntries(
+                      Object.entries(reflection).map(([kind, values]) => [
+                        kind,
+                        {
+                          frames: values.calls.length,
+                          calls: summary(values.calls),
+                          triangles: summary(values.triangles),
+                          submissionMs: summary(values.cpuMs),
+                        },
+                      ]),
+                    )
+                  : null,
               });
             }
           });
@@ -155,7 +214,7 @@ export async function benchmarkPureLand(
         const views = [];
         for (const index of viewIndices) views.push(await sampleView(index));
         return {
-          schemaVersion: 2,
+          schemaVersion: 3,
           capturedAt: new Date().toISOString(),
           url: location.href,
           quality,
@@ -173,6 +232,17 @@ export async function benchmarkPureLand(
           warmupFrames,
           sampleFrames,
           scene: geometryStats(),
+          renderBudget: renderBudget
+            ? {
+                cellSize: world.cellSize,
+                adaptiveScale: renderBudget.adaptive.scale,
+                locked: renderBudget.adaptive.locked,
+                pipeline: renderBudget.pipeline,
+                reflection: world.reflection.stats,
+                gpuAvailable: renderBudget.telemetry.gpuAvailable,
+                gpuDisjoints: renderBudget.telemetry.gpuDisjoints,
+              }
+            : null,
           rendererResources: {
             ...renderer.info.memory,
             programs: renderer.info.programs?.length ?? 0,
@@ -180,6 +250,7 @@ export async function benchmarkPureLand(
           views,
         };
       } finally {
+        renderer.render = originalRender;
         landCamera.selectView(previousIndex, true);
         events.emit('land:tour', { enabled: wasTouring });
       }

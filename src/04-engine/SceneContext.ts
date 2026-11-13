@@ -1,5 +1,5 @@
-import { PerspectiveCamera, Scene, Texture } from 'three';
-import type { Material } from 'three';
+import { InstancedMesh, PerspectiveCamera, Scene, Texture } from 'three';
+import type { Material, BufferGeometry } from 'three';
 import type { QualityProfile } from '@/00-types';
 import { RENDER } from '@/01-shared';
 import { Renderer } from './Renderer';
@@ -75,22 +75,36 @@ function disposeMaterial(material: Material, textures: Set<Texture>): void {
 }
 
 /** 统一释放几何体、材质与材质贴图，长时间运行时不释放会持续占用 GPU 显存。 */
-function disposeObjectTree(root: Scene): void {
+export function disposeObjectTree(root: Scene): void {
   const textures = new Set<Texture>();
+  const geometries = new Set<BufferGeometry>();
+  const seenMaterials = new Set<Material>();
   root.traverse((object) => {
+    // 实例矩阵/颜色由 WebGLObjects 管理，geometry.dispose 不会释放这些缓冲。
+    if (object instanceof InstancedMesh) object.dispose();
     if (!hasDisposableParts(object)) {
       return;
     }
     const candidate = object as object & HasDisposableParts;
-    candidate.geometry?.dispose();
+    const geometry = candidate.geometry as BufferGeometry | undefined;
+    if (geometry && !geometries.has(geometry)) {
+      geometries.add(geometry);
+      geometry.dispose();
+    }
     const materials = candidate.material;
     if (Array.isArray(materials)) {
       for (const material of materials) {
-        disposeMaterial(material, textures);
+        if (!seenMaterials.has(material)) {
+          seenMaterials.add(material);
+          disposeMaterial(material, textures);
+        }
       }
     } else {
       if (materials !== undefined) {
-        disposeMaterial(materials, textures);
+        if (!seenMaterials.has(materials)) {
+          seenMaterials.add(materials);
+          disposeMaterial(materials, textures);
+        }
       }
     }
   });
