@@ -34,6 +34,7 @@ import {
 import type { InputSource } from '@/07-systems';
 import { mountUi } from '@/08-ui';
 import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics';
+import { startPureLand } from './pureLand';
 
 /**
  * 唯一装配层。
@@ -319,6 +320,9 @@ function start(): () => void {
 
 export function bootstrap(): () => void {
   try {
+    if (new URLSearchParams(window.location.search).get('scene') !== 'courtyard') {
+      return startPureLand();
+    }
     return start();
   } catch (error) {
     const normalized = toError(error);

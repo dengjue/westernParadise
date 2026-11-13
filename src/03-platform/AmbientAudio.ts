@@ -24,6 +24,8 @@ export class AmbientAudio {
   private readonly noAudio: boolean;
   private readonly removeWeatherChanged: () => void;
   private readonly removePlayerStep: () => void;
+  private readonly removeAudioRequest: () => void;
+  private enabled = true;
   private currentWeather: WeatherPreset;
   private context: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -40,6 +42,17 @@ export class AmbientAudio {
     this.weatherPresets = options.weatherPresets;
     this.noAudio = options.noAudio;
     this.currentWeather = options.weather;
+    this.removeAudioRequest = options.events.on('audio:request', ({ enabled }) => {
+      this.enabled = enabled;
+      if (enabled) void this.start();
+      if (this.context && this.masterGain) {
+        this.masterGain.gain.setTargetAtTime(
+          enabled ? AUDIO.masterGain : 0,
+          this.context.currentTime,
+          0.12,
+        );
+      }
+    });
     this.removeWeatherChanged = options.events.on('weather:changed', ({ to }) => {
       this.currentWeather = this.weatherPresets[to];
       this.applyRainGain();
@@ -76,6 +89,7 @@ export class AmbientAudio {
     this.disposed = true;
     this.removeWeatherChanged();
     this.removePlayerStep();
+    this.removeAudioRequest();
     this.eventTarget.removeEventListener('keydown', this.onUserGesture);
     this.eventTarget.removeEventListener('pointerdown', this.onUserGesture);
     this.stopGraph();
@@ -104,7 +118,7 @@ export class AmbientAudio {
   private createGraph(context: AudioContext): void {
     const now = context.currentTime;
     this.masterGain = context.createGain();
-    this.masterGain.gain.setValueAtTime(AUDIO.masterGain, now);
+    this.masterGain.gain.setValueAtTime(this.enabled ? AUDIO.masterGain : 0, now);
     this.masterGain.connect(context.destination);
 
     const noiseBuffer = this.createNoiseBuffer(context);

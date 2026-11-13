@@ -22,3 +22,4 @@ export type {
   WalkTestReport,
   WalkTestRoute,
 } from './navigation';
+export { LandCamera, sampleLandHeight } from './LandCamera';

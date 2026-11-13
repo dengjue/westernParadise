@@ -42,10 +42,11 @@ export class KeyboardMouseInput implements InputSource {
     this.keyboardTarget.addEventListener('keydown', this.onKeyDown);
     this.keyboardTarget.addEventListener('keyup', this.onKeyUp);
     this.keyboardTarget.addEventListener('blur', this.onBlur);
-    this.pointerTarget.addEventListener('pointerdown', this.onPointerDown);
-    this.pointerTarget.addEventListener('pointermove', this.onPointerMove);
-    this.pointerTarget.addEventListener('pointerup', this.onPointerUp);
-    this.pointerTarget.addEventListener('pointercancel', this.onPointerUp);
+    // 捕获阶段收集拖动，避免覆盖层拦截冒泡后丢失按下/松开。
+    this.pointerTarget.addEventListener('pointerdown', this.onPointerDown, true);
+    this.pointerTarget.addEventListener('pointermove', this.onPointerMove, true);
+    this.pointerTarget.addEventListener('pointerup', this.onPointerUp, true);
+    this.pointerTarget.addEventListener('pointercancel', this.onPointerUp, true);
     this.pointerTarget.addEventListener('wheel', this.onWheel, { passive: false });
     this.pointerTarget.addEventListener('contextmenu', this.onContextMenu);
   }
@@ -72,10 +73,10 @@ export class KeyboardMouseInput implements InputSource {
     this.keyboardTarget.removeEventListener('keydown', this.onKeyDown);
     this.keyboardTarget.removeEventListener('keyup', this.onKeyUp);
     this.keyboardTarget.removeEventListener('blur', this.onBlur);
-    this.pointerTarget.removeEventListener('pointerdown', this.onPointerDown);
-    this.pointerTarget.removeEventListener('pointermove', this.onPointerMove);
-    this.pointerTarget.removeEventListener('pointerup', this.onPointerUp);
-    this.pointerTarget.removeEventListener('pointercancel', this.onPointerUp);
+    this.pointerTarget.removeEventListener('pointerdown', this.onPointerDown, true);
+    this.pointerTarget.removeEventListener('pointermove', this.onPointerMove, true);
+    this.pointerTarget.removeEventListener('pointerup', this.onPointerUp, true);
+    this.pointerTarget.removeEventListener('pointercancel', this.onPointerUp, true);
     this.pointerTarget.removeEventListener('wheel', this.onWheel);
     this.pointerTarget.removeEventListener('contextmenu', this.onContextMenu);
     this.dragging = false;
@@ -89,6 +90,17 @@ export class KeyboardMouseInput implements InputSource {
 
   private readonly onKeyDown = (event: Event): void => {
     const keyboard = event as KeyboardEvent;
+    const target = keyboard.target as {
+      tagName?: string;
+      isContentEditable?: boolean;
+      closest?: (selector: string) => Element | null;
+    } | null;
+    if (
+      target?.isContentEditable ||
+      ['INPUT', 'SELECT', 'TEXTAREA'].includes(target?.tagName ?? '') ||
+      target?.closest?.('dialog[open]')
+    )
+      return;
     if (!this.setKeyState(keyboard.code, true)) {
       return;
     }
@@ -106,6 +118,7 @@ export class KeyboardMouseInput implements InputSource {
   };
 
   private readonly onBlur = (): void => {
+    this.dragging = false;
     this.setAllKeys(false);
     this.updateAxis();
   };
@@ -118,14 +131,25 @@ export class KeyboardMouseInput implements InputSource {
     this.dragging = true;
     this.lastPointerX = pointer.clientX;
     this.lastPointerY = pointer.clientY;
+    const target = pointer.target as { setPointerCapture?: (id: number) => void } | null;
+    target?.setPointerCapture?.(pointer.pointerId);
     pointer.preventDefault();
   };
 
   private readonly onPointerMove = (event: Event): void => {
-    if (!this.dragging) {
+    const pointer = event as PointerEvent;
+    // 部分浏览器的右键手势会吞掉 down/up，但仍发送带 buttons 的 move。
+    // 以移动事件的实际按键状态恢复/结束拖动；恢复时重新取原点，避免镜头跳转。
+    if ((pointer.buttons & 2) === 0) {
+      this.dragging = false;
       return;
     }
-    const pointer = event as PointerEvent;
+    if (!this.dragging) {
+      this.dragging = true;
+      this.lastPointerX = pointer.clientX;
+      this.lastPointerY = pointer.clientY;
+      return;
+    }
     const deltaX = pointer.clientX - this.lastPointerX;
     const deltaY = pointer.clientY - this.lastPointerY;
     this.lastPointerX = pointer.clientX;
@@ -145,6 +169,8 @@ export class KeyboardMouseInput implements InputSource {
 
   private readonly onWheel = (event: Event): void => {
     const wheel = event as WheelEvent;
+    const target = wheel.target as { closest?: (selector: string) => Element | null } | null;
+    if (target?.closest?.('dialog[open], select, input')) return;
     const direction = Math.sign(wheel.deltaY);
     if (direction === 0) {
       return;

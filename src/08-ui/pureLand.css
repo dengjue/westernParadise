@@ -1,0 +1,567 @@
+.land-app {
+  --land-cream: #f5ecd4;
+  --land-gold: #e2c28c;
+  --land-line: rgb(239 224 190 / 26%);
+  --land-serif: 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'SimSun', serif;
+  background: #617b78;
+  color: var(--land-cream);
+}
+
+.land-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      rgb(15 34 32 / 56%),
+      transparent 18%,
+      transparent 70%,
+      rgb(12 30 28 / 76%)
+    ),
+    linear-gradient(90deg, rgb(15 34 32 / 38%), transparent 36%);
+  transition: opacity 0.5s;
+}
+
+.land-app [hidden] {
+  display: none !important;
+}
+.land-app button,
+.land-app select {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.land-app button {
+  border: 0;
+  background: none;
+}
+.land-app button:focus-visible,
+.land-app select:focus-visible {
+  outline: 1px solid var(--land-gold);
+  outline-offset: 7px;
+}
+.land-app button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.land-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  position: absolute;
+  top: max(28px, env(safe-area-inset-top));
+  left: 3.6%;
+  right: 3.6%;
+}
+.land-header button,
+.land-header nav,
+.land-settings,
+.land-actions,
+.land-enter {
+  pointer-events: auto;
+}
+.land-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 0;
+  white-space: nowrap;
+}
+.land-brand svg {
+  width: 39px;
+  height: 39px;
+  color: var(--land-gold);
+}
+.land-brand-name {
+  font-family: var(--land-serif);
+  font-size: 21px;
+  letter-spacing: 5px;
+}
+.land-brand-en {
+  font-size: 9px;
+  letter-spacing: 2px;
+  opacity: 0.55;
+  border-left: 1px solid var(--land-line);
+  padding-left: 15px;
+}
+.land-navigation {
+  display: flex;
+  gap: 36px;
+}
+.land-app .land-nav-button {
+  padding: 10px 0 12px;
+  position: relative;
+  font-size: 12px;
+  letter-spacing: 2px;
+  opacity: 0.65;
+  transition: opacity 0.25s;
+}
+.land-nav-button:hover,
+.land-nav-button[aria-current='true'] {
+  opacity: 1;
+}
+.land-nav-button::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  right: 50%;
+  bottom: 0;
+  height: 1px;
+  background: var(--land-gold);
+  transition:
+    left 0.25s,
+    right 0.25s;
+}
+.land-nav-button[aria-current='true']::after {
+  left: 15%;
+  right: 15%;
+}
+.land-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.land-app .land-text-button {
+  font-size: 12px;
+  letter-spacing: 2px;
+  padding: 10px 0;
+}
+.land-app .land-icon-button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--land-line);
+  border-radius: 50%;
+  font-size: 19px;
+  display: grid;
+  place-items: center;
+}
+.land-audio[aria-pressed='true'] {
+  color: var(--land-gold);
+  background: rgb(218 189 131 / 15%);
+}
+.land-title {
+  position: absolute;
+  left: 6%;
+  top: 29%;
+  text-shadow: 0 2px 30px rgb(12 29 27 / 20%);
+}
+.land-eyebrow {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--land-gold);
+}
+.land-heading {
+  font: 400 clamp(52px, 5.5vw, 86px)/1.3 var(--land-serif);
+  letter-spacing: 13px;
+  margin: 20px 0 15px;
+}
+.land-heading span {
+  display: block;
+}
+.land-title-en {
+  font-size: 10px;
+  color: var(--land-gold);
+  letter-spacing: 2px;
+}
+.land-title-rule {
+  width: 37px;
+  height: 1px;
+  background: var(--land-gold);
+  margin: 25px 0 20px;
+}
+.land-subtitle {
+  font-family: var(--land-serif);
+  font-size: 14px;
+  letter-spacing: 3px;
+  opacity: 0.85;
+}
+.land-app .land-enter {
+  margin-top: 18px;
+  padding: 12px 22px;
+  border: 1px solid rgb(239 224 190 / 55%);
+  font-size: 12px;
+  letter-spacing: 3px;
+  background: rgb(21 49 44 / 22%);
+  backdrop-filter: blur(8px);
+  transition: background 0.2s;
+}
+.land-enter:hover {
+  background: rgb(226 194 140 / 24%);
+}
+.land-settings {
+  position: absolute;
+  right: 3.6%;
+  top: 40%;
+  text-align: center;
+  width: 52px;
+  border-top: 1px solid var(--land-line);
+}
+.land-setting-label {
+  font-size: 9px;
+  color: var(--land-gold);
+  padding: 17px 0 13px;
+}
+.land-time-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.land-app .land-time-button {
+  padding: 8px 0;
+  font-family: var(--land-serif);
+  font-size: 12px;
+  letter-spacing: 2px;
+  opacity: 0.55;
+}
+.land-time-button[aria-pressed='true'] {
+  opacity: 1;
+  color: var(--land-gold);
+  position: relative;
+}
+.land-time-button[aria-pressed='true']::before {
+  content: '·';
+  position: absolute;
+  left: -5px;
+}
+.land-quality-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 17px;
+  padding-top: 17px;
+  border-top: 1px solid var(--land-line);
+  font-size: 9px;
+  color: rgb(245 236 212 / 60%);
+}
+.land-quality {
+  background: transparent;
+  border: none;
+  width: 58px;
+  font-size: 11px !important;
+  color: var(--land-cream) !important;
+  padding: 2px 0;
+}
+.land-quality option {
+  color: #253c35;
+  background: #e9e5d3;
+}
+.land-footer {
+  position: absolute;
+  bottom: 62px;
+  left: 3.6%;
+  right: 3.6%;
+  padding: 22px 0 0;
+  border-top: 1px solid var(--land-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+}
+.land-view-details {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.land-view-number {
+  font:
+    italic 28px/1 Georgia,
+    serif;
+  color: var(--land-gold);
+}
+.land-view-text h2 {
+  font: 400 17px var(--land-serif);
+  letter-spacing: 3px;
+  margin: 0 0 8px;
+}
+.land-view-text p {
+  font-size: 10px;
+  letter-spacing: 1px;
+  margin: 0;
+  color: rgb(245 236 212 / 65%);
+}
+.land-actions {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.land-app .land-tour {
+  font-size: 12px;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  padding: 12px 0;
+}
+.land-hint {
+  position: absolute;
+  bottom: 20px;
+  left: 3.6%;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: rgb(245 236 212 / 45%);
+}
+.land-note {
+  position: absolute;
+  right: 3.6%;
+  bottom: 20px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: rgb(245 236 212 / 45%);
+}
+.land-notice {
+  position: absolute;
+  top: 95px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgb(22 46 42 / 75%);
+  padding: 8px 18px;
+  font-size: 11px;
+  border: 1px solid var(--land-line);
+}
+.land-app .land-restore {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 11;
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 8px 14px;
+  background: rgb(15 35 31 / 50%);
+  border: 1px solid var(--land-line);
+}
+.land-dialog {
+  width: min(590px, calc(100% - 32px));
+  max-height: 85dvh;
+  color: var(--land-cream);
+  background: #193b34;
+  border: 1px solid #897955;
+  padding: 42px;
+  box-shadow: 0 20px 100px #13251f80;
+}
+.land-dialog::backdrop {
+  background: rgb(10 27 24 / 55%);
+  backdrop-filter: blur(9px);
+}
+.land-dialog h2 {
+  font: 400 26px/1.6 var(--land-serif);
+  margin: 20px 0 16px;
+}
+.land-source-intro,
+.land-source-item p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: #b5c2b2;
+}
+.land-source-item {
+  border-top: 1px solid var(--land-line);
+  margin-top: 22px;
+  padding-top: 16px;
+}
+.land-source-item h3 {
+  font: 400 16px var(--land-serif);
+  color: var(--land-gold);
+  margin: 0;
+}
+.land-dialog small {
+  display: block;
+  font-size: 9px;
+  opacity: 0.5;
+  margin-top: 30px;
+}
+.land-app .land-dialog-close {
+  position: absolute;
+  right: 18px;
+  top: 12px;
+  font-size: 28px;
+  padding: 0 8px;
+}
+.land-touch {
+  position: fixed;
+  z-index: 9;
+  bottom: 160px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.land-touch-pad {
+  width: 92px;
+  height: 92px;
+  border: 1px solid rgb(245 236 212 / 25%);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: rgb(245 236 212 / 50%);
+  font-size: 11px;
+  background: rgb(16 45 38 / 12%);
+  pointer-events: auto;
+  touch-action: none;
+}
+.land-touch-pad[data-active='true'] {
+  background: rgb(226 194 140 / 25%);
+}
+
+@media (min-width: 1800px) {
+  .land-title {
+    left: 6.8%;
+  }
+  .land-heading {
+    font-size: 96px;
+  }
+}
+@media (max-width: 1050px) {
+  .land-brand-en {
+    display: none;
+  }
+  .land-navigation {
+    gap: 20px;
+  }
+  .land-title {
+    left: 5%;
+  }
+  .land-view-text p {
+    max-width: 48ch;
+  }
+}
+@media (max-width: 700px) {
+  .land-header {
+    top: max(18px, env(safe-area-inset-top));
+    left: 22px;
+    right: 22px;
+    align-items: flex-start;
+  }
+  .land-brand-name {
+    font-size: 17px;
+    letter-spacing: 3px;
+  }
+  .land-brand svg {
+    width: 29px;
+    height: 29px;
+  }
+  .land-header-tools {
+    gap: 14px;
+  }
+  .land-text-button {
+    font-size: 10px !important;
+  }
+  .land-navigation {
+    position: fixed;
+    top: 73px;
+    left: 22px;
+    right: 22px;
+    justify-content: space-between;
+    gap: 8px;
+    border-bottom: 1px solid var(--land-line);
+  }
+  .land-app .land-nav-button {
+    font-size: 10px;
+    padding-bottom: 13px;
+  }
+  .land-title {
+    top: 22%;
+    left: 7%;
+  }
+  .land-heading {
+    font-size: 48px;
+    letter-spacing: 8px;
+    margin: 13px 0;
+  }
+  .land-eyebrow {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  .land-title-en {
+    font-size: 8px;
+  }
+  .land-title-rule {
+    margin: 15px 0;
+  }
+  .land-subtitle {
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  .land-app .land-enter {
+    font-size: 11px;
+    margin-top: 8px;
+    padding: 9px 14px;
+  }
+  .land-settings {
+    top: 30%;
+    right: 20px;
+    width: 40px;
+  }
+  .land-footer {
+    left: 22px;
+    right: 22px;
+    bottom: max(48px, env(safe-area-inset-bottom));
+    gap: 12px;
+    padding-top: 14px;
+    align-items: flex-start;
+  }
+  .land-view-details {
+    gap: 13px;
+  }
+  .land-view-text h2 {
+    font-size: 15px;
+  }
+  .land-view-text p {
+    max-width: 22ch;
+    font-size: 9px;
+    line-height: 1.8;
+  }
+  .land-actions {
+    gap: 12px;
+  }
+  .land-app .land-tour {
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  .land-actions .land-icon-button {
+    display: none;
+  }
+  .land-view-number {
+    font-size: 21px;
+  }
+  .land-hint {
+    bottom: 16px;
+    left: 22px;
+    font-size: 8px;
+  }
+  .land-note {
+    display: none;
+  }
+  .land-dialog {
+    padding: 30px 24px;
+  }
+  .land-dialog h2 {
+    font-size: 22px;
+  }
+  .land-notice {
+    top: 120px;
+    width: 80%;
+    text-align: center;
+  }
+}
+@media (max-height: 620px) {
+  .land-title {
+    top: 24%;
+  }
+  .land-heading {
+    font-size: 42px;
+    line-height: 1.1;
+  }
+  .land-title-rule,
+  .land-subtitle {
+    display: none;
+  }
+  .land-settings {
+    top: 25%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .land-app * {
+    transition: none !important;
+  }
+}

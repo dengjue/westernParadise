@@ -18,6 +18,11 @@ export interface FrameTick {
 }
 
 export interface AppEventMap {
+  'land:view': { readonly index: number };
+  'land:walk': Record<string, never>;
+  'land:tour': { readonly enabled: boolean };
+  'land:state': { readonly index: number; readonly walking: boolean; readonly touring: boolean };
+  'audio:request': { readonly enabled: boolean };
   'app:ready': { readonly startedAt: number };
   'app:frame': FrameTick;
   'app:resize': { readonly width: number; readonly height: number };

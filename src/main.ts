@@ -1,4 +1,5 @@
 import '@/08-ui/tokens.css';
+import '@/08-ui/pureLand.css';
 import { bootstrap } from '@/99-boot';
 
 /**

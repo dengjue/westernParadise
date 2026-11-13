@@ -17,6 +17,7 @@ class KeyEvent extends Event {
 
 class PointerEventLike extends Event {
   readonly button: number;
+  readonly buttons: number;
   readonly clientX: number;
   readonly clientY: number;
 
@@ -25,9 +26,11 @@ class PointerEventLike extends Event {
     button: number,
     clientX: number,
     clientY: number,
+    buttons = button === 2 && type !== 'pointerup' ? 2 : 0,
   ) {
     super(type, { cancelable: true });
     this.button = button;
+    this.buttons = buttons;
     this.clientX = clientX;
     this.clientY = clientY;
   }
@@ -73,7 +76,7 @@ describe('KeyboardMouseInput', () => {
     expect(input.moveAxis.z).toBeCloseTo(1 / Math.sqrt(2), 6);
 
     target.dispatchEvent(new PointerEventLike('pointerdown', 2, 10, 20));
-    target.dispatchEvent(new PointerEventLike('pointermove', 2, 30, 5));
+    target.dispatchEvent(new PointerEventLike('pointermove', -1, 30, 5, 2));
     expect(input.consumeLookDelta()).toEqual({ yaw: 0.02, pitch: -0.015 });
     expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
 
@@ -84,6 +87,30 @@ describe('KeyboardMouseInput', () => {
     target.dispatchEvent(new KeyEvent('keyup', 'KeyW'));
     target.dispatchEvent(new KeyEvent('keyup', 'KeyD'));
     expect(input.moveAxis).toEqual({ x: 0, z: 0 });
+    input.dispose();
+  });
+
+  it('浏览器吞掉右键按下和松开时仍可拖动，松手后移动不会继续转向', () => {
+    const target = new EventTarget();
+    const input = new KeyboardMouseInput({
+      keyboardTarget: target,
+      pointerTarget: target,
+      lookSensitivityRadPerPixel: 0.001,
+    });
+
+    target.dispatchEvent(new PointerEventLike('pointermove', -1, 100, 100, 0));
+    target.dispatchEvent(new PointerEventLike('pointermove', -1, 110, 100, 2));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
+    target.dispatchEvent(new PointerEventLike('pointermove', -1, 140, 90, 2));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0.03, pitch: -0.01 });
+    target.dispatchEvent(new PointerEventLike('pointermove', -1, 180, 120, 0));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
+
+    // 切走窗口期间没有收到松开，回来后也必须重新建立拖动原点。
+    target.dispatchEvent(new PointerEventLike('pointerdown', 2, 180, 120));
+    target.dispatchEvent(new Event('blur'));
+    target.dispatchEvent(new PointerEventLike('pointermove', -1, 500, 400, 2));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
     input.dispose();
   });
 });
