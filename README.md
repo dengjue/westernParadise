@@ -15,7 +15,7 @@
 - 四个观景点、共享建筑碰撞的第一人称步行、曲线自动游览、平滑晨昼暮切换、区域自然声与音量、四档画质。
 - **体验入口**：`npm run dev` 后访问默认地址；离线双击 `dist/single/index.html`。原庭院入口为 `?scene=courtyard`。
 - **操作**：WASD 步行、右键拖动环顾、滚轮缩放、H 隐藏界面；手机左移右看，☷ 展开画面/音量设置。游览可暂停续走，说明和设置面板会冻结移动。[完整操作与交付索引](02-方案/17-六阶段交付与操作索引.md)。
-- **检查**：135 项测试覆盖中轴/两侧亭廊往返、柱础/墙/栏杆扫掠、游览接管、输入复位和音频。最终离线交互、四档重载、四种横竖屏布局、减动效、无 WebGL 与四次资源归零通过。
+- **检查**：141 项测试覆盖中轴/两侧亭廊往返、柱础/墙/栏杆扫掠、游览接管、输入复位、音频和后续逐帧采样口径。最终离线交互、四档重载、四种横竖屏布局、减动效、无 WebGL 与四次资源归零通过。
 
 后续优化按 [六阶段路线图](02-方案/10-极乐世界-六阶段优化路线图.md) 推进，每个 Phase 有独立实施与验收文档。**Phase 1 已完成**：high 静态几何缓冲从 96.70 降至 35.53 MiB（-63.26%），保留全部三角形，固定全景截图一致。可复跑采样命令及口径见 [Phase 1 实测](02-方案/11-Phase1-性能基线与几何减负.md)。
 
@@ -97,7 +97,7 @@ npm run verify         # 一条命令跑完所有门禁 + 两种构建（CI 复�
 |---|---|
 | `npm run typecheck` | TypeScript `strict` 类型检查 |
 | `npm run lint` / `format:check` | ESLint / Prettier 一致性 |
-| `npm run test` | Vitest（24 文件 / 135 用例，纯 Node 环境） |
+| `npm run test` | Vitest（25 文件 / 141 用例，纯 Node 环境） |
 | `npm run walktest` | 单独执行 3.6 多层寻路与路线可达性走查 |
 | `npm run check:layers` | 单向依赖、目录入口、浏览器 API 边界、循环依赖 |
 | `npm run check:content` | 源码与文案的宗教红线词扫描（37 词） |
@@ -118,6 +118,7 @@ npm run verify         # 一条命令跑完所有门禁 + 两种构建（CI 复�
 Phase 4 的 `&chunk=24` 只在诊断模式比较候选粒度，默认 48 米。`scripts/benchmark-pure-land.mjs` 分开记录帧间隔、提交/GPU 耗时与更新/缓存帧；`scripts/verify-land-render.mjs` 复跑反射与生命周期检查。
 Phase 5 的 `scripts/verify-land-lighting.mjs` 检查完整/中断光阴过渡、环境缓存身份、倒影频率预算和资源稳定性，报告切换期间的实际帧耗时。
 Phase 6 的 `scripts/verify-land-journey.mjs` 检查真实键鼠旅程；`node scripts/run-land-soak.mjs <tab-id>` 通过 Tabbit 对可见预览执行真实 12×150 秒长测，逐段记录帧耗时、可见性、资源、音频与错误。
+后续光阴定位使用 `node scripts/run-land-lighting.mjs <tab-id> dist/single/index.html detailed 0,1,2,3`：每景点首用循环、三组完整切换和六次中断，保存逐帧原始值、Long Tasks/Long Animation Frames 与资源时间线；口径与轻量对照方法见后续优化方案。
 
 ---
 
@@ -158,6 +159,8 @@ python3 scan_single_html.py --extract-css --extract-js   # 同时导出内联 CS
 ## 下一步
 
 六阶段实现、离线与 30 分钟桌面验收已汇总到 [交付与操作索引](02-方案/17-六阶段交付与操作索引.md)。后续按 [性能收敛与真机验收方案](02-方案/18-后续优化-性能收敛与真机验收.md) 推进：**A 光阴切换长帧 → B 真实手机持续性能 → C 原生后台/锁屏/BFCache → D 交付回写**。当前步骤与逐项状态以 `AGENT_TODO.md` 为准，每项验证后回写结果再继续。
+
+A1 已交付逐帧工具、四景点三轮切换及轻量/详细对照。四景点预热后最大间隔 491.6ms，对照还出现 3424.9ms；完整异常已保留，CPU Profiler 不可用，下一步按 A2 拆分渲染与查询耗时。详见后续方案，当前不能宣称卡顿已解决。
 
 打开 `AGENT_TODO.md`：阶段 3.1~3.6 与阶段 4.1~4.5 已完成，4.4 只读 P0/P1 审查无阻塞项；
 4.6 已整理送审包但外部合规评估仍按规范阻塞，不在探索期擅自发布。每项仍要按实施规范回归并通过 `npm run verify`。
