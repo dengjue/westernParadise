@@ -3,14 +3,16 @@ import {
   Color,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  NoColorSpace,
   RepeatWrapping,
   SRGBColorSpace,
 } from 'three';
-import { LAND_CRAFT, PURE_LAND } from '@/01-shared';
+import { LAND_CRAFT, LAND_GARDEN, PURE_LAND } from '@/01-shared';
 import { Rng } from '@/02-core';
 import type { CanvasFactory } from './courtyard';
 import { ornamentTexture } from './landOrnament';
 import { projectedStone } from './landStone';
+import { createLilyTexture } from './landLily';
 
 /** 可重复贴图在创建时生成；细节由颜色与凹凸共同承担，避免远看像单色塑料。 */
 function surfaceTexture(
@@ -134,10 +136,16 @@ export function createPureLandMaterials(factory: CanvasFactory, seed: number, an
   const roof = surfaceTexture(factory, seed + 3, 'roof');
   const leaf = botanicalTexture(factory, true);
   const petal = botanicalTexture(factory, false);
+  const lily = createLilyTexture(factory);
   const tileEnd = ornamentTexture(factory, 'tile');
   const frieze = ornamentTexture(factory, 'frieze');
-  for (const texture of [stone, carvedStone, gold, wood, roof, leaf, petal, tileEnd, frieze])
+  for (const texture of [stone, carvedStone, gold, wood, roof, leaf, petal, lily, tileEnd, frieze])
     texture.anisotropy = anisotropy;
+  const leafBump = leaf.clone(),
+    petalBump = petal.clone(),
+    lilyBump = lily.clone();
+  for (const texture of [leafBump, petalBump, lilyBump]) texture.colorSpace = NoColorSpace;
+  const botany = LAND_GARDEN.material;
   roof.repeat.set(3, 2);
   return {
     stone: projectedStone(stone, palette.stone, craft.stone),
@@ -198,27 +206,35 @@ export function createPureLandMaterials(factory: CanvasFactory, seed: number, an
     leaf: new MeshStandardMaterial({
       color: palette.leaf,
       map: leaf,
-      bumpMap: leaf,
-      bumpScale: 0.045,
-      roughness: 0.48,
-      metalness: 0.32,
+      bumpMap: leafBump,
+      bumpScale: botany.leaf.bump,
+      roughness: botany.leaf.roughness,
+      metalness: botany.leaf.metalness,
       side: 2,
     }),
-    lotus: [0xd17d96, 0xf7e8d5, 0x70b5cc, 0xe2bf66].map(
+    lotus: LAND_GARDEN.lotus.colors.map(
       (color) =>
         new MeshStandardMaterial({
           color,
           map: petal,
-          bumpMap: petal,
-          bumpScale: 0.016,
-          roughness: 0.5,
-          metalness: 0.06,
+          bumpMap: petalBump,
+          bumpScale: botany.petal.bump,
+          roughness: botany.petal.roughness,
+          metalness: botany.petal.metalness,
           side: 2,
           emissive: color,
           emissiveIntensity: 0.04,
         }),
     ),
-    lily: new MeshStandardMaterial({ color: 0x458678, roughness: 0.48, metalness: 0.15, side: 2 }),
+    lily: new MeshStandardMaterial({
+      color: botany.lily.color,
+      map: lily,
+      bumpMap: lilyBump,
+      bumpScale: botany.lily.bump,
+      roughness: botany.lily.roughness,
+      metalness: botany.lily.metalness,
+      side: 2,
+    }),
   };
 }
 

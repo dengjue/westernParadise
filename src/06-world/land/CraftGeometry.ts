@@ -164,14 +164,14 @@ export function profileSurface(
   return geometry;
 }
 
-/** 肩到腕逐渐收束，半径变化与弯曲路径共用同一参数，避免机械管接头。 */
-export function taperedSleeve(
+/** 半径与弯曲路径共用弧长参数，适用于连续袖管与从主干收细至枝梢的树枝。 */
+export function taperedTube(
   points: readonly (readonly number[])[],
   radii: readonly number[],
   segments: number,
+  radial = 12,
 ): BufferGeometry {
   const curve = new CatmullRomCurve3(points.map((p) => new Vector3(p[0], p[1], p[2])));
-  const radial = 12;
   const geometry = new TubeGeometry(curve, segments, 1, radial, false);
   const positions = geometry.getAttribute('position');
   const center = new Vector3();
@@ -195,6 +195,9 @@ export function taperedSleeve(
   geometry.computeVertexNormals();
   return geometry;
 }
+
+/** 造像保持原接口和默认径向细分。 */
+export { taperedTube as taperedSleeve };
 
 /** 金属莲瓣有上下两层与封边，近看不再是消失的单面薄片。 */
 export function sculptedPetal(): BufferGeometry {

@@ -16,7 +16,7 @@ import {
 } from 'three';
 import type { WebGLRenderer } from 'three';
 import type { QualityTier, TimeOfDayId } from '@/00-types';
-import { LAND_LIGHT, PURE_LAND } from '@/01-shared';
+import { LAND_GARDEN, LAND_LIGHT, PURE_LAND } from '@/01-shared';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 
 const SKY_VERTEX = `
@@ -80,16 +80,16 @@ const WATER_FRAGMENT = `
     vec2 p=vWorld.xz;
     float a=sin(p.x*0.62+p.y*0.21+time*0.55);
     float b=sin(p.x*0.27-p.y*0.49-time*0.42);
-    vec2 ripple=vec2(a,b)*0.0013;
+    vec2 ripple=vec2(a,b)*${LAND_GARDEN.water.distortion.toFixed(5)};
     vec2 uv=vReflection.xy/vReflection.w;
     vec3 reflected=texture2D(tDiffuse,uv+ripple).rgb;
-    vec3 normal=normalize(vec3(a*0.04,1.0,b*0.04));
+    vec3 normal=normalize(vec3(a*${LAND_GARDEN.water.normalScale.toFixed(4)},1.0,b*${LAND_GARDEN.water.normalScale.toFixed(4)}));
     vec3 viewDirection=normalize(cameraPosition-vWorld);
     float fresnel=pow(1.0-max(0.0,dot(viewDirection,normal)),3.0);
     float caustic=pow(0.5+0.5*sin(p.x*1.4+sin(p.y*1.3+time*0.3))*sin(p.y*1.7-time*0.15),12.0);
-    vec3 water=mix(color*(0.52+caustic*0.22),reflected,0.32+fresnel*0.52);
+    vec3 water=mix(color*(0.52+caustic*${LAND_GARDEN.water.caustic.toFixed(4)}),reflected,0.32+fresnel*0.52);
     vec3 halfDirection=normalize(sunDirection+viewDirection);
-    water+=vec3(1.0,0.85,0.54)*pow(max(0.0,dot(normal,halfDirection)),260.0)*1.6;
+    water+=vec3(1.0,0.85,0.54)*pow(max(0.0,dot(normal,halfDirection)),260.0)*${LAND_GARDEN.water.highlight.toFixed(4)};
     float distanceToCamera=length(cameraPosition-vWorld);
     float fog=1.0-exp(-fogDensity*fogDensity*distanceToCamera*distanceToCamera);
     water=mix(water,fogColor,clamp(fog,0.0,1.0));

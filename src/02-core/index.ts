@@ -5,3 +5,13 @@ export { Clock } from './Clock';
 export { Logger } from './Logger';
 export type { LogLevel } from './Logger';
 export { FatalError, toError } from './errors';
+export { createGardenLayout, gardenRng, isPondClear, sampleGardenLeaf } from './gardenLayout';
+export type {
+  GardenPoint,
+  GardenTree,
+  GardenBranch,
+  GardenTwig,
+  GardenLotus,
+  GardenLily,
+  PondCircle,
+} from './gardenLayout';

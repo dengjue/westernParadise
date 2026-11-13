@@ -20,3 +20,4 @@ export type { Registry, RegistryEntry } from './registry';
 export { PURE_LAND, LAND_LIGHT, LAND_QUALITY } from './pureLand';
 export { LAND_STRUCTURE, LAND_CRAFT, LAND_DETAIL, LAND_DETAIL_BY_QUALITY } from './landCraft';
 export type { LandDetail } from './landCraft';
+export { LAND_GARDEN, LAND_GARDEN_QUALITY } from './landGarden';

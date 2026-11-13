@@ -32,8 +32,6 @@ export const PURE_LAND = Object.freeze({
     bloomRadius: 0.6,
     bloomThreshold: 1.25,
     reflectionSize: { low: 256, medium: 512, high: 768, ultra: 1024 },
-    leavesPerTree: { low: 150, medium: 300, high: 580, ultra: 850 },
-    lotusCount: { low: 64, medium: 100, high: 150, ultra: 200 },
   },
   views: [
     {

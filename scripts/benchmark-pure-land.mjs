@@ -74,7 +74,11 @@ export async function benchmarkPureLand(
           if (!geometry || geometries.has(geometry)) return;
           geometries.add(geometry);
           let size = geometry.index ? bytes(geometry.index) : 0;
-          for (const attribute of Object.values(geometry.attributes)) size += bytes(attribute);
+          for (const attribute of Object.values(geometry.attributes)) {
+            // 实例风幅/相位和矩阵一样属于实例数据，不把每实例属性计作顶点几何。
+            if (attribute.isInstancedBufferAttribute) instanceBytes += bytes(attribute);
+            else size += bytes(attribute);
+          }
           const count = geometry.getAttribute('position')?.count ?? 0;
           vertices += count;
           geometryBytes += size;
@@ -151,7 +155,7 @@ export async function benchmarkPureLand(
         const views = [];
         for (const index of viewIndices) views.push(await sampleView(index));
         return {
-          schemaVersion: 1,
+          schemaVersion: 2,
           capturedAt: new Date().toISOString(),
           url: location.href,
           quality,

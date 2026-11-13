@@ -18,6 +18,7 @@ export interface PureLandWorldOptions {
   seed: number;
   anisotropy: number;
   time: TimeOfDayId;
+  reducedMotion: boolean;
 }
 
 export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions) {
@@ -33,7 +34,14 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   const detail = LAND_DETAIL_BY_QUALITY[options.quality];
   createArchitecture(builder, materials, plaque, detail);
   createSculptures(builder, materials, detail);
-  createGarden(root, builder, materials, options.seed, options.quality);
+  const garden = createGarden(
+    root,
+    builder,
+    materials,
+    options.seed,
+    options.quality,
+    options.reducedMotion,
+  );
   builder.flush(root);
   scene.add(root);
   const flowers = createFlowerDrift(root, options.seed, options.quality === 'low' ? 120 : 420);
@@ -41,9 +49,11 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   let elapsed = 0;
   return {
     root,
+    garden,
     setTime: atmosphere.setTime,
     update(deltaMs: number): void {
       elapsed += deltaMs / 1000;
+      garden.update(elapsed);
       atmosphere.update(elapsed);
       flowers.update(elapsed);
     },

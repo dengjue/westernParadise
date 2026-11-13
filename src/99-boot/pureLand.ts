@@ -66,6 +66,7 @@ export function startPureLand(): () => void {
     anisotropy: profile.anisotropy,
     seed: params.seed,
     time,
+    reducedMotion: capabilities.reducedMotion,
   });
   const pipeline = createCinematicPipeline(
     renderer,
