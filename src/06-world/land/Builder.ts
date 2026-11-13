@@ -18,11 +18,13 @@ import { LAND_RENDER } from '@/01-shared';
 import type { LandDetail } from '@/01-shared';
 import { DistanceLod } from '@/04-engine';
 import type { LandContact } from './ContactShadows';
+import { batchStaticCells } from './CellBatch';
 
 type Point = readonly [number, number, number];
 interface BuilderOptions {
   cellSize?: number;
   dynamicLod?: boolean;
+  multiDraw?: boolean;
   detail?: LandDetail;
   tubeCache?: Map<string, TubeGeometry>;
   cacheStats?: { hits: number; misses: number; bytes: number };
@@ -207,34 +209,46 @@ export class LandBuilder {
 
   flush(parent: Group): void {
     try {
-      for (const [material, cells] of this.batches)
-        for (const [cell, parts] of cells) {
-          // mergeGeometries 可以混合不同形状，但索引存在性必须一致。
-          // 保留原索引，避免球体/管线展开成三倍逐面顶点；不按位置焊接，保留法线与 UV 接缝。
-          for (const part of parts) {
-            if (part.index) continue;
-            const count = part.getAttribute('position').count;
-            // 非索引输入只补顺序索引；65535 是 WebGL2 的 16 位 primitive-restart 保留值。
-            const indices = count > 65535 ? new Uint32Array(count) : new Uint16Array(count);
-            for (let i = 0; i < count; i++) indices[i] = i;
-            part.setIndex(new BufferAttribute(indices, 1));
+      for (const [material, cells] of this.batches) {
+        const meshes: Mesh<BufferGeometry, Material>[] = [];
+        try {
+          for (const [cell, parts] of cells) {
+            // mergeGeometries 可以混合不同形状，但索引存在性必须一致。
+            // 保留原索引，避免球体/管线展开成三倍逐面顶点；不按位置焊接，保留法线与 UV 接缝。
+            for (const part of parts) {
+              if (part.index) continue;
+              const count = part.getAttribute('position').count;
+              // 非索引输入只补顺序索引；65535 是 WebGL2 的 16 位 primitive-restart 保留值。
+              const indices = count > 65535 ? new Uint32Array(count) : new Uint16Array(count);
+              for (let i = 0; i < count; i++) indices[i] = i;
+              part.setIndex(new BufferAttribute(indices, 1));
+            }
+            const geometry = mergeGeometries(parts, false);
+            if (!geometry) throw new Error(`静态构件合批失败：${material.name || material.type}`);
+            geometry.computeBoundingBox();
+            geometry.computeBoundingSphere();
+            const mesh = new Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.name = 'land-static-batch';
+            mesh.userData['cell'] = cell;
+            mesh.layers.enable(LAND_RENDER.layers.reflection);
+            mesh.layers.enable(LAND_RENDER.layers.shadow);
+            meshes.push(mesh);
+            // 每批完成就释放自己的中间副本，降低大场景构建时的峰值驻留。
+            for (const part of parts) part.dispose();
+            parts.length = 0;
           }
-          const geometry = mergeGeometries(parts, false);
-          if (!geometry) throw new Error(`静态构件合批失败：${material.name || material.type}`);
-          geometry.computeBoundingBox();
-          geometry.computeBoundingSphere();
-          const mesh = new Mesh(geometry, material);
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          mesh.name = 'land-static-batch';
-          mesh.userData['cell'] = cell;
-          mesh.layers.enable(LAND_RENDER.layers.reflection);
-          mesh.layers.enable(LAND_RENDER.layers.shadow);
-          parent.add(mesh);
-          // 每批完成就释放自己的中间副本，降低大场景构建时的峰值驻留。
-          for (const part of parts) part.dispose();
-          parts.length = 0;
+          // 子 LOD 构建器不传 multiDraw，保留独立选级及共享中档阴影几何。
+          const batch = this.options.multiDraw ? batchStaticCells(meshes) : null;
+          if (batch) parent.add(batch);
+          else parent.add(...meshes);
+        } catch (error) {
+          // 同材质尚未挂载的已合并区块，也要覆盖后续区块/批次创建失败的释放路径。
+          for (const mesh of meshes) mesh.geometry.dispose();
+          throw error;
         }
+      }
       for (const object of this.objects) parent.add(object);
       this.objects.length = 0;
     } finally {

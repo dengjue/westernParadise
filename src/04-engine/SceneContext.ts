@@ -1,4 +1,4 @@
-import { InstancedMesh, PerspectiveCamera, Scene, Texture } from 'three';
+import { BatchedMesh, InstancedMesh, PerspectiveCamera, Scene, Texture } from 'three';
 import type { Material, BufferGeometry } from 'three';
 import type { QualityProfile } from '@/00-types';
 import { RENDER } from '@/01-shared';
@@ -82,6 +82,11 @@ export function disposeObjectTree(root: Scene): void {
   root.traverse((object) => {
     // 实例矩阵/颜色由 WebGLObjects 管理，geometry.dispose 不会释放这些缓冲。
     if (object instanceof InstancedMesh) object.dispose();
+    // BatchedMesh 自有矩阵/间接纹理，dispose 同时释放专属 geometry，不能再释放一次。
+    if (object instanceof BatchedMesh) {
+      geometries.add(object.geometry);
+      object.dispose();
+    }
     if (!hasDisposableParts(object)) {
       return;
     }

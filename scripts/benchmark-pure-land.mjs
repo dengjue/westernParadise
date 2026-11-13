@@ -66,6 +66,7 @@ export async function benchmarkPureLand(
         const buffers = new Set();
         let geometryBytes = 0;
         let instanceBytes = 0;
+        let batchTextureBytes = 0;
         let vertices = 0;
         let staticBatchBytes = 0;
         let staticBatchVertices = 0;
@@ -83,6 +84,10 @@ export async function benchmarkPureLand(
 
         scene.traverse((object) => {
           if (object.isMesh) meshes++;
+          if (object.isBatchedMesh) {
+            for (const key of ['_matricesTexture', '_indirectTexture', '_colorsTexture'])
+              batchTextureBytes += object[key]?.image.data.byteLength ?? 0;
+          }
           if (object.isInstancedMesh) {
             instances += object.count;
             instanceBytes += bytes(object.instanceMatrix);
@@ -100,7 +105,7 @@ export async function benchmarkPureLand(
           const count = geometry.getAttribute('position')?.count ?? 0;
           vertices += count;
           geometryBytes += size;
-          if (object.name === 'land-static-batch') {
+          if (['land-static-batch', 'land-static-multidraw'].includes(object.name)) {
             staticBatchBytes += size;
             staticBatchVertices += count;
             staticBatchTriangles += (geometry.index?.count ?? count) / 3;
@@ -110,6 +115,7 @@ export async function benchmarkPureLand(
           uniqueGeometries: geometries.size,
           geometryBytes,
           instanceBytes,
+          batchTextureBytes,
           vertices,
           meshes,
           instances,

@@ -13,6 +13,7 @@ const [
   viewsText = '0,1,2,3',
   condition = 'native',
   roundsText = '3',
+  task = condition === 'native' ? '光阴性能采样' : '光阴长帧归因',
 ] = process.argv.slice(2);
 if (
   !/^\d+$/.test(tab ?? '') ||
@@ -30,7 +31,7 @@ if (
   !/^[1-5]$/.test(roundsText)
 )
   throw new Error(
-    '用法：node scripts/run-land-lighting.mjs <tab-id> [产物路径] [light|detailed] [0,1,2,3] [native|phases-on/off|plain-on/off|submit-on/off] [1–5轮]',
+    '用法：node scripts/run-land-lighting.mjs <tab-id> [产物路径] [light|detailed] [0,1,2,3] [native|phases-on/off|plain-on/off|submit-on/off] [1–5轮] [浏览器任务名]',
   );
 const views = viewsText.split(',').map(Number);
 if (new Set(views).size !== views.length) throw new Error('景点不能重复；重复实验应使用独立 run');
@@ -111,7 +112,7 @@ async function invoke(view) {
     const child = spawn(join(homedir(), '.local/bin/tabbit-cli'), [
       'nodejs',
       '--task',
-      condition === 'native' ? '光阴性能采样' : '光阴长帧归因',
+      task,
       '--tab',
       tab,
       '--request-id',

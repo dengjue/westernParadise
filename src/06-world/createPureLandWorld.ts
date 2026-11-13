@@ -35,7 +35,11 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   );
   const plaque = createHallPlaque(options.canvasFactory);
   const cellSize = options.cellSize ?? LAND_RENDER.cellSize;
-  const builder = new LandBuilder({ cellSize, dynamicLod: true });
+  const builder = new LandBuilder({
+    cellSize,
+    dynamicLod: true,
+    multiDraw: options.renderer.extensions.has('WEBGL_multi_draw'),
+  });
   const detail = LAND_DETAIL_BY_QUALITY[options.quality];
   const materialsReady = performance.now();
   createArchitecture(builder, materials, plaque, detail);
