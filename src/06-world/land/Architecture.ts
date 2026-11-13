@@ -1,8 +1,11 @@
-import { BufferGeometry, Float32BufferAttribute, PlaneGeometry, Vector3 } from 'three';
+import { ExtrudeGeometry, LatheGeometry, PlaneGeometry, Shape, Vector2 } from 'three';
 import type { Material } from 'three';
 import type { PureLandMaterials } from '@/05-materials';
-import { PURE_LAND } from '@/01-shared';
+import { LAND_CRAFT, LAND_DETAIL, LAND_STRUCTURE, PURE_LAND } from '@/01-shared';
+import type { LandDetail } from '@/01-shared';
 import type { LandBuilder } from './Builder';
+import { chamferedBox } from './CraftGeometry';
+import { createRoof as roof } from './Roof';
 
 interface Building {
   x: number;
@@ -13,95 +16,29 @@ interface Building {
   height: number;
 }
 
-/** 四片连续曲面形成歇山意象，曲率在檐缘抬起；不用斜盒代替屋顶。 */
-function roofPoint(
-  u: number,
-  t: number,
-  face: number,
-  width: number,
-  depth: number,
-  rise: number,
-): Vector3 {
-  const edge = Math.pow(Math.abs(u), 4) * Math.pow(t, 4) * rise * 0.32;
-  const y = rise * Math.pow(1 - t, 1.7) + edge;
-  if (face < 2)
-    return new Vector3(u * width * (0.26 + 0.24 * t), y, (face === 0 ? 1 : -1) * depth * 0.5 * t);
-  return new Vector3((face === 2 ? 1 : -1) * width * (0.26 + 0.24 * t), y, u * depth * 0.5 * t);
-}
-
-function roof(builder: LandBuilder, m: PureLandMaterials, b: Building, detailed = true): void {
-  const rise = b.height;
-  const columns = detailed ? 28 : 12;
-  const rows = detailed ? 12 : 6;
-  const positions: number[] = [],
-    uvs: number[] = [],
-    indices: number[] = [];
-  for (let face = 0; face < 4; face++) {
-    const offset = positions.length / 3;
-    for (let row = 0; row <= rows; row++) {
-      for (let col = 0; col <= columns; col++) {
-        const p = roofPoint((col / columns) * 2 - 1, row / rows, face, b.width, b.depth, rise);
-        positions.push(p.x, p.y, p.z);
-        uvs.push(((col / columns) * (face < 2 ? b.width : b.depth)) / 9, row / rows);
-      }
-    }
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < columns; col++) {
-        const a = offset + row * (columns + 1) + col,
-          c = a + columns + 1;
-        if (face === 0 || face === 3) indices.push(a, c, a + 1, a + 1, c, c + 1);
-        else indices.push(a, a + 1, c, a + 1, c + 1, c);
-      }
-    }
-    // 檐口与四条垂脊保留真实截面，高光随镜头变化。
-    const edge: [number, number, number][] = [];
-    for (let col = 0; col <= columns; col++) {
-      const p = roofPoint((col / columns) * 2 - 1, 1, face, b.width, b.depth, rise);
-      edge.push([b.x + p.x, b.base + p.y, b.z + p.z]);
-    }
-    builder.tube(m.gold, edge, detailed ? 0.14 : 0.09, columns);
-    const hip: [number, number, number][] = [];
-    for (let row = 0; row <= rows; row++) {
-      const p = roofPoint(1, row / rows, face, b.width, b.depth, rise);
-      hip.push([b.x + p.x, b.base + p.y + 0.04, b.z + p.z]);
-    }
-    builder.tube(m.gold, hip, 0.1, rows);
-    if (detailed && face < 2) {
-      // 瓦当独立成形，屋顶细纹由法线贴图接力，控制顶面几何预算。
-      const count = Math.floor(b.width / 0.65);
-      for (let i = 0; i <= count; i++) {
-        const p = roofPoint((i / count) * 2 - 1, 1, face, b.width, b.depth, rise);
-        builder.sphere(m.goldDark, [b.x + p.x, b.base + p.y - 0.16, b.z + p.z], [0.16, 0.17, 0.16]);
-        const rib: [number, number, number][] = [];
-        for (let row = 0; row <= 10; row++) {
-          const r = roofPoint((i / count) * 2 - 1, row / 10, face, b.width, b.depth, rise);
-          rib.push([b.x + r.x, b.base + r.y + 0.07, b.z + r.z]);
-        }
-        builder.tube(m.roof, rib, 0.075, 10);
-      }
-    }
-  }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  builder.shape(geometry, m.roof, [b.x, b.base, b.z]);
-  geometry.dispose();
-  builder.box(m.gold, [b.x, b.base + rise, b.z], [b.width * 0.53, 0.25, 0.3]);
-  for (const side of [-1, 1]) {
-    const x = b.x + side * b.width * 0.265;
-    builder.tube(
-      m.gold,
-      [
-        [x - side * 0.6, b.base + rise, b.z],
-        [x + side * 0.5, b.base + rise + 0.4, b.z],
-        [x + side * 0.9, b.base + rise + 1.1, b.z],
-      ],
-      0.2,
-      10,
-    );
-  }
+/** 雀替轮廓从柱头承接梁枋，使用薄挤出曲面而不是悬空方块。 */
+function corbel(width: number, height: number, depth: number): ExtrudeGeometry {
+  const shape = new Shape();
+  shape.moveTo(0, 0);
+  shape.lineTo(0, height);
+  shape.lineTo(width, height);
+  shape.bezierCurveTo(
+    width,
+    height * 0.55,
+    width * 0.64,
+    height * 0.72,
+    width * 0.56,
+    height * 0.46,
+  );
+  shape.bezierCurveTo(width * 0.4, height * 0.16, width * 0.13, height * 0.3, 0, 0);
+  const geometry = new ExtrudeGeometry(shape, {
+    depth,
+    steps: 1,
+    bevelEnabled: false,
+    curveSegments: 6,
+  });
+  geometry.translate(0, 0, -depth / 2);
+  return geometry;
 }
 
 function column(
@@ -112,20 +49,47 @@ function column(
   base: number,
   height: number,
   radius: number,
+  detail: LandDetail,
 ): void {
-  builder.cylinder(m.stone, [x, base + 0.32, z], radius * 1.8, 0.64);
-  builder.cylinder(m.goldDark, [x, base + 0.64, z], radius * 1.4, 0.2);
+  const craft = LAND_CRAFT.column;
+  const foot = chamferedBox(
+    radius * craft.footWidthRatio,
+    craft.footHeight,
+    radius * craft.footWidthRatio,
+    craft.bevel,
+  );
+  builder.shape(foot, m.carvedStone, [x, base + craft.footHeight / 2, z]);
+  foot.dispose();
+  const profile = new LatheGeometry(
+    craft.profile.map(([r, y]) => new Vector2(r * radius, y)),
+    LAND_DETAIL[detail].radialSegments,
+  );
+  builder.shape(profile, m.carvedStone, [x, base, z]);
+  profile.dispose();
+  builder.cylinder(m.goldDark, [x, base + 0.78, z], radius * 1.08, 0.12);
   builder.cylinder(m.wood, [x, base + height / 2, z], radius, height);
   for (const y of [0.85, height - 0.5])
     builder.cylinder(m.gold, [x, base + y, z], radius * 1.06, 0.18);
-  for (let level = 0; level < 3; level++) {
-    const y = base + height - 0.4 + level * 0.27;
+  for (let level = 0; level < craft.bracketLevels; level++) {
+    const y = base + height - 0.4 + level * craft.bracketStep;
     builder.box(
       level === 1 ? m.jade : m.goldDark,
       [x, y, z],
       [radius * (3.8 + level), 0.22, radius * 1.4],
     );
     builder.box(m.gold, [x, y + 0.12, z], [radius * 1.3, 0.18, radius * (3 + level * 0.7)]);
+  }
+  if (LAND_DETAIL[detail].ornaments) {
+    const bracket = corbel(radius * craft.corbelWidthRatio, craft.corbelHeight, craft.corbelDepth);
+    for (const side of [-1, 1])
+      builder.shape(
+        bracket,
+        m.goldDark,
+        [x + side * radius, base + height - craft.corbelHeight - 0.6, z],
+        [1, 1, 1],
+        side < 0 ? Math.PI : 0,
+      );
+    bracket.dispose();
   }
 }
 
@@ -158,15 +122,53 @@ export function railing(
     builder.rod(m.gold, [from[0], base + y, from[1]], [to[0], base + y, to[1]], 0.09);
 }
 
-function pavilion(builder: LandBuilder, m: PureLandMaterials, b: Building, detailed = true): void {
-  builder.box(m.stone, [b.x, b.base - 0.35, b.z], [b.width + 3, 0.7, b.depth + 3]);
-  builder.box(m.goldDark, [b.x, b.base - 0.06, b.z], [b.width + 3.15, 0.12, b.depth + 3.15]);
+function pavilion(
+  builder: LandBuilder,
+  m: PureLandMaterials,
+  b: Building,
+  detail: LandDetail,
+  floorIncluded = true,
+): void {
+  const floor = LAND_CRAFT.floor,
+    columns = LAND_STRUCTURE.columns;
+  if (floorIncluded)
+    builder.box(
+      m.stone,
+      [b.x, b.base - floor.footingThickness / 2, b.z],
+      [b.width + 3, floor.footingThickness, b.depth + 3],
+    );
+  // 压边只放在台基侧面并低于顶面，修复原金属整片与石地面共面的闪烁。
+  if (floorIncluded)
+    for (const side of [-1, 1]) {
+      builder.box(
+        m.goldDark,
+        [b.x, b.base - floor.borderDrop, b.z + (side * (b.depth + 3)) / 2],
+        [b.width + 3, floor.borderHeight, floor.borderWidth],
+      );
+      builder.box(
+        m.goldDark,
+        [b.x + (side * (b.width + 3)) / 2, b.base - floor.borderDrop, b.z],
+        [floor.borderWidth, floor.borderHeight, b.depth + 3],
+      );
+    }
   for (const side of [-1, 1]) {
-    const columnCount = b.width > 30 ? 6 : 5;
+    const columnCount = b.width > 30 ? columns.hallCount : columns.pavilionCount;
     for (let i = 0; i < columnCount; i++) {
-      const x = b.x + (i / (columnCount - 1) - 0.5) * (b.width - 2);
-      const z = b.z + side * (b.depth / 2 - 0.8);
-      column(builder, m, x, z, b.base, b.height, b.width * 0.016);
+      const x = b.x + (i / (columnCount - 1) - 0.5) * (b.width - columns.insetX * 2);
+      const z = b.z + side * (b.depth / 2 - columns.insetZ);
+      column(builder, m, x, z, b.base, b.height, b.width * columns.radiusRatio, detail);
+      if (i < columnCount - 1 && LAND_DETAIL[detail].ornaments) {
+        const bay = (b.width - columns.insetX * 2) / (columnCount - 1);
+        const panel = new PlaneGeometry(bay - 1.2, 0.54);
+        builder.shape(
+          panel,
+          m.frieze,
+          [x + bay / 2, b.base + b.height - 0.2, z + side * 0.281],
+          [1, 1, 1],
+          side > 0 ? 0 : Math.PI,
+        );
+        panel.dispose();
+      }
     }
     builder.box(
       m.jade,
@@ -189,7 +191,7 @@ function pavilion(builder: LandBuilder, m: PureLandMaterials, b: Building, detai
       base: b.base + b.height + 0.55,
       height: b.width * 0.17,
     },
-    detailed,
+    detail,
   );
 }
 
@@ -211,24 +213,74 @@ function lattice(
     );
   for (let row = 0; row <= height / 0.65; row++)
     builder.box(m.goldDark, [x, base + row * 0.65, z], [width, 0.075, 0.12]);
+  for (const side of [-1, 1]) {
+    builder.box(
+      m.wood,
+      [x + side * (width / 2 + 0.1), base + height / 2, z - 0.04],
+      [0.25, height + 0.45, 0.36],
+    );
+    builder.box(
+      m.gold,
+      [x + side * (width / 2 - 0.04), base + height / 2, z + 0.12],
+      [0.04, height, 0.05],
+    );
+  }
+  for (const y of [base - 0.12, base + height + 0.12])
+    builder.box(m.wood, [x, y, z - 0.04], [width + 0.45, 0.25, 0.36]);
 }
 
-function hall(builder: LandBuilder, m: PureLandMaterials, plaque: Material): void {
+function hall(
+  builder: LandBuilder,
+  m: PureLandMaterials,
+  plaque: Material,
+  detail: LandDetail,
+): void {
   const h = PURE_LAND.hall;
-  const base = 3.2;
-  for (let tier = 0; tier < 3; tier++) {
-    builder.box(m.stone, [0, tier * 0.9 + 0.5, h.z], [56 - tier * 2, 0.95, 44 - tier * 2]);
-    builder.box(m.goldDark, [0, tier * 0.9 + 0.96, h.z], [56.1 - tier * 2, 0.1, 44.1 - tier * 2]);
+  const base = h.base;
+  const stairs = LAND_STRUCTURE.stairs;
+  const terrace = LAND_STRUCTURE.terrace;
+  const terraceDepth = stairs.backZ - terrace.backZ;
+  const centerZ = (stairs.backZ + terrace.backZ) / 2;
+  const tierHeight = base / terrace.tiers;
+  // 顶层完整延伸到阶道后缘；正殿不再叠一块同高地板，消除共面闪烁与隐形落差。
+  for (let tier = 0; tier < terrace.tiers; tier++) {
+    const overhang = (terrace.tiers - tier - 1) * terrace.tierOverhang;
+    const width = terrace.halfWidth * 2 + overhang * 2,
+      depth = terraceDepth + overhang * 2;
+    const top = (tier + 1) * tierHeight;
+    builder.box(m.stone, [h.x, top - tierHeight / 2, centerZ], [width, tierHeight, depth]);
+    for (const side of [-1, 1]) {
+      builder.box(
+        m.goldDark,
+        [h.x + (side * width) / 2, top - LAND_CRAFT.floor.borderDrop, centerZ],
+        [LAND_CRAFT.floor.borderWidth, LAND_CRAFT.floor.borderHeight, depth],
+      );
+      builder.box(
+        m.goldDark,
+        [h.x, top - LAND_CRAFT.floor.borderDrop, centerZ + (side * depth) / 2],
+        [width, LAND_CRAFT.floor.borderHeight, LAND_CRAFT.floor.borderWidth],
+      );
+    }
   }
-  for (let step = 0; step < 12; step++) {
-    builder.box(m.stone, [0, 1.2 + (step / 12) * 2 - 0.12, -23 - step * 0.8], [18, 0.28, 0.85]);
+  const run = (stairs.frontZ - stairs.backZ) / stairs.count;
+  const rise = (base - LAND_STRUCTURE.courtHeight) / stairs.count;
+  // 每块台阶从庭院基面延伸到其踏步顶面，最后一级恰好与主殿平台接平。
+  for (let step = 0; step < stairs.count; step++) {
+    const height = (step + 1) * rise;
+    const geometry = chamferedBox(stairs.width, height, run, stairs.bevel);
+    builder.shape(geometry, m.stone, [
+      stairs.x,
+      LAND_STRUCTURE.courtHeight + height / 2,
+      stairs.frontZ - (step + 0.5) * run,
+    ]);
+    geometry.dispose();
   }
-  pavilion(builder, m, { ...h, base }, true);
+  pavilion(builder, m, { ...h, base }, detail, false);
   // 上层檐下留出带状格窗，明暗交替让重檐的悬挑关系可读。
   builder.box(m.jade, [0, 21, h.z], [31, 4, 18]);
   lattice(builder, m, 0, h.z + 9.1, 29, 2.5, 20);
-  roof(builder, m, { x: 0, z: h.z, width: 38, depth: 25, base: 23, height: 6 });
-  roof(builder, m, { x: 0, z: h.z, width: 25, depth: 17, base: 29, height: 5 });
+  roof(builder, m, { x: 0, z: h.z, width: 38, depth: 25, base: 23, height: 6 }, detail);
+  roof(builder, m, { x: 0, z: h.z, width: 25, depth: 17, base: 29, height: 5 }, detail);
   builder.cylinder(m.goldDark, [0, 34.5, h.z], 0.7, 1.1);
   builder.sphere(m.gold, [0, 35.4, h.z], [0.8, 1, 0.8]);
   builder.cylinder(m.gold, [0, 37, h.z], 0.13, 2.4);
@@ -239,8 +291,20 @@ function hall(builder: LandBuilder, m: PureLandMaterials, plaque: Material): voi
   lattice(builder, m, 16.2, h.z + h.depth / 2 - 0.6, 7.8, 8, base + 1);
   builder.box(m.dark, [0, 9.7, h.z - 11.8], [40, 13, 0.5]);
   for (const side of [-1, 1]) {
-    railing(builder, m, [side * 27, -71], [side * 27, -32], 3.2);
-    railing(builder, m, [side * 10, -31], [side * 27, -31], 3.2);
+    railing(
+      builder,
+      m,
+      [side * (terrace.halfWidth - 1), terrace.backZ + 3],
+      [side * (terrace.halfWidth - 1), stairs.backZ - 0.5],
+      base,
+    );
+    railing(
+      builder,
+      m,
+      [side * (stairs.width / 2 + 1), stairs.backZ - 0.5],
+      [side * (terrace.halfWidth - 1), stairs.backZ - 0.5],
+      base,
+    );
   }
 }
 
@@ -278,7 +342,7 @@ function pagoda(
         base: y + 4 * scale,
         height: 2.2 * scale,
       },
-      false,
+      'far',
     );
   }
   const top = base + levels * 5.5 * scale + scale;
@@ -290,8 +354,10 @@ export function createArchitecture(
   builder: LandBuilder,
   m: PureLandMaterials,
   plaque: Material,
+  detail: LandDetail,
 ): void {
   for (const path of PURE_LAND.paths) {
+    if (path.height !== LAND_STRUCTURE.courtHeight) continue;
     const width = path.maxX - path.minX,
       depth = path.maxZ - path.minZ;
     const x = (path.minX + path.maxX) / 2,
@@ -312,24 +378,43 @@ export function createArchitecture(
     railing(builder, m, [side * 9, -19], [side * 56, -19]);
     railing(builder, m, [side * 57, -18], [side * 57, 73]);
     railing(builder, m, [side * 69, -75], [side * 69, 73]);
-    pavilion(builder, m, { x: side * 63, z: -53, width: 19, depth: 17, base: 1.5, height: 7.2 });
-    roof(builder, m, { x: side * 63, z: -53, width: 17, depth: 15, base: 13, height: 3.6 });
-    pavilion(builder, m, { x: side * 63, z: 50, width: 13, depth: 11, base: 1.5, height: 5.8 });
+    for (const building of LAND_STRUCTURE.pavilions)
+      pavilion(builder, m, { x: side * LAND_STRUCTURE.corridor.x, ...building }, detail);
+    roof(
+      builder,
+      m,
+      { x: side * LAND_STRUCTURE.corridor.x, z: -53, width: 17, depth: 15, base: 13, height: 3.6 },
+      detail,
+    );
     pagoda(builder, m, side * 88, -90, 0.85);
     pagoda(builder, m, side * 98, 18, 0.62, 4);
     // 两侧开放回廊：每个开间能看到池水，而非封闭实体墙。
-    for (let bay = 0; bay < 6; bay++) {
-      const z = -25 + bay * 12;
-      column(builder, m, side * 67, z, 1.2, 4.6, 0.24);
-      column(builder, m, side * 59, z, 1.2, 4.6, 0.24);
+    const corridor = LAND_STRUCTURE.corridor;
+    for (let bay = 0; bay < corridor.bays; bay++) {
+      const z = -25 + bay * corridor.spacing;
+      column(builder, m, side * 67, z, LAND_STRUCTURE.courtHeight, 4.6, 0.24, 'middle');
+      column(builder, m, side * 59, z, LAND_STRUCTURE.courtHeight, 4.6, 0.24, 'middle');
     }
-    roof(builder, m, { x: side * 63, z: 3, width: 12, depth: 70, base: 6.5, height: 2.8 }, false);
-    for (let i = 0; i < 6; i++) {
-      const x = side * (55 + i * 32),
-        z = -160 - (i % 3) * 30;
-      pavilion(builder, m, { x, z, width: 18, depth: 14, base: 0.8, height: 7 }, false);
+    roof(
+      builder,
+      m,
+      {
+        x: side * corridor.x,
+        z: 3,
+        width: corridor.width,
+        depth: corridor.depth,
+        base: corridor.roofBase,
+        height: corridor.roofRise,
+      },
+      'far',
+    );
+    const distant = LAND_STRUCTURE.distant;
+    for (let i = 0; i < distant.count; i++) {
+      const x = side * (distant.startX + i * distant.spacingX),
+        z = distant.startZ - (i % 3) * distant.spacingZ;
+      pavilion(builder, m, { x, z, width: 18, depth: 14, base: 0.8, height: 7 }, 'far');
       if (i % 2 === 0) pagoda(builder, m, x + side * 10, z - 30, 0.65, 4);
     }
   }
-  hall(builder, m, plaque);
+  hall(builder, m, plaque, detail);
 }

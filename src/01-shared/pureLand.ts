@@ -1,4 +1,5 @@
 import type { QualityTier, TimeOfDayId } from '@/00-types';
+import { LAND_STRUCTURE } from './landCraft';
 
 /** 世界采用米制建筑尺度。经籍中的无限尺度转译为可辨认、可进入的空间层级。 */
 export const PURE_LAND = Object.freeze({
@@ -13,7 +14,7 @@ export const PURE_LAND = Object.freeze({
   far: 1800,
   waterY: -0.45,
   bounds: { minX: -88, maxX: 88, minZ: -104, maxZ: 110 },
-  hall: { x: 0, z: -51, width: 42, depth: 27, height: 13.8 },
+  hall: LAND_STRUCTURE.hall,
   palette: {
     stone: 0xe6dcc1,
     gold: 0xd6ad57,
@@ -75,8 +76,20 @@ export const PURE_LAND = Object.freeze({
     { minX: -69, maxX: -57, minZ: -82, maxZ: 90, height: 1.2 },
     { minX: 57, maxX: 69, minZ: -82, maxZ: 90, height: 1.2 },
     { minX: -64, maxX: 64, minZ: -87, maxZ: -76, height: 1.2 },
-    { minX: -28, maxX: 28, minZ: -74, maxZ: -32, height: 3.2 },
-    { minX: -9, maxX: 9, minZ: -32, maxZ: -23, height: 3.2 },
+    {
+      minX: -LAND_STRUCTURE.terrace.halfWidth,
+      maxX: LAND_STRUCTURE.terrace.halfWidth,
+      minZ: LAND_STRUCTURE.terrace.backZ,
+      maxZ: LAND_STRUCTURE.stairs.backZ,
+      height: LAND_STRUCTURE.hall.base,
+    },
+    {
+      minX: -LAND_STRUCTURE.stairs.width / 2,
+      maxX: LAND_STRUCTURE.stairs.width / 2,
+      minZ: LAND_STRUCTURE.stairs.backZ,
+      maxZ: LAND_STRUCTURE.stairs.frontZ,
+      height: LAND_STRUCTURE.hall.base,
+    },
   ],
   copy: {
     enter: '步入此境',

@@ -1,0 +1,193 @@
+import type { QualityTier } from '@/00-types';
+
+export type LandDetail = 'near' | 'middle' | 'far';
+
+/** 主殿结构与可走表面使用同一米制数据，装饰不能改变台阶终点。 */
+export const LAND_STRUCTURE = Object.freeze({
+  hall: { x: 0, z: -51, width: 42, depth: 27, height: 13.8, base: 3.2 },
+  courtHeight: 1.2,
+  terrace: { halfWidth: 28, backZ: -74, tiers: 3, tierOverhang: 0.75 },
+  stairs: { x: 0, frontZ: -23, backZ: -32, width: 18, count: 12, bevel: 0.025 },
+  columns: { insetX: 1, insetZ: 0.8, hallCount: 6, pavilionCount: 5, radiusRatio: 0.016 },
+  navigation: {
+    bodyRadius: 0.38,
+    pathInset: 0.5,
+    backWallZ: -62,
+    backWallHalfWidth: 21,
+    figureRadius: 3.6,
+  },
+  pavilions: [
+    { z: -53, width: 19, depth: 17, base: 1.5, height: 7.2 },
+    { z: 50, width: 13, depth: 11, base: 1.5, height: 5.8 },
+  ],
+  corridor: { x: 63, width: 12, depth: 70, roofBase: 6.5, roofRise: 2.8, bays: 6, spacing: 12 },
+  distant: { count: 6, startX: 55, spacingX: 32, startZ: -160, spacingZ: 30 },
+  figures: [
+    { x: 0, z: -55, scale: 1.5 },
+    { x: -11, z: -55, scale: 1.03 },
+    { x: 11, z: -55, scale: 1.03 },
+  ],
+} as const);
+
+/** 结构等级与细节参数显式分离；未来距离 LOD 可直接选用同一资产接口。 */
+export const LAND_DETAIL_BY_QUALITY: Readonly<Record<QualityTier, LandDetail>> = Object.freeze({
+  low: 'middle',
+  medium: 'middle',
+  high: 'near',
+  ultra: 'near',
+});
+
+export const LAND_DETAIL = Object.freeze({
+  near: {
+    roofColumns: 28,
+    roofRows: 12,
+    radialSegments: 24,
+    figureRows: 48,
+    figureSegments: 64,
+    tileSpacing: 0.65,
+    rafters: true,
+    ornaments: true,
+  },
+  middle: {
+    roofColumns: 18,
+    roofRows: 8,
+    radialSegments: 16,
+    figureRows: 30,
+    figureSegments: 40,
+    tileSpacing: 0.85,
+    rafters: false,
+    ornaments: true,
+  },
+  far: {
+    roofColumns: 12,
+    roofRows: 6,
+    radialSegments: 12,
+    figureRows: 18,
+    figureSegments: 24,
+    tileSpacing: 0,
+    rafters: false,
+    ornaments: false,
+  },
+} as const);
+
+export const LAND_CRAFT = Object.freeze({
+  roof: {
+    thickness: 0.28,
+    ridgeRadius: 0.1,
+    eaveRadius: 0.12,
+    tileRadius: 0.17,
+    tileDepth: 0.12,
+    rafterRadius: 0.065,
+    rafterSpacing: 0.95,
+    cornerLift: 0.32,
+    ridgeFraction: 0.26,
+    skirtFraction: 0.24,
+  },
+  column: {
+    footWidthRatio: 3.4,
+    footHeight: 0.22,
+    bevel: 0.055,
+    // [半径 / 柱半径, 距柱基高度]：鼓腹、束腰和上部承盘形成可读的压边。
+    profile: [
+      [1.55, 0.22],
+      [1.62, 0.28],
+      [1.62, 0.35],
+      [1.37, 0.42],
+      [1.2, 0.54],
+      [1.34, 0.65],
+      [1.34, 0.72],
+      [1.08, 0.77],
+    ],
+    bracketLevels: 3,
+    bracketStep: 0.27,
+    corbelWidthRatio: 2.8,
+    corbelHeight: 0.85,
+    corbelDepth: 0.25,
+  },
+  floor: {
+    footingThickness: 0.7,
+    borderWidth: 0.11,
+    borderHeight: 0.12,
+    borderDrop: 0.2,
+    bevel: 0.055,
+  },
+  material: {
+    stone: { roughness: 0.82, metalness: 0.02, bump: 0.035, scale: 0.42 },
+    carvedStone: { roughness: 0.74, metalness: 0.02, bump: 0.012, scale: 0.7 },
+    gold: { roughness: 0.36, metalness: 0.88 },
+    goldDark: { roughness: 0.48, metalness: 0.83 },
+    wood: { roughness: 0.72, metalness: 0.0 },
+    roof: { roughness: 0.55, metalness: 0.08, bump: 0.1 },
+    jade: { roughness: 0.29, metalness: 0.06 },
+    sculpture: { color: 0xc6a35d, roughness: 0.46, metalness: 0.86 },
+    fold: { color: 0xb69758, roughness: 0.53, metalness: 0.82 },
+    ornament: { ground: '#234d42', ink: '#bd9c61', shade: '#142f29' },
+  },
+  figure: {
+    baseOffset: 0.1,
+    // [高度, 横向半径, 前后半径, 前后偏移]；闭合端点避免顶部和底部的孔洞。
+    robe: [
+      [1.52, 0, 0, 0.25],
+      [1.64, 2.55, 1.12, 0.28],
+      [1.88, 2.95, 1.3, 0.32],
+      [2.18, 2.78, 1.25, 0.3],
+      [2.55, 2.05, 0.99, 0.12],
+      [3.0, 1.52, 0.89, 0],
+      [3.8, 1.42, 0.86, 0],
+      [4.65, 1.53, 0.82, 0],
+      [5.2, 1.75, 0.75, -0.02],
+      [5.58, 1.48, 0.64, 0],
+      [5.95, 0.72, 0.49, 0],
+      [6.22, 0.5, 0.36, 0],
+      [6.28, 0, 0, 0],
+    ],
+    head: [
+      [6.12, 0, 0, 0.1],
+      [6.23, 0.35, 0.37, 0.08],
+      [6.42, 0.58, 0.53, 0.06],
+      [6.72, 0.75, 0.64, 0.01],
+      [7.08, 0.81, 0.7, 0],
+      [7.48, 0.78, 0.67, -0.025],
+      [7.8, 0.69, 0.59, -0.06],
+      [8.02, 0.46, 0.4, -0.08],
+      [8.12, 0, 0, -0.08],
+    ],
+    pedestal: [
+      [3.35, 0],
+      [3.6, 0.12],
+      [3.6, 0.25],
+      [3.28, 0.32],
+      [3.1, 0.62],
+      [3.27, 0.82],
+      [3.45, 0.92],
+      [3.45, 1.02],
+      [3.1, 1.12],
+    ],
+    arm: [
+      [0.95, 5.15, -0.05],
+      [1.91, 4.4, 0.19],
+      [1.54, 3.2, 0.72],
+      [0.43, 2.94, 1.12],
+    ],
+    armRadii: [0.46, 0.43, 0.3, 0.18],
+    folds: {
+      amplitude: 0.026,
+      frequencyX: 10,
+      frequencyY: 4.8,
+      kneeAmplitude: 0.045,
+      lapGroove: 0.14,
+    },
+    petal: { length: 1.8, halfWidth: 0.52, rise: 0.62, thickness: 0.045, rows: 10, columns: 8 },
+    nose: {
+      bridgeY: 7.12,
+      bridgeWidth: 0.105,
+      bridgeHeight: 0.35,
+      bridgeDepth: 0.15,
+      tipY: 6.92,
+      tipDepth: 0.19,
+    },
+    eyes: { x: 0.34, y: 7.16, width: 0.21, height: 0.12, depth: 0.065 },
+    mouth: { y: 6.57, width: 0.24, height: 0.055, depth: 0.025 },
+    surfaceInset: 0.012,
+  },
+} as const);

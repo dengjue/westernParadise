@@ -1,6 +1,7 @@
 import { Group } from 'three';
 import type { Scene, WebGLRenderer } from 'three';
 import type { QualityTier, TimeOfDayId } from '@/00-types';
+import { LAND_DETAIL_BY_QUALITY } from '@/01-shared';
 import { createHallPlaque, createPureLandMaterials } from '@/05-materials';
 import type { CanvasFactory } from '@/05-materials';
 import { createArchitecture } from './land/Architecture';
@@ -29,8 +30,9 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   );
   const plaque = createHallPlaque(options.canvasFactory);
   const builder = new LandBuilder();
-  createArchitecture(builder, materials, plaque);
-  createSculptures(builder, materials);
+  const detail = LAND_DETAIL_BY_QUALITY[options.quality];
+  createArchitecture(builder, materials, plaque, detail);
+  createSculptures(builder, materials, detail);
   createGarden(root, builder, materials, options.seed, options.quality);
   builder.flush(root);
   scene.add(root);

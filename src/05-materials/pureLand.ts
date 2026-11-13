@@ -6,15 +6,17 @@ import {
   RepeatWrapping,
   SRGBColorSpace,
 } from 'three';
-import { PURE_LAND } from '@/01-shared';
+import { LAND_CRAFT, PURE_LAND } from '@/01-shared';
 import { Rng } from '@/02-core';
 import type { CanvasFactory } from './courtyard';
+import { ornamentTexture } from './landOrnament';
+import { projectedStone } from './landStone';
 
 /** 可重复贴图在创建时生成；细节由颜色与凹凸共同承担，避免远看像单色塑料。 */
 function surfaceTexture(
   factory: CanvasFactory,
   seed: number,
-  kind: 'stone' | 'gold' | 'wood' | 'roof',
+  kind: 'stone' | 'carvedStone' | 'gold' | 'wood' | 'roof',
 ): CanvasTexture {
   const size = 512;
   const canvas = factory(size, size);
@@ -29,10 +31,12 @@ function surfaceTexture(
     for (let c = 0; c < 3; c++) image.data[i + c] = (image.data[i + c] ?? 220) + variation;
   }
   ctx.putImageData(image, 0, 0);
-  if (kind === 'stone') {
-    ctx.strokeStyle = '#9b9889';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(1, 1, size - 2, size - 2);
+  if (kind === 'stone' || kind === 'carvedStone') {
+    if (kind === 'stone') {
+      ctx.strokeStyle = '#9b9889';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, size - 2, size - 2);
+    }
     ctx.strokeStyle = '#c6c2b5';
     for (let i = 0; i < 24; i++) {
       ctx.beginPath();
@@ -122,83 +126,65 @@ function botanicalTexture(factory: CanvasFactory, leaf: boolean): CanvasTexture 
 
 export function createPureLandMaterials(factory: CanvasFactory, seed: number, anisotropy: number) {
   const { palette } = PURE_LAND;
+  const craft = LAND_CRAFT.material;
   const stone = surfaceTexture(factory, seed, 'stone');
+  const carvedStone = surfaceTexture(factory, seed, 'carvedStone');
   const gold = surfaceTexture(factory, seed + 1, 'gold');
   const wood = surfaceTexture(factory, seed + 2, 'wood');
   const roof = surfaceTexture(factory, seed + 3, 'roof');
   const leaf = botanicalTexture(factory, true);
   const petal = botanicalTexture(factory, false);
-  for (const texture of [stone, gold, wood, roof, leaf, petal]) texture.anisotropy = anisotropy;
+  const tileEnd = ornamentTexture(factory, 'tile');
+  const frieze = ornamentTexture(factory, 'frieze');
+  for (const texture of [stone, carvedStone, gold, wood, roof, leaf, petal, tileEnd, frieze])
+    texture.anisotropy = anisotropy;
   roof.repeat.set(3, 2);
-  const stoneMaterial = new MeshStandardMaterial({
-    color: palette.stone,
-    map: stone,
-    bumpMap: stone,
-    bumpScale: 0.025,
-    roughness: 0.76,
-    metalness: 0.03,
-  });
-  // 按世界坐标投射石砖，巨大台基与一米柱础保持同样的砖缝尺度。
-  stoneMaterial.onBeforeCompile = (shader) => {
-    shader.vertexShader = 'varying vec3 vStoneWorld;\n' + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <begin_vertex>',
-      '#include <begin_vertex>\nvStoneWorld = (modelMatrix * vec4(position,1.0)).xyz;',
-    );
-    shader.fragmentShader = 'varying vec3 vStoneWorld;\n' + shader.fragmentShader;
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <map_fragment>',
-      `
-      vec3 axis = abs(normalize(cross(dFdx(vStoneWorld), dFdy(vStoneWorld))));
-      vec2 surfaceUv = axis.y > 0.6 ? vStoneWorld.xz * 0.42 : vec2(vStoneWorld.x + vStoneWorld.z, vStoneWorld.y * 2.0) * 0.42;
-      diffuseColor *= texture2D(map, surfaceUv);
-      vec2 tilePosition = fract(surfaceUv);
-      float jointDistance = min(min(tilePosition.x, 1.0-tilePosition.x), min(tilePosition.y, 1.0-tilePosition.y));
-      diffuseColor.rgb *= mix(0.72, 1.0, smoothstep(0.003, 0.012, jointDistance));
-    `,
-    );
-  };
   return {
-    stone: stoneMaterial,
+    stone: projectedStone(stone, palette.stone, craft.stone),
+    carvedStone: projectedStone(carvedStone, palette.stone, craft.carvedStone),
+    tileEnd: new MeshStandardMaterial({
+      map: tileEnd,
+      roughness: craft.roof.roughness,
+      metalness: craft.roof.metalness,
+    }),
+    frieze: new MeshStandardMaterial({
+      map: frieze,
+      roughness: craft.wood.roughness,
+      metalness: craft.wood.metalness,
+    }),
     gold: new MeshStandardMaterial({
       color: palette.gold,
       map: gold,
-      roughness: 0.28,
-      metalness: 0.78,
+      ...craft.gold,
     }),
     goldDark: new MeshStandardMaterial({
       color: palette.goldDark,
       map: gold,
-      roughness: 0.39,
-      metalness: 0.65,
+      ...craft.goldDark,
     }),
     sculpture: new MeshStandardMaterial({
-      color: 0xc6a35d,
       map: gold,
-      metalness: 0.83,
-      roughness: 0.44,
+      ...craft.sculpture,
     }),
-    sculptureFold: new MeshStandardMaterial({ color: 0xb99750, metalness: 0.75, roughness: 0.5 }),
+    sculptureFold: new MeshStandardMaterial(craft.fold),
     jade: new MeshStandardMaterial({
       color: palette.jade,
-      map: stone,
-      roughness: 0.24,
-      metalness: 0.38,
+      map: carvedStone,
+      ...craft.jade,
     }),
     roof: new MeshStandardMaterial({
       color: palette.roof,
       map: roof,
       bumpMap: roof,
-      bumpScale: 0.18,
-      roughness: 0.62,
-      metalness: 0.26,
+      bumpScale: craft.roof.bump,
+      roughness: craft.roof.roughness,
+      metalness: craft.roof.metalness,
       side: 2,
     }),
     wood: new MeshStandardMaterial({
       color: palette.wood,
       map: wood,
-      roughness: 0.48,
-      metalness: 0.16,
+      ...craft.wood,
     }),
     dark: new MeshStandardMaterial({ color: 0x173b35, roughness: 0.6, metalness: 0.15 }),
     pearl: new MeshStandardMaterial({

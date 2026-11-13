@@ -19,6 +19,8 @@
 
 后续优化按 [六阶段路线图](02-方案/10-极乐世界-六阶段优化路线图.md) 推进，每个 Phase 有独立实施与验收文档。**Phase 1 已完成**：high 静态几何缓冲从 96.70 降至 35.53 MiB（-63.26%），保留全部三角形，固定全景截图一致。可复跑采样命令及口径见 [Phase 1 实测](02-方案/11-Phase1-性能基线与几何减负.md)。
 
+**Phase 2 已完成**：精修瓦当/椽条/梁枋/柱础与连续造像曲面，修复台面闪烁并统一阶梯与导航尺寸。high/low 每帧提交三角形较 Phase 1 减少 1.77% / 12.87%；101 个测试与离线检查通过。[Phase 2 细节与验收](02-方案/12-Phase2-建筑与造像近景精修.md)。
+
 以下为原始工程的背景与阶段记录。
 
 参考作品是一个 **2.87 MB 的单文件 HTML**，内含完整 Three.js 引擎 + 一款 FPS 游戏，
@@ -85,7 +87,7 @@ npm run verify         # 一条命令跑完所有门禁 + 两种构建（CI 复�
 |---|---|
 | `npm run typecheck` | TypeScript `strict` 类型检查 |
 | `npm run lint` / `format:check` | ESLint / Prettier 一致性 |
-| `npm run test` | Vitest（17 文件 / 93 用例，纯 Node 环境） |
+| `npm run test` | Vitest（18 文件 / 101 用例，纯 Node 环境） |
 | `npm run walktest` | 单独执行 3.6 多层寻路与路线可达性走查 |
 | `npm run check:layers` | 单向依赖、目录入口、浏览器 API 边界、循环依赖 |
 | `npm run check:content` | 源码与文案的宗教红线词扫描（37 词） |
@@ -141,6 +143,8 @@ python3 scan_single_html.py --extract-css --extract-js   # 同时导出内联 CS
 ---
 
 ## 下一步
+
+极乐世界下一项为 [Phase 3 · 莲池与宝林自然细节](02-方案/13-Phase3-莲池与宝林自然细节.md)，包括稳定种子布局、树冠/莲叶变体与轻风动效。
 
 打开 `AGENT_TODO.md`：阶段 3.1~3.6 与阶段 4.1~4.5 已完成，4.4 只读 P0/P1 审查无阻塞项；
 4.6 已整理送审包但外部合规评估仍按规范阻塞，不在探索期擅自发布。每项仍要按实施规范回归并通过 `npm run verify`。

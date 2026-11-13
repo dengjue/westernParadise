@@ -1,14 +1,15 @@
 import { Vector3 } from 'three';
 import type { PerspectiveCamera } from 'three';
 import type { AppEventMap, EventBusLike } from '@/00-types';
-import { PURE_LAND } from '@/01-shared';
+import { LAND_CRAFT, LAND_STRUCTURE, PURE_LAND } from '@/01-shared';
 import type { InputSource } from './input/InputSource';
 
 /** 地面与碰撞共用空间配置，禁止步行进入池水；阶梯按连续坡度采样避免镜头抖动。 */
 export function sampleLandHeight(x: number, z: number): number | null {
+  const { hall, stairs, columns, navigation } = LAND_STRUCTURE;
   let height: number | null = null;
   for (const path of PURE_LAND.paths) {
-    const inset = 0.5;
+    const inset = navigation.pathInset;
     if (
       x >= path.minX + inset &&
       x <= path.maxX - inset &&
@@ -17,15 +18,36 @@ export function sampleLandHeight(x: number, z: number): number | null {
     )
       height = path.height;
   }
-  if (Math.abs(x) <= 8.6 && z >= -32.5 && z <= -22.5)
-    height = 1.2 + Math.min(1, Math.max(0, (-z - 23) / 9)) * 2;
+  if (
+    Math.abs(x - stairs.x) <= stairs.width / 2 - navigation.bodyRadius &&
+    z >= stairs.backZ - navigation.pathInset &&
+    z <= stairs.frontZ + navigation.pathInset
+  )
+    height =
+      LAND_STRUCTURE.courtHeight +
+      Math.min(1, Math.max(0, (stairs.frontZ - z) / (stairs.frontZ - stairs.backZ))) *
+        (hall.base - LAND_STRUCTURE.courtHeight);
   // 正殿后壁与莲台为实体，柱列半径带上相机所代表的身体余量。
-  if (Math.abs(x) < 21 && z < -62) return null;
-  if (z < -49 && z > -60 && (Math.abs(x) < 5.5 || Math.abs(Math.abs(x) - 11) < 3.9)) return null;
-  const columnZs = [-38.3, -63.7];
-  for (let i = 0; i < 6; i++) {
-    const columnX = (i / 5 - 0.5) * 40;
-    for (const columnZ of columnZs) if (Math.hypot(x - columnX, z - columnZ) < 1.05) return null;
+  if (Math.abs(x - hall.x) < navigation.backWallHalfWidth && z < navigation.backWallZ) return null;
+  for (const figure of LAND_STRUCTURE.figures)
+    if (
+      Math.hypot(x - figure.x, z - figure.z) <
+      navigation.figureRadius * figure.scale + navigation.bodyRadius
+    )
+      return null;
+  const footHalfWidth = (hall.width * columns.radiusRatio * LAND_CRAFT.column.footWidthRatio) / 2;
+  for (let i = 0; i < columns.hallCount; i++) {
+    const columnX =
+      hall.x + (i / (columns.hallCount - 1) - 0.5) * (hall.width - columns.insetX * 2);
+    for (const side of [-1, 1]) {
+      const columnZ = hall.z + side * (hall.depth / 2 - columns.insetZ);
+      // 方柱础采用膨胀矩形，包含角部，不能只按柱身圆半径拦截。
+      if (
+        Math.abs(x - columnX) < footHalfWidth + navigation.bodyRadius &&
+        Math.abs(z - columnZ) < footHalfWidth + navigation.bodyRadius
+      )
+        return null;
+    }
   }
   return height;
 }
@@ -96,7 +118,7 @@ export class LandCamera {
   startWalking(): void {
     this.walking = true;
     this.touring = false;
-    this.position.set(0, PURE_LAND.eyeHeight + 1.2, 85);
+    this.position.set(0, PURE_LAND.eyeHeight + LAND_STRUCTURE.courtHeight, 85);
     this.yaw = Math.PI;
     this.pitch = 0.055;
     this.camera.position.copy(this.position);
@@ -119,7 +141,8 @@ export class LandCamera {
       // 分轴滑动让靠栏杆走动自然，地面采样同时阻止跨池和穿入造像。
       if (sampleLandHeight(this.position.x + dx, this.position.z) !== null) this.position.x += dx;
       if (sampleLandHeight(this.position.x, this.position.z + dz) !== null) this.position.z += dz;
-      const floor = sampleLandHeight(this.position.x, this.position.z) ?? 1.2;
+      const floor =
+        sampleLandHeight(this.position.x, this.position.z) ?? LAND_STRUCTURE.courtHeight;
       this.position.y += (floor + PURE_LAND.eyeHeight - this.position.y) * Math.min(1, dt * 12);
       this.camera.position.copy(this.position);
       this.target.set(
