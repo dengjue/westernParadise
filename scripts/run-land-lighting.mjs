@@ -1,4 +1,4 @@
-/** A1 默认采样；A2 可追加 phases-on/off 或 plain-on/off 与轮次，条件均真实重挂。 */
+/** A1 默认采样；A2 查询/探针对照；A4 production 匹配生产查询关闭并保留首用和中断。 */
 import { spawn, execFileSync } from 'node:child_process';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -21,6 +21,7 @@ if (
   !/^[0-3](,[0-3])*$/.test(viewsText) ||
   ![
     'native',
+    'production',
     'phases-on',
     'phases-off',
     'plain-on',
@@ -31,7 +32,7 @@ if (
   !/^[1-5]$/.test(roundsText)
 )
   throw new Error(
-    '用法：node scripts/run-land-lighting.mjs <tab-id> [产物路径] [light|detailed] [0,1,2,3] [native|phases-on/off|plain-on/off|submit-on/off] [1–5轮] [浏览器任务名]',
+    '用法：node scripts/run-land-lighting.mjs <tab-id> [产物路径] [light|detailed] [0,1,2,3] [native|production|phases-on/off|plain-on/off|submit-on/off] [1–5轮] [浏览器任务名]',
   );
 const views = viewsText.split(',').map(Number);
 if (new Set(views).size !== views.length) throw new Error('景点不能重复；重复实验应使用独立 run');
@@ -94,7 +95,7 @@ async function invoke(view) {
         queryCondition=await configureLandGpuQueries(page,${condition.endsWith('-on')});
       }
       const {sampleLandLighting}=await import(${JSON.stringify(helper)});
-      const trace=await sampleLandLighting(page,{viewIndex:${view},rounds:${Number(roundsText)},detailed:${mode === 'detailed'},firstUse:${condition === 'native'},interruptions:${condition === 'native'},phases:${condition.startsWith('phases-') || condition.startsWith('submit-')},submission:${condition.startsWith('submit-')}});
+      const trace=await sampleLandLighting(page,{viewIndex:${view},rounds:${Number(roundsText)},detailed:${mode === 'detailed'},firstUse:${['native', 'production'].includes(condition)},interruptions:${['native', 'production'].includes(condition)},phases:${condition.startsWith('phases-') || condition.startsWith('submit-')},submission:${condition.startsWith('submit-')}});
       trace.queryCondition=queryCondition;
       trace.artifact=${JSON.stringify(artifact)};trace.errors=errors;trace.requests=requests;
       if(errors.length||requests.length){trace.summary.valid=false;trace.summary.targetMet=false}
