@@ -181,4 +181,4 @@ node scripts/run-land-soak.mjs <tab-id>
 
 ## 源码交付
 
-完整源码分支 `feat/pure-land-phase6`，目标 `feat/pure-land-phase5`，依赖 MR !5；合并请求与六阶段依赖链见 [交付与操作索引](17-六阶段交付与操作索引.md)。
+实现与验收提交 `5a99dd4` 已推送至 `feat/pure-land-phase6`；MR [!6](https://git.code.tencent.com/dengjue500/wangshangsimiao/merge_requests/6) 目标为 `feat/pure-land-phase5`，依赖 MR !5。完整操作与六阶段依赖链见 [交付与操作索引](17-六阶段交付与操作索引.md)。
