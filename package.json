@@ -1,9 +1,9 @@
 {
-  "name": "wangshangsimiao",
+  "name": "western-paradise",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "传统建筑与园林空间的离线数字漫游技术探索原型（非宗教信息服务，不对外发布）",
+  "description": "以西方极乐世界意象为灵感的数字园境共创原型（公开体验发布与运营待合规评估）",
   "engines": {
     "node": ">=22"
   },

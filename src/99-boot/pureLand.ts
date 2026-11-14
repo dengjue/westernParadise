@@ -56,7 +56,7 @@ export function startPureLand(): () => void {
     noAudio: params.noAudio,
     thirdPerson: params.cam === 'third',
   });
-  document.title = '西方极乐 · 一念清净，万象庄严';
+  document.title = '西方极乐世界 · 数字园境共创';
   if (capabilities.webgl === 'none') throw new Error(COPY.noWebgl);
   const context = createSceneContext(ui.viewport, {
     width: window.innerWidth,
