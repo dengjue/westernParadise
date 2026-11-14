@@ -1,4 +1,4 @@
-import type { PlatformParams, QualityTier, TimeOfDayId, WeatherId } from '@/00-types';
+import type { CameraMode, PlatformParams, QualityTier, TimeOfDayId, WeatherId } from '@/00-types';
 import {
   DEFAULT_SEED,
   DEFAULT_TIME_OF_DAY_ID,
@@ -78,6 +78,18 @@ function parseWeather(raw: string | null, warn: ParamsWarning): WeatherId {
   return DEFAULT_WEATHER_ID;
 }
 
+function parseCameraMode(raw: string | null, warn: ParamsWarning): CameraMode {
+  const normalized = raw?.trim().toLowerCase();
+  if (normalized === undefined || normalized === '' || normalized === 'first') {
+    return 'first';
+  }
+  if (normalized === 'third') {
+    return 'third';
+  }
+  warn(`非法 cam 参数「${raw}」，已回落到 first`);
+  return 'first';
+}
+
 export function parseParams(search: string, warn: ParamsWarning = defaultWarning): PlatformParams {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
   return Object.freeze({
@@ -89,5 +101,6 @@ export function parseParams(search: string, warn: ParamsWarning = defaultWarning
     smoke: flag(params, 'smoke'),
     debug: flag(params, 'debug'),
     noAudio: flag(params, 'noaudio'),
+    cam: parseCameraMode(params.get('cam'), warn),
   });
 }

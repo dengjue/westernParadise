@@ -24,6 +24,7 @@ export { LAND_GARDEN, LAND_GARDEN_QUALITY } from './landGarden';
 export { LAND_RENDER, LAND_RENDER_QUALITY } from './landRender';
 export { LAND_ATMOSPHERE, LAND_LIGHT_QUALITY, LAND_TIMES } from './landLighting';
 export { LAND_JOURNEY } from './landJourney';
+export { LAND_AVATAR } from './landAvatar';
 export { LAND_SOUND } from './landSound';
 export {
   buildingColumns,

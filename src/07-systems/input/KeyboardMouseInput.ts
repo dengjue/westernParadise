@@ -6,7 +6,12 @@ export interface KeyboardMouseInputOptions {
   /** 指针、滚轮和右键菜单事件目标由 99-boot 注入。 */
   readonly pointerTarget: EventTarget;
   readonly lookSensitivityRadPerPixel: number;
+  /** 左键轻点判定阈值（像素）：按下到移动未超过该距离视为轻点，不产生视角增量。 */
+  readonly clickThresholdPx?: number;
 }
+
+/** 左键轻点阈值默认值：低于该位移的按下-松开序列不旋转镜头，为画布点击语义留口。 */
+const DEFAULT_CLICK_THRESHOLD_PX = 4;
 
 /**
  * M1 键鼠输入。
@@ -19,6 +24,7 @@ export class KeyboardMouseInput implements InputSource {
   private readonly keyboardTarget: EventTarget;
   private readonly pointerTarget: EventTarget;
   private readonly lookSensitivity: number;
+  private readonly clickThresholdPx: number;
   private readonly axis = { x: 0, z: 0 };
   private readonly lookDelta = { yaw: 0, pitch: 0 };
   private readonly consumedLookDelta = { yaw: 0, pitch: 0 };
@@ -27,6 +33,10 @@ export class KeyboardMouseInput implements InputSource {
   private leftPressed = false;
   private rightPressed = false;
   private dragging = false;
+  /** 当前拖拽按钮位（1=左键 2=右键）；0 表示未拖拽。一次拖拽只跟随首个按下按钮。 */
+  private dragButtonBit = 0;
+  /** 左键拖拽只有在位移超过轻点阈值后才 armed 并开始累计视角；右键按下即 armed。 */
+  private lookArmed = false;
   private lastPointerX = 0;
   private lastPointerY = 0;
   private zoomDelta = 0;
@@ -39,6 +49,7 @@ export class KeyboardMouseInput implements InputSource {
     this.keyboardTarget = options.keyboardTarget;
     this.pointerTarget = options.pointerTarget;
     this.lookSensitivity = options.lookSensitivityRadPerPixel;
+    this.clickThresholdPx = options.clickThresholdPx ?? DEFAULT_CLICK_THRESHOLD_PX;
 
     this.keyboardTarget.addEventListener('keydown', this.onKeyDown);
     this.keyboardTarget.addEventListener('keyup', this.onKeyUp);
@@ -77,6 +88,8 @@ export class KeyboardMouseInput implements InputSource {
 
   reset(): void {
     this.dragging = false;
+    this.dragButtonBit = 0;
+    this.lookArmed = false;
     this.setAllKeys(false);
     this.updateAxis();
     this.lookDelta.yaw = this.lookDelta.pitch = 0;
@@ -95,6 +108,8 @@ export class KeyboardMouseInput implements InputSource {
     this.pointerTarget.removeEventListener('wheel', this.onWheel);
     this.pointerTarget.removeEventListener('contextmenu', this.onContextMenu);
     this.dragging = false;
+    this.dragButtonBit = 0;
+    this.lookArmed = false;
     this.setAllKeys(false);
     this.lookDelta.yaw = 0;
     this.lookDelta.pitch = 0;
@@ -140,28 +155,39 @@ export class KeyboardMouseInput implements InputSource {
   private readonly onPointerDown = (event: Event): void => {
     const pointer = event as PointerEvent;
     if (!this.enabled || this.isControl(pointer.target)) return;
-    if (pointer.button !== 2) {
+    // 左键为主环视（规范 W1），右键保留为兼容路径；中键/侧键不参与。
+    if (pointer.button !== 0 && pointer.button !== 2) {
       return;
     }
-    this.dragging = true;
-    this.lastPointerX = pointer.clientX;
-    this.lastPointerY = pointer.clientY;
-    const target = pointer.target as { setPointerCapture?: (id: number) => void } | null;
-    target?.setPointerCapture?.(pointer.pointerId);
+    this.beginDrag(pointer, pointer.button === 0);
     pointer.preventDefault();
   };
 
   private readonly onPointerMove = (event: Event): void => {
     const pointer = event as PointerEvent;
     if (!this.enabled || this.isControl(pointer.target)) return;
-    // 部分浏览器的右键手势会吞掉 down/up，但仍发送带 buttons 的 move。
-    // 以移动事件的实际按键状态恢复/结束拖动；恢复时重新取原点，避免镜头跳转。
-    if ((pointer.buttons & 2) === 0) {
-      this.dragging = false;
+    if (this.dragButtonBit === 0) {
+      // 部分浏览器的右键手势会吞掉 down/up，但仍发送带 buttons 的 move。
+      // 以移动事件的实际按键状态恢复/结束拖动；恢复时重新取原点，避免镜头跳转。
+      // 恢复的只有右键路径（左键恢复必须来自真实 pointerdown，避免误吞点击）。
+      if (pointer.buttons & 2) {
+        this.beginDrag(pointer, false);
+      }
       return;
     }
-    if (!this.dragging) {
-      this.dragging = true;
+    if ((pointer.buttons & this.dragButtonBit) === 0) {
+      this.endDrag();
+      return;
+    }
+    if (!this.lookArmed) {
+      // 左键轻点阈值：累计位移不超过阈值就不旋转镜头；越过阈值那一刻重取原点，
+      // 把阈值内的微小位移丢弃，避免松手前画面突然跳一下。
+      const deltaX = pointer.clientX - this.lastPointerX;
+      const deltaY = pointer.clientY - this.lastPointerY;
+      if (Math.hypot(deltaX, deltaY) < this.clickThresholdPx) {
+        return;
+      }
+      this.lookArmed = true;
       this.lastPointerX = pointer.clientX;
       this.lastPointerY = pointer.clientY;
       return;
@@ -179,9 +205,28 @@ export class KeyboardMouseInput implements InputSource {
     if (!this.dragging) {
       return;
     }
-    this.dragging = false;
+    this.endDrag();
     event.preventDefault();
   };
+
+  /** 建立一次拖拽：左键需要越过轻点阈值才开始转向，右键按下即视为有意拖拽。 */
+  private beginDrag(pointer: PointerEvent, requireThreshold: boolean): void {
+    this.dragging = true;
+    // 右键手势恢复路径里 button 是 -1，只能用 buttons 掩码区分左右键。
+    this.dragButtonBit = pointer.buttons & 2 ? 2 : 1;
+    this.lookArmed = !requireThreshold;
+    this.lastPointerX = pointer.clientX;
+    this.lastPointerY = pointer.clientY;
+    const target = pointer.target as { setPointerCapture?: (id: number) => void } | null;
+    target?.setPointerCapture?.(pointer.pointerId);
+  }
+
+  /** 结束拖拽并归还所有拖拽状态；轻点（未 armed）在这里自然结束，不留下视角增量。 */
+  private endDrag(): void {
+    this.dragging = false;
+    this.dragButtonBit = 0;
+    this.lookArmed = false;
+  }
 
   private readonly onWheel = (event: Event): void => {
     const wheel = event as WheelEvent;

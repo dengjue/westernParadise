@@ -4,6 +4,7 @@ import type { AppEventMap, EventBusLike } from '@/00-types';
 import { WORLD } from '@/01-shared';
 import type { StaticColliders } from './collision/StaticColliders';
 import type { InputSource } from './input/InputSource';
+import { moveAngle } from './turn';
 
 export interface CharacterOptions {
   readonly parent: Object3D;
@@ -11,25 +12,7 @@ export interface CharacterOptions {
   readonly events?: EventBusLike<AppEventMap>;
 }
 
-const FULL_TURN = Math.PI * 2;
-const HALF_TURN = Math.PI;
 const MOVEMENT_EPSILON = 0.000001;
-
-function shortestAngle(angle: number): number {
-  let normalized = (angle + HALF_TURN) % FULL_TURN;
-  if (normalized < 0) {
-    normalized += FULL_TURN;
-  }
-  return normalized - HALF_TURN;
-}
-
-function moveAngle(current: number, target: number, maxStep: number): number {
-  const difference = shortestAngle(target - current);
-  if (Math.abs(difference) <= maxStep) {
-    return target;
-  }
-  return current + Math.sign(difference) * maxStep;
-}
 
 /**
  * 第三人称漫游角色。

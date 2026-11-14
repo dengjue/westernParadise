@@ -15,7 +15,12 @@ function fixture(reduced = false) {
     consumeZoomDelta: () => 0,
     dispose() {},
   };
-  const control = new LandCamera(camera, input, events, reduced);
+  const control = new LandCamera({
+    camera,
+    input,
+    events,
+    reducedMotion: reduced,
+  });
   const advance = (seconds: number) => {
     for (let i = 0; i < seconds * 60; i++) control.update(1000 / 60);
   };

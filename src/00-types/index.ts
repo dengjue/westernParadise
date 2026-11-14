@@ -7,6 +7,7 @@ export type {
   TimeOfDayId,
   WeatherEffectId,
   WeatherId,
+  CameraMode,
   GuideId,
   WorldBounds,
   HorizontalAabb,

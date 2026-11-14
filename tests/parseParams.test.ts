@@ -14,6 +14,7 @@ describe('parseParams', () => {
       smoke: false,
       debug: false,
       noAudio: false,
+      cam: 'first',
     });
   });
 

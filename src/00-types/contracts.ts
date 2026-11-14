@@ -14,6 +14,9 @@ export type WeatherEffectId = 'none' | 'rain';
 
 export type WeatherId = 'clear' | 'mist' | 'rain';
 
+/** 相机模式：first 为默认第一人称；third 为第三人称步行原型（`?cam=third`）。 */
+export type CameraMode = 'first' | 'third';
+
 /** 导览点 ID 与文案表一一对应，避免构件和文案键在运行时错配。 */
 export type GuideId = 'taiji' | 'zhulie' | 'wuyan' | 'puzhuang';
 
@@ -128,6 +131,8 @@ export interface PlatformParams {
   readonly smoke: boolean;
   readonly debug: boolean;
   readonly noAudio: boolean;
+  /** 相机模式：first 为默认第一人称，third 启用第三人称步行原型（`?cam=third`）。 */
+  readonly cam: CameraMode;
 }
 
 /**

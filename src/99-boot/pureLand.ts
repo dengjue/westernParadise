@@ -21,7 +21,7 @@ import {
 } from '@/03-platform';
 import { createCinematicPipeline, createSceneContext, Loop, RenderTelemetry } from '@/04-engine';
 import { createPureLandWorld } from '@/06-world';
-import { KeyboardMouseInput, LandCamera, TouchInput } from '@/07-systems';
+import { KeyboardMouseInput, LandAvatar, LandCamera, TouchInput } from '@/07-systems';
 import { mountPureLandUi } from '@/08-ui';
 import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics';
 
@@ -117,7 +117,17 @@ export function startPureLand(): () => void {
         pointerTarget: window,
         lookSensitivityRadPerPixel: LAND_JOURNEY.mouseSensitivity,
       });
-  const camera = new LandCamera(context.camera, input, events, capabilities.reducedMotion);
+  // 第三人称原型（?cam=third）：角色挂在场景根上，遮挡回拉以场景为射线对象。
+  // 默认体验（第一人称 + 四景点观览）完全不装配 avatar，行为与历史版本一致。
+  const avatar = params.cam === 'third' ? new LandAvatar(context.scene) : undefined;
+  const camera = new LandCamera({
+    camera: context.camera,
+    input,
+    events,
+    reducedMotion: capabilities.reducedMotion,
+    avatar,
+    occluder: avatar ? context.scene : undefined,
+  });
   const audio = new AmbientAudio({
     eventTarget: window,
     events,

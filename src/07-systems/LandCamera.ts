@@ -1,12 +1,30 @@
-import { Vector3 } from 'three';
-import type { PerspectiveCamera } from 'three';
+import { Raycaster, Vector3 } from 'three';
+import type { Object3D, PerspectiveCamera } from 'three';
 import type { AppEventMap, EventBusLike } from '@/00-types';
-import { LAND_JOURNEY as J, PURE_LAND } from '@/01-shared';
+import { LAND_AVATAR, LAND_JOURNEY as J, PURE_LAND } from '@/01-shared';
 import { moveLandPosition, sampleLandHeight } from '@/02-core';
 import type { InputSource } from './input/InputSource';
+import type { LandAvatar } from './LandAvatar';
 export { sampleLandHeight } from '@/02-core';
 
+export interface LandCameraOptions {
+  readonly camera: PerspectiveCamera;
+  readonly input: InputSource;
+  readonly events: EventBusLike<AppEventMap>;
+  readonly reducedMotion: boolean;
+  /** 第三人称角色；不传则保持第一人称步行（默认体验，行为与历史版本一致）。 */
+  readonly avatar?: LandAvatar;
+  /** 遮挡回拉射线检测的对象（通常为场景根）；仅在传入 avatar 时生效。 */
+  readonly occluder?: Object3D;
+}
+
 export class LandCamera {
+  private readonly camera: PerspectiveCamera;
+  private readonly input: InputSource;
+  private readonly events: EventBusLike<AppEventMap>;
+  private readonly reducedMotion: boolean;
+  private readonly avatar: LandAvatar | undefined;
+  private readonly occluder: Object3D | undefined;
   private readonly position = new Vector3();
   private readonly target = new Vector3();
   private readonly look = new Vector3();
@@ -34,31 +52,45 @@ export class LandCamera {
   private readonly stepEvent = { surface: 'platform' as const };
   private zoom = 1;
   private readonly state = { index: 0, walking: false, touring: false };
+  // —— 第三人称弹簧臂状态（仅 walking + avatar 时使用）——
+  /** 滚轮控制的目标臂长；遮挡回拉只影响实际渲染臂长，不回写目标值。 */
+  private armTarget: number = LAND_AVATAR.camera.defaultDistance;
+  /** 当前渲染臂长：被遮挡回拉缩短后向目标臂长平滑恢复。 */
+  private armDistance: number = LAND_AVATAR.camera.defaultDistance;
+  /** 最近一次遮挡射线结论：null 表示无遮挡；数值为允许臂长，在下次射线前保持有效。 */
+  private occludedDistance: number | null = null;
+  /** 遮挡检测累计时长（秒）：按模拟时间限频，保证回放/测试确定性。 */
+  private occlusionTimer = LAND_AVATAR.occlusion.rayIntervalMs / 1000;
+  private readonly raycaster = new Raycaster();
+  private readonly armAnchor = new Vector3();
+  private readonly armDirection = new Vector3();
 
-  constructor(
-    private readonly camera: PerspectiveCamera,
-    private readonly input: InputSource,
-    private readonly events: EventBusLike<AppEventMap>,
-    private readonly reducedMotion: boolean,
-  ) {
+  constructor(options: LandCameraOptions) {
+    this.camera = options.camera;
+    this.input = options.input;
+    this.events = options.events;
+    this.reducedMotion = options.reducedMotion;
+    this.avatar = options.avatar;
+    this.occluder = options.occluder;
     this.removes = [
-      events.on('land:view', ({ index }) => this.selectView(index)),
-      events.on('land:walk', () => this.startWalking(true)),
-      events.on('land:tour', ({ enabled }) => {
+      this.events.on('land:view', ({ index }) => this.selectView(index)),
+      this.events.on('land:walk', () => this.startWalking(true)),
+      this.events.on('land:tour', ({ enabled }) => {
         if (enabled === this.touring) return;
         this.touring = enabled;
         if (this.walking) {
           this.walking = false;
           this.traveling = false;
           this.tourElapsed = J.holdSeconds;
+          this.avatar?.setVisible(false);
         }
         this.captureOrbit();
         this.emitState();
       }),
-      events.on('land:modal', ({ open }) => {
+      this.events.on('land:modal', ({ open }) => {
         this.modal = open;
       }),
-      events.on('land:suspend', ({ suspended }) => {
+      this.events.on('land:suspend', ({ suspended }) => {
         this.suspended = suspended;
       }),
     ];
@@ -78,6 +110,7 @@ export class LandCamera {
     this.traveling = false;
     this.zoom = 1;
     this.tourElapsed = 0;
+    this.avatar?.setVisible(false);
     this.position.fromArray(view.position);
     this.target.fromArray(view.target);
     this.offset.copy(this.position).sub(this.target);
@@ -122,9 +155,20 @@ export class LandCamera {
         }
       }
     }
-    this.position.y = sampleLandHeight(this.position.x, this.position.z)! + J.eyeHeight;
+    // 第一人称 position 是眼位（地面 + 眼高）；第三人称 position 是脚底贴地点，
+    // 眼高换成弹簧臂注视点高度，两者不共用同一套语义。
+    this.position.y =
+      sampleLandHeight(this.position.x, this.position.z)! + (this.avatar ? 0 : J.eyeHeight);
     this.steps = 0;
-    this.camera.position.copy(this.position);
+    if (this.avatar) {
+      // 重新进入步行：清掉上一次步行的遮挡状态，臂长从目标值起步。
+      this.occludedDistance = null;
+      this.armDistance = this.armTarget;
+      this.avatar.place(this.position, this.yaw);
+      this.updateThirdPersonArm(0, true);
+    } else {
+      this.camera.position.copy(this.position);
+    }
     this.emitState();
   }
 
@@ -137,7 +181,14 @@ export class LandCamera {
     if ((axis.x !== 0 || axis.z !== 0) && !this.walking) this.startWalking();
     if (this.walking) {
       this.yaw -= controls.yaw;
-      this.pitch = Math.max(-J.pitchLimit, Math.min(J.pitchLimit, this.pitch - controls.pitch));
+      if (this.avatar) {
+        this.pitch = Math.max(
+          LAND_AVATAR.camera.minPitch,
+          Math.min(LAND_AVATAR.camera.maxPitch, this.pitch - controls.pitch),
+        );
+      } else {
+        this.pitch = Math.max(-J.pitchLimit, Math.min(J.pitchLimit, this.pitch - controls.pitch));
+      }
       const forwardX = Math.sin(this.yaw),
         forwardZ = Math.cos(this.yaw);
       const dx = (forwardX * axis.z - forwardZ * axis.x) * PURE_LAND.walkSpeed * dt;
@@ -145,14 +196,33 @@ export class LandCamera {
       const oldX = this.position.x,
         oldZ = this.position.z;
       moveLandPosition(this.position, dx, dz);
-      this.steps += Math.hypot(this.position.x - oldX, this.position.z - oldZ);
+      const movedX = this.position.x - oldX;
+      const movedZ = this.position.z - oldZ;
+      this.steps += Math.hypot(movedX, movedZ);
       if (this.steps >= J.stepDistance) {
         this.steps %= J.stepDistance;
         this.events.emit('player:step', this.stepEvent);
       }
       const floor = sampleLandHeight(this.position.x, this.position.z)!;
+      // 第一人称贴眼高，第三人称贴脚底；共用同一地面采样与趋缓系数。
+      const restHeight = this.avatar ? 0 : J.eyeHeight;
       this.position.y +=
-        (floor + J.eyeHeight - this.position.y) * (1 - Math.exp(-dt * J.heightEase));
+        (floor + restHeight - this.position.y) * (1 - Math.exp(-dt * J.heightEase));
+      if (this.avatar) {
+        this.avatar.root.position.copy(this.position);
+        if (movedX !== 0 || movedZ !== 0) {
+          this.avatar.faceYaw(Math.atan2(movedX, movedZ), dt);
+        }
+        this.armTarget = Math.max(
+          LAND_AVATAR.camera.minDistance,
+          Math.min(
+            LAND_AVATAR.camera.maxDistance,
+            this.armTarget + zoom * LAND_AVATAR.camera.distanceStep,
+          ),
+        );
+        this.updateThirdPersonArm(dt);
+        return;
+      }
       this.camera.position.copy(this.position);
       this.target.set(
         this.position.x + forwardX * Math.cos(this.pitch),
@@ -204,6 +274,54 @@ export class LandCamera {
     this.orbitYaw = Math.atan2(this.offset.x, this.offset.z);
     this.orbitPitch = Math.asin(this.offset.y / this.distance);
     this.zoom = 1;
+  }
+
+  /**
+   * 第三人称弹簧臂：相机放在「注视点 + 视线反方向 × 臂长」处。
+   *
+   * - 注视点 = 脚底 + lookAtHeight，略低于头顶，防止角色顶出画面；
+   * - 俯仰为正时相机升高俯视，为负时贴近地面仰视，范围由 LAND_AVATAR 钳制；
+   * - 遮挡回拉限频 raycast（默认 120ms）：从注视点向相机方向打射线，命中则把
+   *   臂长压到命中距离减余量，再按指数趋缓平滑恢复，避免镜头穿墙或突然弹跳。
+   */
+  private updateThirdPersonArm(dtSeconds: number, snap = false): void {
+    const cfg = LAND_AVATAR.camera;
+    const occlusion = LAND_AVATAR.occlusion;
+    this.armAnchor.set(this.position.x, this.position.y + cfg.lookAtHeight, this.position.z);
+    const cosPitch = Math.cos(this.pitch);
+    this.armDirection.set(
+      -Math.sin(this.yaw) * cosPitch,
+      Math.sin(this.pitch),
+      -Math.cos(this.yaw) * cosPitch,
+    );
+    // 遮挡检测：按模拟时长限频。命中结论在两次射线之间保持有效——遮挡期间臂长
+    // 一直压在允许值上，射线确认无遮挡后才向目标臂长指数恢复，避免限频间隔内
+    // 臂长回弹越过目标造成镜头呼吸式振荡。
+    this.occlusionTimer += dtSeconds;
+    if (this.occluder && this.occlusionTimer >= occlusion.rayIntervalMs / 1000) {
+      this.occlusionTimer = 0;
+      this.raycaster.set(this.armAnchor, this.armDirection);
+      this.raycaster.far = this.armTarget;
+      const hit = this.raycaster.intersectObject(this.occluder, true)[0];
+      this.occludedDistance = hit ? Math.max(0.6, hit.distance - occlusion.margin) : null;
+    }
+    if (this.occludedDistance !== null) {
+      // 遮挡中：立即生效到允许臂长（穿墙不可接受），但不超过滚轮目标。
+      this.armDistance = Math.min(this.armTarget, Math.max(0.6, this.occludedDistance));
+    } else if (this.armDistance < this.armTarget) {
+      this.armDistance = Math.min(
+        this.armTarget,
+        this.armDistance +
+          (this.armTarget - this.armDistance) * (1 - Math.exp(-occlusion.ease * dtSeconds)),
+      );
+    }
+    this.desired.copy(this.armAnchor).addScaledVector(this.armDirection, this.armDistance);
+    // 帧率无关阻尼：LAND_AVATAR.camera.ease 是 60fps 下的单帧趋近量，按实际帧长换算。
+    const damping =
+      snap || this.reducedMotion ? 1 : 1 - Math.pow(1 - cfg.ease, Math.max(dtSeconds, 0) * 60);
+    this.camera.position.lerp(this.desired, damping);
+    this.look.lerp(this.armAnchor, damping);
+    this.camera.lookAt(this.look);
   }
 
   private updateTour(dt: number): void {

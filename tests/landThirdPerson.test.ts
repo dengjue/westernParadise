@@ -1,0 +1,245 @@
+import { describe, expect, it } from 'vitest';
+import { BoxGeometry, Group, Mesh, PerspectiveCamera } from 'three';
+import type { AppEventMap } from '@/00-types';
+import { LAND_AVATAR } from '@/01-shared';
+import { parseParams } from '@/03-platform';
+import { EventBus } from '@/02-core';
+import { KeyboardMouseInput, LandAvatar, LandCamera } from '@/07-systems';
+
+class PointerEventLike extends Event {
+  readonly button: number;
+  readonly buttons: number;
+  readonly clientX: number;
+  readonly clientY: number;
+
+  constructor(
+    type: 'pointerdown' | 'pointermove' | 'pointerup',
+    button: number,
+    clientX: number,
+    clientY: number,
+    buttons = type === 'pointerup' ? 0 : button === 0 ? 1 : 2,
+  ) {
+    super(type, { cancelable: true });
+    this.button = button;
+    this.buttons = buttons;
+    this.clientX = clientX;
+    this.clientY = clientY;
+  }
+}
+
+describe('KeyboardMouseInput 左键环视（规范 W1）', () => {
+  function makeInput(thresholdPx?: number) {
+    const target = new EventTarget();
+    const input = new KeyboardMouseInput({
+      keyboardTarget: target,
+      pointerTarget: target,
+      lookSensitivityRadPerPixel: 0.001,
+      ...(thresholdPx === undefined ? {} : { clickThresholdPx: thresholdPx }),
+    });
+    return { target, input };
+  }
+
+  it('轻点（位移小于阈值）不产生视角增量', () => {
+    const { target, input } = makeInput();
+    target.dispatchEvent(new PointerEventLike('pointerdown', 0, 100, 100));
+    target.dispatchEvent(new PointerEventLike('pointermove', 0, 101, 101, 1));
+    target.dispatchEvent(new PointerEventLike('pointerup', 0, 103, 103, 0));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
+    input.dispose();
+  });
+
+  it('越过阈值后从越界点开始累计视角，阈值内的微小抖动被丢弃', () => {
+    const { target, input } = makeInput();
+    target.dispatchEvent(new PointerEventLike('pointerdown', 0, 100, 100));
+    // 2px 抖动：未 armed，无视角。
+    target.dispatchEvent(new PointerEventLike('pointermove', 0, 102, 102, 1));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
+    // 累计位移 20px > 4px 阈值：armed 并重取原点，本步不产生视角。
+    target.dispatchEvent(new PointerEventLike('pointermove', 0, 120, 120, 1));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
+    // 之后的位移正常累计。
+    target.dispatchEvent(new PointerEventLike('pointermove', 0, 130, 110, 1));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0.01, pitch: -0.01 });
+    input.dispose();
+  });
+
+  it('拖拽中途失焦重置状态，恢复后必须重新按下才能继续转向', () => {
+    const { target, input } = makeInput();
+    target.dispatchEvent(new PointerEventLike('pointerdown', 0, 100, 100));
+    // 越过阈值（armed，本步不累计），随后一步开始累计视角。
+    target.dispatchEvent(new PointerEventLike('pointermove', 0, 160, 140, 1));
+    target.dispatchEvent(new PointerEventLike('pointermove', 0, 170, 140, 1));
+    expect(input.consumeLookDelta().yaw).toBeGreaterThan(0);
+    target.dispatchEvent(new Event('blur'));
+    target.dispatchEvent(new PointerEventLike('pointermove', 0, 300, 300, 1));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
+    input.dispose();
+  });
+
+  it('右键兼容路径保持旧语义：按下即 armed，无需阈值', () => {
+    const { target, input } = makeInput();
+    target.dispatchEvent(new PointerEventLike('pointerdown', 2, 10, 20));
+    target.dispatchEvent(new PointerEventLike('pointermove', 2, 30, 5, 2));
+    expect(input.consumeLookDelta()).toEqual({ yaw: 0.02, pitch: -0.015 });
+    input.dispose();
+  });
+});
+
+describe('parseParams cam 参数', () => {
+  it('默认 first；third / 大写归一；非法值回退 first 并告警', () => {
+    expect(parseParams('').cam).toBe('first');
+    expect(parseParams('?cam=third').cam).toBe('third');
+    expect(parseParams('?cam=THIRD').cam).toBe('third');
+    expect(parseParams('?cam=first').cam).toBe('first');
+    const warnings: string[] = [];
+    const result = parseParams('?cam=side', (message) => warnings.push(message));
+    expect(result.cam).toBe('first');
+    expect(warnings).toHaveLength(1);
+  });
+});
+
+describe('LandAvatar 程序化角色（规范 W2）', () => {
+  it('默认隐藏；place 落位可见；faceYaw 按角速度钳制缓动', () => {
+    const parent = new Group();
+    const avatar = new LandAvatar(parent);
+    expect(avatar.root.visible).toBe(false);
+    expect(parent.children).toContain(avatar.root);
+
+    avatar.place({ x: 1, y: 0.5, z: 2 } as never, Math.PI);
+    expect(avatar.root.visible).toBe(true);
+    expect(avatar.root.position.x).toBe(1);
+    expect(avatar.yaw).toBe(Math.PI);
+
+    // turnSpeed = 9 rad/s，0.1s 最多转 0.9 rad，不足 π/2；yaw 归一在 [-π, π)。
+    const turned = avatar.faceYaw(Math.PI / 2 + Math.PI, 0.1);
+    expect(turned).toBeCloseTo(Math.PI / 2, 6);
+    expect(avatar.yaw).toBeCloseTo(Math.PI + 0.9 - Math.PI * 2, 6);
+    // 到达目标后不再转动（目标 3π/2 归一为 -π/2）。
+    avatar.faceYaw(Math.PI / 2 + Math.PI, 0.1);
+    expect(avatar.yaw).toBeCloseTo(-Math.PI / 2, 6);
+  });
+});
+
+describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
+  function fixture(occluder?: Mesh) {
+    const parent = new Group();
+    const events = new EventBus<AppEventMap>();
+    const camera = new PerspectiveCamera();
+    const look = { yaw: 0, pitch: 0 };
+    let zoom = 0;
+    const input = {
+      moveAxis: { x: 0, z: 0 },
+      consumeLookDelta: () => look,
+      consumeZoomDelta: () => {
+        const value = zoom;
+        zoom = 0;
+        return value;
+      },
+      dispose() {},
+    };
+    const avatar = new LandAvatar(parent);
+    const control = new LandCamera({
+      camera,
+      input,
+      events,
+      reducedMotion: false,
+      avatar,
+      occluder: occluder ?? parent,
+    });
+    const advance = (seconds: number) => {
+      for (let i = 0; i < seconds * 60; i++) control.update(1000 / 60);
+    };
+    return {
+      parent,
+      events,
+      camera,
+      look,
+      input,
+      avatar,
+      control,
+      advance,
+      setZoom: (v: number) => (zoom = v),
+    };
+  }
+
+  it('进入步行：角色落在入口脚底，相机在角色背后默认臂长处', () => {
+    const f = fixture();
+    f.control.startWalking(true);
+    expect(f.avatar.root.visible).toBe(true);
+    const feet = f.avatar.root.position.clone();
+    // pitch 默认为 0：相机与注视点同高，水平距离等于臂长。
+    const flatAnchor = f.camera.position.clone().setY(feet.y + LAND_AVATAR.camera.lookAtHeight);
+    expect(f.camera.position.distanceTo(flatAnchor)).toBeLessThan(1e-3);
+    expect(f.camera.position.z - feet.z).toBeCloseTo(LAND_AVATAR.camera.defaultDistance, 3);
+    f.control.dispose();
+  });
+
+  it('步行推进角色并保持背后跟随，角色面向移动方向', () => {
+    const f = fixture();
+    f.control.startWalking(true);
+    const startZ = f.avatar.root.position.z;
+    f.input.moveAxis.z = 1;
+    f.advance(1);
+    f.input.moveAxis.z = 0;
+    f.advance(0.5);
+    expect(f.avatar.root.position.z).toBeLessThan(startZ);
+    // yaw = π 时前进方向为 -z，角色面向 -z 即 yaw ≈ π。
+    expect(Math.abs(Math.abs(f.avatar.yaw) - Math.PI)).toBeLessThan(0.05);
+    expect(f.camera.position.z).toBeGreaterThan(f.avatar.root.position.z);
+    f.control.dispose();
+  });
+
+  it('滚轮调距被钳制在配置范围内，俯仰被钳制在 [-0.5, 1.15]', () => {
+    const f = fixture();
+    f.control.startWalking(true);
+    f.setZoom(1);
+    f.advance(2);
+    const anchor = f.avatar.root.position.clone();
+    anchor.y += LAND_AVATAR.camera.lookAtHeight;
+    const distance = f.camera.position.distanceTo(anchor);
+    expect(distance).toBeGreaterThan(LAND_AVATAR.camera.defaultDistance);
+    expect(distance).toBeLessThanOrEqual(LAND_AVATAR.camera.maxDistance + 1e-3);
+
+    f.look.pitch = 100;
+    f.advance(1);
+    f.look.pitch = 0;
+    f.advance(1);
+    expect(f.camera.position.y - anchor.y).toBeLessThanOrEqual(
+      Math.sin(LAND_AVATAR.camera.maxPitch) * LAND_AVATAR.camera.maxDistance + 1e-3,
+    );
+    f.control.dispose();
+  });
+
+  it('遮挡回拉：角色与相机之间的障碍把臂长压到命中距离以内', () => {
+    // 在相机方向（+z，yaw=π）距注视点 2.5m 处放一块板。
+    const board = new Mesh(new BoxGeometry(2, 2, 0.5));
+    const f = fixture(board);
+    f.control.startWalking(true);
+    const anchor = f.avatar.root.position.clone();
+    anchor.y += LAND_AVATAR.camera.lookAtHeight;
+    board.position.set(anchor.x, anchor.y, anchor.z + 2.5);
+    f.parent.add(board);
+    board.updateMatrixWorld(true);
+    // 遮挡按模拟时长限频：推进 1s 保证触发射线且位置阻尼充分收敛。
+    f.advance(1);
+    const distance = f.camera.position.distanceTo(anchor);
+    expect(distance).toBeLessThan(2.2);
+    expect(distance).toBeGreaterThanOrEqual(0.6);
+    f.control.dispose();
+  });
+
+  it('退出步行（选景 / 自动游览接管）隐藏角色，相机回到轨道机位', () => {
+    const f = fixture();
+    f.control.selectView(1, true);
+    f.control.startWalking(true);
+    expect(f.avatar.root.visible).toBe(true);
+    f.control.selectView(2, true);
+    expect(f.avatar.root.visible).toBe(false);
+
+    f.control.startWalking(true);
+    f.events.emit('land:tour', { enabled: true });
+    expect(f.avatar.root.visible).toBe(false);
+    f.control.dispose();
+    expect(f.events.size).toBe(0);
+  });
+});
