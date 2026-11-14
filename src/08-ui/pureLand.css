@@ -312,6 +312,47 @@
   white-space: nowrap;
   padding: 12px 0;
 }
+.land-app .land-flight-toggle {
+  border: 1px solid rgb(226 194 140 / 55%);
+  border-radius: 999px;
+  padding: 9px 15px;
+  color: var(--land-gold);
+  font-size: 11px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  background: rgb(16 45 38 / 38%);
+}
+.land-app .land-flight-toggle:hover {
+  background: rgb(16 45 38 / 72%);
+}
+.land-navigation-hud {
+  position: fixed;
+  z-index: 11;
+  top: max(92px, calc(env(safe-area-inset-top) + 72px));
+  right: 3.6%;
+  display: grid;
+  gap: 6px;
+  min-width: 188px;
+  padding: 12px 15px;
+  border: 1px solid rgb(239 224 190 / 24%);
+  border-radius: 3px;
+  color: var(--land-cream);
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  line-height: 1.5;
+  background: rgb(16 37 34 / 62%);
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+.land-navigation-mode,
+.land-navigation-heading {
+  color: var(--land-gold);
+}
+.land-navigation-coordinates,
+.land-navigation-destination {
+  opacity: 0.82;
+  font-variant-numeric: tabular-nums;
+}
 .land-hint {
   position: absolute;
   bottom: 20px;
@@ -423,6 +464,29 @@
 }
 .land-touch-pad[data-active='true'] {
   background: rgb(226 194 140 / 25%);
+}
+.land-flight-touch {
+  position: absolute;
+  top: -102px;
+  right: 0;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+.land-app .land-flight-touch-button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgb(245 236 212 / 35%);
+  border-radius: 999px;
+  color: var(--land-cream);
+  font-size: 20px;
+  line-height: 1;
+  background: rgb(16 45 38 / 48%);
+  pointer-events: auto;
+  touch-action: none;
+}
+.land-app .land-flight-touch-button:active {
+  background: rgb(226 194 140 / 30%);
 }
 .land-touch-thumb {
   position: absolute;
@@ -679,6 +743,7 @@
   .land-app .land-text-button,
   .land-app .land-enter,
   .land-app .land-tour,
+  .land-app .land-flight-toggle,
   .land-app .land-restore {
     min-width: 44px;
     min-height: 44px;
@@ -689,6 +754,17 @@
   .land-quality,
   .land-volume {
     min-height: 28px;
+  }
+}
+@media (max-width: 700px) {
+  .land-navigation-hud {
+    top: max(126px, calc(env(safe-area-inset-top) + 108px));
+    right: 22px;
+    min-width: 0;
+    max-width: calc(100vw - 44px);
+    gap: 4px;
+    padding: 9px 11px;
+    font-size: 9px;
   }
 }
 @media (max-height: 520px) and (min-width: 701px) {
@@ -735,6 +811,9 @@
   }
   .land-title {
     top: 85px;
+  }
+  .land-navigation-hud {
+    top: 122px;
   }
   .land-heading {
     font-size: 32px;

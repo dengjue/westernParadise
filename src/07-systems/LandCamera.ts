@@ -1,8 +1,8 @@
 import { Raycaster, Vector3 } from 'three';
 import type { Object3D, PerspectiveCamera } from 'three';
 import type { AppEventMap, EventBusLike } from '@/00-types';
-import { LAND_AVATAR, LAND_JOURNEY as J, PURE_LAND } from '@/01-shared';
-import { moveLandPosition, sampleLandHeight } from '@/02-core';
+import { LAND_AVATAR, LAND_FLIGHT, LAND_JOURNEY as J, PURE_LAND } from '@/01-shared';
+import { moveLandPosition, resolveLandNavigation, sampleLandHeight } from '@/02-core';
 import type { InputSource } from './input/InputSource';
 import type { LandAvatar } from './LandAvatar';
 export { sampleLandHeight } from '@/02-core';
@@ -43,6 +43,18 @@ export class LandCamera {
   private distance = 1;
   private index = 0;
   private walking = false;
+  private flying = false;
+  private landing = false;
+  private landingHeight = 0;
+  private takeoffClimbing = false;
+  private readonly flightVelocity = { x: 0, y: 0, z: 0 };
+  private navigationElapsedMs = LAND_FLIGHT.navigationUpdateMs;
+  private walkCameraSaved = false;
+  private readonly savedWalkCamera: { pitch: number; armTarget: number; armDistance: number } = {
+    pitch: 0,
+    armTarget: LAND_AVATAR.camera.defaultDistance,
+    armDistance: LAND_AVATAR.camera.defaultDistance,
+  };
   private touring = false;
   private tourElapsed = 0;
   private traveling = false;
@@ -51,7 +63,7 @@ export class LandCamera {
   private steps = 0;
   private readonly stepEvent = { surface: 'platform' as const };
   private zoom = 1;
-  private readonly state = { index: 0, walking: false, touring: false };
+  private readonly state = { index: 0, walking: false, flying: false, touring: false };
   // —— 第三人称弹簧臂状态（仅 walking + avatar 时使用）——
   /** 滚轮控制的目标臂长；遮挡回拉只影响实际渲染臂长，不回写目标值。 */
   private armTarget: number = LAND_AVATAR.camera.defaultDistance;
@@ -64,6 +76,8 @@ export class LandCamera {
   private readonly raycaster = new Raycaster();
   private readonly armAnchor = new Vector3();
   private readonly armDirection = new Vector3();
+  /** 起飞/降落的少量净空检查目标复用数组，并排除角色自身几何。 */
+  private readonly clearanceTargets: Object3D[] = [];
 
   constructor(options: LandCameraOptions) {
     this.camera = options.camera;
@@ -75,7 +89,9 @@ export class LandCamera {
     this.removes = [
       this.events.on('land:view', ({ index }) => this.selectView(index)),
       this.events.on('land:walk', () => this.startWalking(true)),
+      this.events.on('land:flightToggle', () => this.toggleFlight()),
       this.events.on('land:tour', ({ enabled }) => {
+        if (enabled && this.flying) return;
         if (enabled === this.touring) return;
         this.touring = enabled;
         if (this.walking) {
@@ -89,9 +105,11 @@ export class LandCamera {
       }),
       this.events.on('land:modal', ({ open }) => {
         this.modal = open;
+        if (open) this.stopFlightVelocity();
       }),
       this.events.on('land:suspend', ({ suspended }) => {
         this.suspended = suspended;
+        if (suspended) this.stopFlightVelocity();
       }),
     ];
     this.selectView(0, true);
@@ -101,11 +119,20 @@ export class LandCamera {
     return this.walking;
   }
 
+  get isFlying(): boolean {
+    return this.flying;
+  }
+
   selectView(index: number, immediate = false): void {
     const view = PURE_LAND.views[index];
     if (!view) return;
+    this.restoreWalkCamera();
     this.index = index;
     this.walking = false;
+    this.flying = false;
+    this.landing = false;
+    this.takeoffClimbing = false;
+    this.stopFlightVelocity();
     this.touring = false;
     this.traveling = false;
     this.zoom = 1;
@@ -126,7 +153,7 @@ export class LandCamera {
   }
 
   startWalking(entrance = false): void {
-    if (this.walking || this.modal || this.suspended) return;
+    if (this.walking || this.flying || this.modal || this.suspended) return;
     this.walking = true;
     this.touring = false;
     this.traveling = false;
@@ -177,7 +204,14 @@ export class LandCamera {
     const controls = this.input.consumeLookDelta();
     const zoom = this.input.consumeZoomDelta();
     const axis = this.input.moveAxis;
+    const verticalAxis = this.input.verticalAxis;
+    if (this.input.consumeFlightToggle()) this.toggleFlight();
     if (this.modal || this.suspended) return;
+    if (this.flying) {
+      this.updateFlight(dt, controls, zoom, axis, verticalAxis);
+      this.updateNavigation(deltaMs);
+      return;
+    }
     if ((axis.x !== 0 || axis.z !== 0) && !this.walking) this.startWalking();
     if (this.walking) {
       this.yaw -= controls.yaw;
@@ -221,6 +255,7 @@ export class LandCamera {
           ),
         );
         this.updateThirdPersonArm(dt);
+        this.updateNavigation(deltaMs);
         return;
       }
       this.camera.position.copy(this.position);
@@ -231,6 +266,7 @@ export class LandCamera {
       );
       this.camera.lookAt(this.target);
       this.look.copy(this.target);
+      this.updateNavigation(deltaMs);
       return;
     }
     if (controls.yaw || controls.pitch || zoom) {
@@ -264,6 +300,231 @@ export class LandCamera {
 
   dispose(): void {
     for (const remove of this.removes) remove();
+    this.avatar?.dispose();
+  }
+
+  /** 飞行只从第三人称步行态进入；着陆请求若不安全则保持飞行并给出原因。 */
+  private toggleFlight(): void {
+    if (!this.avatar || this.modal || this.suspended) return;
+    if (this.flying) {
+      this.beginLanding();
+      return;
+    }
+    if (!this.walking) return;
+    if (!this.hasVerticalClearance(1, LAND_FLIGHT.minAltitude - this.position.y)) {
+      this.events.emit('land:flightNotice', {
+        message: '上方空间受建筑或树木遮挡，请先步行到开阔处再起飞。',
+      });
+      return;
+    }
+    this.savedWalkCamera.pitch = this.pitch;
+    this.savedWalkCamera.armTarget = this.armTarget;
+    this.savedWalkCamera.armDistance = this.armDistance;
+    this.walkCameraSaved = true;
+    this.pitch = LAND_FLIGHT.defaultPitch;
+    this.armTarget = Math.min(LAND_AVATAR.camera.maxDistance, LAND_FLIGHT.followDistance);
+    this.armDistance = this.armTarget;
+    this.occludedDistance = null;
+    this.walking = false;
+    this.flying = true;
+    this.landing = false;
+    this.takeoffClimbing = this.position.y < LAND_FLIGHT.minAltitude;
+    this.navigationElapsedMs = LAND_FLIGHT.navigationUpdateMs;
+    this.stopFlightVelocity();
+    this.emitState();
+    this.events.emit('land:flightNotice', { message: '已起飞：WASD 平移，E/Q 升降，V 请求降落。' });
+  }
+
+  /** 只允许在当前 x/z 有合法可走地面且下落通道无遮挡时启动降落。 */
+  private beginLanding(): void {
+    const ground = sampleLandHeight(this.position.x, this.position.z);
+    if (ground === null) {
+      this.events.emit('land:flightNotice', {
+        message: '当前位置下方没有安全步行面；请飞到庭院游线或台阶上方再降落。',
+      });
+      return;
+    }
+    const clearance = this.position.y - ground;
+    if (!this.hasVerticalClearance(-1, clearance)) {
+      this.events.emit('land:flightNotice', {
+        message: '下方有屋檐、树冠或构件遮挡；请移到开阔地面上方再降落。',
+      });
+      return;
+    }
+    this.landing = true;
+    this.takeoffClimbing = false;
+    this.landingHeight = ground;
+    this.flightVelocity.x = 0;
+    this.flightVelocity.z = 0;
+    this.events.emit('land:flightNotice', { message: '正在平稳降落…' });
+  }
+
+  /**
+   * 切换模式时才做一次竖直净空射线，不放进每帧热路径。
+   * 射线目标列表排除角色根节点，避免把自身误判为障碍；如果任何静态物体挡住
+   * 角色到目标高度的垂直通道，就拒绝起飞/降落，避免通过屋顶或树冠。
+   */
+  private hasVerticalClearance(directionY: 1 | -1, distance: number): boolean {
+    if (!this.occluder || distance <= 0) return true;
+    this.occluder.updateMatrixWorld(true);
+    this.clearanceTargets.length = 0;
+    if (this.occluder.children.length === 0) {
+      this.clearanceTargets.push(this.occluder);
+    } else {
+      for (const child of this.occluder.children) {
+        if (child !== this.avatar?.root) this.clearanceTargets.push(child);
+      }
+    }
+    this.armAnchor.set(
+      this.position.x,
+      this.position.y + (directionY > 0 ? LAND_AVATAR.headHeight + 0.2 : 0.15),
+      this.position.z,
+    );
+    this.armDirection.set(0, directionY, 0);
+    const rayLength =
+      directionY > 0 ? Math.max(0, LAND_FLIGHT.minAltitude - this.armAnchor.y) : distance;
+    this.raycaster.set(this.armAnchor, this.armDirection);
+    this.raycaster.near = 0.05;
+    this.raycaster.far = rayLength;
+    const hit = this.raycaster.intersectObjects(this.clearanceTargets, true)[0];
+    this.raycaster.near = 0;
+    this.raycaster.far = Infinity;
+    // 落地目标地面会在射线终点处命中；只拒绝明显早于终点的构件。
+    return !hit || hit.distance >= rayLength - 0.45;
+  }
+
+  /** 第三人称飞行：水平平移以 yaw 为基准，垂直速度独立控制并受安全高度带约束。 */
+  private updateFlight(
+    dt: number,
+    controls: { yaw: number; pitch: number },
+    zoom: number,
+    axis: { x: number; z: number },
+    verticalAxis: number,
+  ): void {
+    this.yaw -= controls.yaw;
+    this.pitch = Math.max(
+      LAND_AVATAR.camera.minPitch,
+      Math.min(LAND_AVATAR.camera.maxPitch, this.pitch - controls.pitch),
+    );
+    this.armTarget = Math.max(
+      LAND_AVATAR.camera.minDistance,
+      Math.min(
+        LAND_AVATAR.camera.maxDistance,
+        this.armTarget + zoom * LAND_AVATAR.camera.distanceStep,
+      ),
+    );
+
+    let axisX = this.landing || this.takeoffClimbing ? 0 : axis.x;
+    let axisZ = this.landing || this.takeoffClimbing ? 0 : axis.z;
+    const axisLength = Math.hypot(axisX, axisZ);
+    if (axisLength > 1) {
+      axisX /= axisLength;
+      axisZ /= axisLength;
+    }
+    const forwardX = Math.sin(this.yaw);
+    const forwardZ = Math.cos(this.yaw);
+    const targetVelocityX = (forwardX * axisZ - forwardZ * axisX) * LAND_FLIGHT.horizontalSpeed;
+    const targetVelocityZ = (forwardZ * axisZ + forwardX * axisX) * LAND_FLIGHT.horizontalSpeed;
+    const horizontalRate =
+      axisLength > 0 && !this.landing && !this.takeoffClimbing
+        ? LAND_FLIGHT.acceleration
+        : LAND_FLIGHT.braking;
+    const horizontalEase = 1 - Math.exp(-horizontalRate * dt);
+    this.flightVelocity.x += (targetVelocityX - this.flightVelocity.x) * horizontalEase;
+    this.flightVelocity.z += (targetVelocityZ - this.flightVelocity.z) * horizontalEase;
+
+    let targetVelocityY = verticalAxis * LAND_FLIGHT.verticalSpeed;
+    if (this.takeoffClimbing) targetVelocityY = LAND_FLIGHT.verticalSpeed;
+    if (this.landing) targetVelocityY = -LAND_FLIGHT.verticalSpeed;
+    if (
+      (!this.landing && this.position.y <= LAND_FLIGHT.minAltitude && targetVelocityY < 0) ||
+      (!this.landing && this.position.y >= LAND_FLIGHT.maxAltitude && targetVelocityY > 0)
+    )
+      targetVelocityY = 0;
+    const verticalRate = targetVelocityY === 0 ? LAND_FLIGHT.braking : LAND_FLIGHT.acceleration;
+    this.flightVelocity.y +=
+      (targetVelocityY - this.flightVelocity.y) * (1 - Math.exp(-verticalRate * dt));
+
+    const { bounds } = PURE_LAND;
+    const minX = bounds.minX + LAND_FLIGHT.worldInset;
+    const maxX = bounds.maxX - LAND_FLIGHT.worldInset;
+    const minZ = bounds.minZ + LAND_FLIGHT.worldInset;
+    const maxZ = bounds.maxZ - LAND_FLIGHT.worldInset;
+    this.position.x = Math.max(minX, Math.min(maxX, this.position.x + this.flightVelocity.x * dt));
+    this.position.z = Math.max(minZ, Math.min(maxZ, this.position.z + this.flightVelocity.z * dt));
+    if (this.position.x === minX || this.position.x === maxX) this.flightVelocity.x = 0;
+    if (this.position.z === minZ || this.position.z === maxZ) this.flightVelocity.z = 0;
+
+    this.position.y += this.flightVelocity.y * dt;
+    if (this.takeoffClimbing) {
+      if (this.position.y >= LAND_FLIGHT.minAltitude) {
+        this.position.y = LAND_FLIGHT.minAltitude;
+        this.takeoffClimbing = false;
+        this.flightVelocity.y = 0;
+      } else {
+        // 起飞必须经过真实的上升路径；不能因常规飞行高度钳制而瞬移到安全带。
+        this.position.y = Math.max(0, this.position.y);
+      }
+    } else if (this.landing && this.position.y <= this.landingHeight) {
+      this.position.y = this.landingHeight;
+      this.flying = false;
+      this.walking = true;
+      this.landing = false;
+      this.flightVelocity.y = 0;
+      this.restoreWalkCamera();
+      this.emitState();
+      this.events.emit('land:flightNotice', { message: '已安全落地，恢复步行。' });
+    } else if (this.landing) {
+      this.position.y = Math.max(this.landingHeight, this.position.y);
+    } else {
+      this.position.y = Math.max(
+        LAND_FLIGHT.minAltitude,
+        Math.min(LAND_FLIGHT.maxAltitude, this.position.y),
+      );
+    }
+
+    this.avatar?.root.position.copy(this.position);
+    if (!this.landing && (this.flightVelocity.x !== 0 || this.flightVelocity.z !== 0)) {
+      this.avatar?.faceYaw(Math.atan2(this.flightVelocity.x, this.flightVelocity.z), dt);
+    }
+    this.updateThirdPersonArm(dt);
+  }
+
+  /** 位置 HUD 最多每 200ms 发布一次，避免每帧事件与 DOM 写入。 */
+  private updateNavigation(deltaMs: number): void {
+    if (!this.avatar || (!this.walking && !this.flying)) return;
+    this.navigationElapsedMs += deltaMs;
+    if (this.navigationElapsedMs < LAND_FLIGHT.navigationUpdateMs) return;
+    this.navigationElapsedMs %= LAND_FLIGHT.navigationUpdateMs;
+    const positionY = this.avatar ? this.position.y : this.position.y - J.eyeHeight;
+    const navigation = resolveLandNavigation(this.position.x, this.position.z, this.yaw);
+    this.events.emit('land:navigation', {
+      x: this.position.x,
+      y: positionY,
+      z: this.position.z,
+      headingDeg: navigation.headingDeg,
+      direction: navigation.direction,
+      area: navigation.area,
+      landmark: navigation.landmark,
+      distance: navigation.distance,
+      flying: this.flying,
+    });
+  }
+
+  private stopFlightVelocity(): void {
+    this.flightVelocity.x = 0;
+    this.flightVelocity.y = 0;
+    this.flightVelocity.z = 0;
+  }
+
+  /** 飞行采用更远/略俯视的镜头；落地或退出到景点时还原原步行镜头状态。 */
+  private restoreWalkCamera(): void {
+    if (!this.walkCameraSaved) return;
+    this.pitch = this.savedWalkCamera.pitch;
+    this.armTarget = this.savedWalkCamera.armTarget;
+    this.armDistance = this.savedWalkCamera.armDistance;
+    this.walkCameraSaved = false;
+    this.occludedDistance = null;
   }
 
   /** 暂停或手动输入时从可见机位接管，不能继续追逐上一个自动目标。 */
@@ -363,6 +624,7 @@ export class LandCamera {
   private emitState(): void {
     this.state.index = this.index;
     this.state.walking = this.walking;
+    this.state.flying = this.flying;
     this.state.touring = this.touring;
     this.events.emit('land:state', this.state);
   }

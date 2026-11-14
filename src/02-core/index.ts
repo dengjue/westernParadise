@@ -9,6 +9,8 @@ export { createGardenLayout, gardenRng, isPondClear, sampleGardenLeaf } from './
 export { distanceLevel, ReflectionSchedule, AdaptiveRenderBudget } from './renderBudget';
 export { LandLightTransition } from './landLightTransition';
 export { sampleLandHeight, moveLandPosition } from './landNavigation';
+export { resolveLandNavigation } from './landNavigationInfo';
+export type { LandNavigationInfo } from './landNavigationInfo';
 export type {
   GardenPoint,
   GardenTree,

@@ -24,7 +24,25 @@ export interface AppEventMap {
   'land:modal': { readonly open: boolean };
   'land:suspend': { readonly suspended: boolean };
   'audio:position': { readonly x: number; readonly y: number; readonly z: number };
-  'land:state': { readonly index: number; readonly walking: boolean; readonly touring: boolean };
+  'land:state': {
+    readonly index: number;
+    readonly walking: boolean;
+    readonly flying: boolean;
+    readonly touring: boolean;
+  };
+  'land:flightToggle': Record<string, never>;
+  'land:flightNotice': { readonly message: string };
+  'land:navigation': {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly headingDeg: number;
+    readonly direction: string;
+    readonly area: string;
+    readonly landmark: string;
+    readonly distance: number;
+    readonly flying: boolean;
+  };
   'audio:request': { readonly enabled: boolean };
   'audio:volume': { readonly value: number };
   'app:ready': { readonly startedAt: number };

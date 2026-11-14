@@ -11,8 +11,10 @@ function fixture(reduced = false) {
   const look = { yaw: 0, pitch: 0 };
   const input = {
     moveAxis: { x: 0, z: 0 },
+    verticalAxis: 0,
     consumeLookDelta: () => look,
     consumeZoomDelta: () => 0,
+    consumeFlightToggle: () => false,
     dispose() {},
   };
   const control = new LandCamera({
@@ -80,6 +82,15 @@ describe('游览状态与手动接管', () => {
     expect(f.camera.position.y).toBeCloseTo(1.25 + J.eyeHeight);
     f.control.selectView(1, true);
     expect(f.camera.position.toArray()).toEqual(PURE_LAND.views[1].position);
+    f.control.dispose();
+  });
+  it('默认第一人称步行不发布第三人称导航 HUD 数据', () => {
+    const f = fixture();
+    let navigationUpdates = 0;
+    f.events.on('land:navigation', () => navigationUpdates++);
+    f.control.startWalking(true);
+    f.advance(1);
+    expect(navigationUpdates).toBe(0);
     f.control.dispose();
   });
 });

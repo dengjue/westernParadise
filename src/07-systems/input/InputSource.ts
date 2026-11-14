@@ -5,9 +5,13 @@
 export interface InputSource {
   /** 归一化移动轴：x 为左右，z 为前后；模长不会超过 1。 */
   readonly moveAxis: { x: number; z: number };
+  /** 垂直移动轴：正数上升、负数下降；步行模式下忽略。 */
+  readonly verticalAxis: number;
   /** 消费本帧视角增量（弧度），读取后清零。返回对象由实现复用。 */
   consumeLookDelta(): { yaw: number; pitch: number };
   /** 消费滚轮缩放方向，正数拉远、负数拉近，读取后清零。 */
   consumeZoomDelta(): number;
+  /** 消费一次飞行模式切换请求；非键盘实现可始终返回 false。 */
+  consumeFlightToggle(): boolean;
   dispose(): void;
 }

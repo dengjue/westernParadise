@@ -17,6 +17,7 @@ export class LandAvatar {
   readonly root: Group;
 
   private yawRad = 0;
+  private disposed = false;
 
   constructor(parent: Object3D) {
     this.root = this.createVisual();
@@ -41,6 +42,22 @@ export class LandAvatar {
     this.root.visible = visible;
   }
 
+  /** 从场景移除并释放此角色独占的几何与材质；重复调用安全。 */
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const child of this.root.children) {
+      if (!(child instanceof Mesh)) continue;
+      child.geometry.dispose();
+      if (Array.isArray(child.material)) {
+        for (const material of child.material) material.dispose();
+      } else {
+        child.material.dispose();
+      }
+    }
+    this.root.removeFromParent();
+  }
+
   /** 朝向缓动：角色面向移动方向；静止时不转动。返回实际转过的角度（供测试断言）。 */
   faceYaw(targetYaw: number, deltaSeconds: number): number {
     const difference = shortestAngle(targetYaw - this.yawRad);
@@ -59,22 +76,27 @@ export class LandAvatar {
 
   private createVisual(): Group {
     const group = new Group();
-    // 用 muted 灰蓝调的"行人剪影"，不是僧侣、不是造像：保持文化漫游的中性观察者定位。
-    const material = new MeshStandardMaterial({
-      color: 0x4a5568,
-      roughness: 0.85,
+    // 中性石青身体与浅暖色头部形成清楚轮廓；不是僧侣、不是造像，也不带宗教身份暗示。
+    const bodyMaterial = new MeshStandardMaterial({
+      color: LAND_AVATAR.bodyColor,
+      roughness: LAND_AVATAR.roughness,
+      metalness: 0,
+    });
+    const headMaterial = new MeshStandardMaterial({
+      color: LAND_AVATAR.headColor,
+      roughness: LAND_AVATAR.roughness,
       metalness: 0,
     });
     const body = new Mesh(
       new CapsuleGeometry(LAND_AVATAR.bodyRadius, LAND_AVATAR.bodyHeight, 3, 12),
-      material,
+      bodyMaterial,
     );
     // 胶囊几何以中点为原点：把身体抬高到脚底贴合地面。
     body.name = 'player-body';
     body.position.y = LAND_AVATAR.bodyRadius + LAND_AVATAR.bodyHeight / 2;
     body.castShadow = false;
     body.receiveShadow = false;
-    const head = new Mesh(new SphereGeometry(LAND_AVATAR.headRadius, 12, 10), material);
+    const head = new Mesh(new SphereGeometry(LAND_AVATAR.headRadius, 12, 10), headMaterial);
     head.name = 'player-head';
     head.position.y = LAND_AVATAR.headHeight;
     head.castShadow = false;

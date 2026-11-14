@@ -6,6 +6,8 @@ export interface KeyboardMouseInputOptions {
   /** 指针、滚轮和右键菜单事件目标由 99-boot 注入。 */
   readonly pointerTarget: EventTarget;
   readonly lookSensitivityRadPerPixel: number;
+  /** 仅第三人称原型接收 E/Q/V；默认保持既有第一人称键位语义。 */
+  readonly flightControlsEnabled?: boolean;
   /** 左键轻点判定阈值（像素）：按下到移动未超过该距离视为轻点，不产生视角增量。 */
   readonly clickThresholdPx?: number;
 }
@@ -24,6 +26,7 @@ export class KeyboardMouseInput implements InputSource {
   private readonly keyboardTarget: EventTarget;
   private readonly pointerTarget: EventTarget;
   private readonly lookSensitivity: number;
+  private readonly flightControlsEnabled: boolean;
   private readonly clickThresholdPx: number;
   private readonly axis = { x: 0, z: 0 };
   private readonly lookDelta = { yaw: 0, pitch: 0 };
@@ -32,6 +35,9 @@ export class KeyboardMouseInput implements InputSource {
   private backwardPressed = false;
   private leftPressed = false;
   private rightPressed = false;
+  private ascendPressed = false;
+  private descendPressed = false;
+  private flightToggleRequested = false;
   private dragging = false;
   /** 当前拖拽按钮位（1=左键 2=右键）；0 表示未拖拽。一次拖拽只跟随首个按下按钮。 */
   private dragButtonBit = 0;
@@ -49,6 +55,7 @@ export class KeyboardMouseInput implements InputSource {
     this.keyboardTarget = options.keyboardTarget;
     this.pointerTarget = options.pointerTarget;
     this.lookSensitivity = options.lookSensitivityRadPerPixel;
+    this.flightControlsEnabled = options.flightControlsEnabled ?? false;
     this.clickThresholdPx = options.clickThresholdPx ?? DEFAULT_CLICK_THRESHOLD_PX;
 
     this.keyboardTarget.addEventListener('keydown', this.onKeyDown);
@@ -67,6 +74,10 @@ export class KeyboardMouseInput implements InputSource {
     return this.axis;
   }
 
+  get verticalAxis(): number {
+    return Number(this.ascendPressed) - Number(this.descendPressed);
+  }
+
   consumeLookDelta(): { yaw: number; pitch: number } {
     this.consumedLookDelta.yaw = this.lookDelta.yaw;
     this.consumedLookDelta.pitch = this.lookDelta.pitch;
@@ -78,6 +89,12 @@ export class KeyboardMouseInput implements InputSource {
   consumeZoomDelta(): number {
     const result = this.zoomDelta;
     this.zoomDelta = 0;
+    return result;
+  }
+
+  consumeFlightToggle(): boolean {
+    const result = this.flightToggleRequested;
+    this.flightToggleRequested = false;
     return result;
   }
 
@@ -95,6 +112,7 @@ export class KeyboardMouseInput implements InputSource {
     this.lookDelta.yaw = this.lookDelta.pitch = 0;
     this.consumedLookDelta.yaw = this.consumedLookDelta.pitch = 0;
     this.zoomDelta = 0;
+    this.flightToggleRequested = false;
   }
 
   dispose(): void {
@@ -116,6 +134,7 @@ export class KeyboardMouseInput implements InputSource {
     this.consumedLookDelta.yaw = 0;
     this.consumedLookDelta.pitch = 0;
     this.zoomDelta = 0;
+    this.flightToggleRequested = false;
   }
 
   private readonly onKeyDown = (event: Event): void => {
@@ -132,6 +151,12 @@ export class KeyboardMouseInput implements InputSource {
       target?.closest?.('dialog[open]')
     )
       return;
+    if (keyboard.code === 'KeyV') {
+      if (!this.flightControlsEnabled) return;
+      this.flightToggleRequested = true;
+      keyboard.preventDefault();
+      return;
+    }
     if (!this.setKeyState(keyboard.code, true)) {
       return;
     }
@@ -270,6 +295,14 @@ export class KeyboardMouseInput implements InputSource {
       case 'ArrowRight':
         this.rightPressed = pressed;
         return true;
+      case 'KeyE':
+        if (!this.flightControlsEnabled) return false;
+        this.ascendPressed = pressed;
+        return true;
+      case 'KeyQ':
+        if (!this.flightControlsEnabled) return false;
+        this.descendPressed = pressed;
+        return true;
       default:
         return false;
     }
@@ -280,6 +313,8 @@ export class KeyboardMouseInput implements InputSource {
     this.backwardPressed = pressed;
     this.leftPressed = pressed;
     this.rightPressed = pressed;
+    this.ascendPressed = pressed;
+    this.descendPressed = pressed;
   }
 
   private updateAxis(): void {

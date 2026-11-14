@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Group, Mesh, PerspectiveCamera } from 'three';
 import type { AppEventMap } from '@/00-types';
-import { LAND_AVATAR } from '@/01-shared';
+import { LAND_AVATAR, LAND_FLIGHT } from '@/01-shared';
 import { parseParams } from '@/03-platform';
 import { EventBus } from '@/02-core';
 import { KeyboardMouseInput, LandAvatar, LandCamera } from '@/07-systems';
@@ -127,14 +127,19 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     const camera = new PerspectiveCamera();
     const look = { yaw: 0, pitch: 0 };
     let zoom = 0;
+    let vertical = 0;
     const input = {
       moveAxis: { x: 0, z: 0 },
+      get verticalAxis() {
+        return vertical;
+      },
       consumeLookDelta: () => look,
       consumeZoomDelta: () => {
         const value = zoom;
         zoom = 0;
         return value;
       },
+      consumeFlightToggle: () => false,
       dispose() {},
     };
     const avatar = new LandAvatar(parent);
@@ -159,6 +164,7 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
       control,
       advance,
       setZoom: (v: number) => (zoom = v),
+      setVertical: (v: number) => (vertical = v),
     };
   }
 
@@ -172,6 +178,37 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     expect(f.camera.position.distanceTo(flatAnchor)).toBeLessThan(1e-3);
     expect(f.camera.position.z - feet.z).toBeCloseTo(LAND_AVATAR.camera.defaultDistance, 3);
     f.control.dispose();
+  });
+
+  it('释放第三人称角色时移除场景节点并只释放独占资源一次', () => {
+    const parent = new Group();
+    const avatar = new LandAvatar(parent);
+    const meshes = avatar.root.children.filter((child): child is Mesh => child instanceof Mesh);
+    const geometries = meshes.map(({ geometry }) => geometry);
+    const materials = meshes.flatMap(({ material }) =>
+      Array.isArray(material) ? material : [material],
+    );
+    const geometryDisposals = geometries.map(() => 0);
+    const materialDisposals = materials.map(() => 0);
+    geometries.forEach((geometry, index) =>
+      geometry.addEventListener(
+        'dispose',
+        () => (geometryDisposals[index] = geometryDisposals[index]! + 1),
+      ),
+    );
+    materials.forEach((material, index) =>
+      material.addEventListener(
+        'dispose',
+        () => (materialDisposals[index] = materialDisposals[index]! + 1),
+      ),
+    );
+
+    avatar.dispose();
+    avatar.dispose();
+
+    expect(parent.children).not.toContain(avatar.root);
+    expect(geometryDisposals).toEqual([1, 1]);
+    expect(materialDisposals).toEqual([1, 1]);
   });
 
   it('步行推进角色并保持背后跟随，角色面向移动方向', () => {
@@ -241,5 +278,123 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     expect(f.avatar.root.visible).toBe(false);
     f.control.dispose();
     expect(f.events.size).toBe(0);
+  });
+
+  it('竖直通道被静态屋顶遮挡时拒绝起飞；开阔处可升至高度带', () => {
+    const blocked = fixture();
+    blocked.control.startWalking(true);
+    const roof = new Mesh(new BoxGeometry(5, 2, 5));
+    roof.position.set(0, 20, 85);
+    blocked.parent.add(roof);
+    roof.updateMatrixWorld(true);
+    blocked.events.emit('land:flightToggle', {});
+    expect(blocked.control.isFlying).toBe(false);
+    expect(blocked.control.isWalking).toBe(true);
+    blocked.control.dispose();
+
+    const open = fixture();
+    open.control.startWalking(true);
+    open.events.emit('land:flightToggle', {});
+    expect(open.control.isFlying).toBe(true);
+    expect(open.control.isWalking).toBe(false);
+    open.advance(1);
+    expect(open.avatar.root.position.y).toBeLessThan(LAND_FLIGHT.minAltitude);
+    open.advance(11);
+    expect(open.avatar.root.position.y).toBeCloseTo(LAND_FLIGHT.minAltitude, 2);
+    open.control.dispose();
+  });
+
+  it('飞行保持高度/水平边界，垂直控制在最大高度钳制', () => {
+    const f = fixture();
+    f.control.startWalking(true);
+    f.events.emit('land:flightToggle', {});
+    f.advance(12);
+    f.setVertical(1);
+    f.advance(20);
+    expect(f.avatar.root.position.y).toBe(LAND_FLIGHT.maxAltitude);
+
+    const maxX = 88 - LAND_FLIGHT.worldInset;
+    f.avatar.root.position.x = maxX - 0.1;
+    f.input.moveAxis.x = 1;
+    f.advance(10);
+    expect(f.avatar.root.position.x).toBe(maxX);
+    f.control.dispose();
+  });
+
+  it('飞行可在有效步行面安全降落并恢复步行状态', () => {
+    const f = fixture();
+    const notices: string[] = [];
+    f.events.on('land:flightNotice', ({ message }) => notices.push(message));
+    f.control.startWalking(true);
+    f.events.emit('land:flightToggle', {});
+    expect(notices).toEqual(['已起飞：WASD 平移，E/Q 升降，V 请求降落。']);
+    f.advance(12);
+    expect(f.avatar.root.position.y).toBeCloseTo(LAND_FLIGHT.minAltitude, 2);
+    const flightAnchor = f.avatar.root.position.clone();
+    flightAnchor.y += LAND_AVATAR.camera.lookAtHeight;
+    expect(f.camera.position.distanceTo(flightAnchor)).toBeCloseTo(LAND_FLIGHT.followDistance, 1);
+
+    const canopy = new Mesh(new BoxGeometry(4, 2, 4));
+    canopy.position.set(0, 20, 85);
+    f.parent.add(canopy);
+    f.events.emit('land:flightToggle', {});
+    expect(f.control.isFlying).toBe(true);
+    expect(notices.at(-1)).toContain('下方有屋檐');
+    f.parent.remove(canopy);
+
+    f.events.emit('land:flightToggle', {});
+    expect(notices).toEqual([
+      '已起飞：WASD 平移，E/Q 升降，V 请求降落。',
+      '下方有屋檐、树冠或构件遮挡；请移到开阔地面上方再降落。',
+      '正在平稳降落…',
+    ]);
+    expect(f.control.isFlying).toBe(true);
+    f.advance(12);
+    expect(f.control.isFlying).toBe(false);
+    expect(f.control.isWalking).toBe(true);
+    expect(f.avatar.root.position.y).toBeLessThan(LAND_FLIGHT.minAltitude);
+    const walkAnchor = f.avatar.root.position.clone();
+    walkAnchor.y += LAND_AVATAR.camera.lookAtHeight;
+    expect(f.camera.position.distanceTo(walkAnchor)).toBeCloseTo(
+      LAND_AVATAR.camera.defaultDistance,
+      1,
+    );
+    f.control.dispose();
+  });
+
+  it('下方没有可走地面时拒绝降落并保持飞行，不传送角色', () => {
+    const f = fixture();
+    const notices: string[] = [];
+    f.events.on('land:flightNotice', ({ message }) => notices.push(message));
+    f.control.startWalking(true);
+    f.events.emit('land:flightToggle', {});
+    f.advance(12);
+    // 从北侧游线沿世界 +x、-z 飞到当前步行网以外的水庭上方。
+    f.input.moveAxis.x = 1;
+    f.advance(14);
+    f.input.moveAxis.x = 0;
+    f.input.moveAxis.z = 1;
+    f.advance(10);
+    f.input.moveAxis.z = 0;
+    const before = f.avatar.root.position.clone();
+    f.events.emit('land:flightToggle', {});
+    expect(f.control.isFlying).toBe(true);
+    expect(notices.at(-1)).toContain('没有安全步行面');
+    expect(f.avatar.root.position.toArray()).toEqual(before.toArray());
+    f.control.dispose();
+  });
+
+  it('步行和飞行导航事件按 200ms 节流，约每秒最多发布五次', () => {
+    const f = fixture();
+    let navigationUpdates = 0;
+    f.events.on('land:navigation', () => navigationUpdates++);
+    f.control.startWalking(true);
+    f.advance(1);
+    expect(navigationUpdates).toBe(5);
+    f.events.emit('land:flightToggle', {});
+    navigationUpdates = 0;
+    f.advance(1);
+    expect(navigationUpdates).toBe(5);
+    f.control.dispose();
   });
 });

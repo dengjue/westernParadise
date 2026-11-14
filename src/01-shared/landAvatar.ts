@@ -10,6 +10,9 @@ export const LAND_AVATAR = Object.freeze({
   /** 胶囊身体：半径与柱段高度；总身高 ≈ bodyHeight + 2 × bodyRadius。 */
   bodyRadius: 0.32,
   bodyHeight: 1.15,
+  bodyColor: 0x64716b,
+  headColor: 0xc6ad7f,
+  roughness: 0.82,
   /** 头部球体半径与球心离脚底高度。 */
   headRadius: 0.17,
   headHeight: 1.62,

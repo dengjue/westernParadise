@@ -26,10 +26,14 @@ describe('TouchInput', () => {
   it('禁用与失焦清除双指状态，恢复后必须重新按下', () => {
     const moveTarget = new EventTarget(),
       lookTarget = new EventTarget(),
+      ascendTarget = new EventTarget(),
+      descendTarget = new EventTarget(),
       pointerTarget = new EventTarget();
     const input = new TouchInput({
       moveTarget,
       lookTarget,
+      ascendTarget,
+      descendTarget,
       pointerTarget,
       moveRadiusPx: 50,
       lookSensitivityRadPerPixel: 0.01,
@@ -50,10 +54,14 @@ describe('TouchInput', () => {
   it('左侧触控区把拖拽归一化为移动轴，并在抬起后归零', () => {
     const moveTarget = new EventTarget();
     const lookTarget = new EventTarget();
+    const ascendTarget = new EventTarget();
+    const descendTarget = new EventTarget();
     const pointerTarget = new EventTarget();
     const input = new TouchInput({
       moveTarget,
       lookTarget,
+      ascendTarget,
+      descendTarget,
       pointerTarget,
       moveRadiusPx: 50,
       lookSensitivityRadPerPixel: 0.01,
@@ -72,10 +80,14 @@ describe('TouchInput', () => {
   it('右侧触控区累计视角增量，鼠标指针不会误触发触控轴', () => {
     const moveTarget = new EventTarget();
     const lookTarget = new EventTarget();
+    const ascendTarget = new EventTarget();
+    const descendTarget = new EventTarget();
     const pointerTarget = new EventTarget();
     const input = new TouchInput({
       moveTarget,
       lookTarget,
+      ascendTarget,
+      descendTarget,
       pointerTarget,
       moveRadiusPx: 50,
       lookSensitivityRadPerPixel: 0.01,
@@ -87,6 +99,33 @@ describe('TouchInput', () => {
     pointerTarget.dispatchEvent(new PointerLike('pointermove', 3, 'touch', 30, 15));
     expect(input.consumeLookDelta()).toEqual({ yaw: 0.1, pitch: -0.05 });
     expect(input.consumeLookDelta()).toEqual({ yaw: 0, pitch: 0 });
+    input.dispose();
+  });
+
+  it('飞行升降按钮按住生效，抬起/取消后归零；触控不产生键盘模式切换', () => {
+    const moveTarget = new EventTarget();
+    const lookTarget = new EventTarget();
+    const ascendTarget = new EventTarget();
+    const descendTarget = new EventTarget();
+    const pointerTarget = new EventTarget();
+    const input = new TouchInput({
+      moveTarget,
+      lookTarget,
+      ascendTarget,
+      descendTarget,
+      pointerTarget,
+      moveRadiusPx: 50,
+      lookSensitivityRadPerPixel: 0.01,
+    });
+    ascendTarget.dispatchEvent(new PointerLike('pointerdown', 4, 'touch', 0, 0));
+    expect(input.verticalAxis).toBe(1);
+    pointerTarget.dispatchEvent(new PointerLike('pointerup', 4, 'touch', 0, 0));
+    expect(input.verticalAxis).toBe(0);
+    descendTarget.dispatchEvent(new PointerLike('pointerdown', 5, 'touch', 0, 0));
+    expect(input.verticalAxis).toBe(-1);
+    pointerTarget.dispatchEvent(new Event('blur'));
+    expect(input.verticalAxis).toBe(0);
+    expect(input.consumeFlightToggle()).toBe(false);
     input.dispose();
   });
 });

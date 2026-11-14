@@ -7,6 +7,7 @@ interface LandUiOptions {
   quality: QualityTier;
   time: TimeOfDayId;
   noAudio: boolean;
+  thirdPerson: boolean;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -172,6 +173,9 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   tourButton.setAttribute('aria-pressed', 'false');
   let touring = false;
   tourButton.addEventListener('click', () => events.emit('land:tour', { enabled: !touring }));
+  const flightButton = button('land-flight-toggle', '起飞 · V', '起飞或安全降落');
+  flightButton.hidden = true;
+  flightButton.addEventListener('click', () => events.emit('land:flightToggle', {}));
   const hideButton = button('land-icon-button', '⛶', '隐藏界面');
   const restore = button('land-restore', '显示界面 · H');
   restore.hidden = true;
@@ -183,12 +187,18 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   }
   hideButton.addEventListener('click', () => hideUi(true));
   restore.addEventListener('click', () => hideUi(false));
-  actions.append(tourButton, hideButton);
+  actions.append(tourButton, flightButton, hideButton);
   footer.append(viewDetails, actions);
   const hint = el(
     'div',
     'land-hint',
-    capabilities.touch ? PURE_LAND.copy.touchControls : PURE_LAND.copy.controls,
+    options.thirdPerson
+      ? capabilities.touch
+        ? '左下移动 · 右下环顾 · 飞行时使用上升/下降控件'
+        : '左键环顾 · WASD 步行 · 滚轮调距 · V 起飞/降落 · H 隐藏界面'
+      : capabilities.touch
+        ? PURE_LAND.copy.touchControls
+        : PURE_LAND.copy.controls,
   );
   const note = el('div', 'land-note', PURE_LAND.copy.note);
   const notice = el('div', 'land-notice');
@@ -242,11 +252,42 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   move.setAttribute('aria-label', '触控移动区');
   const look = el('div', 'land-touch-pad', '环顾');
   look.setAttribute('aria-label', '触控视角区');
+  const flightTouch = el('div', 'land-flight-touch');
+  const ascend = button('land-flight-touch-button', '＋', '按住上升');
+  const descend = button('land-flight-touch-button', '−', '按住下降');
+  flightTouch.append(ascend, descend);
+  flightTouch.hidden = true;
   move.append(el('span', 'land-touch-thumb'));
   look.append(el('span', 'land-touch-thumb'));
-  touch.append(move, look);
+  touch.append(move, look, flightTouch);
   touch.hidden = !capabilities.touch;
   root.append(overlay, restore, dialog, touch, notice);
+
+  const navigationHud = el('section', 'land-navigation-hud');
+  navigationHud.setAttribute('aria-label', '当前位置与导航信息');
+  navigationHud.setAttribute('aria-live', 'off');
+  navigationHud.hidden = true;
+  const navigationMode = el('div', 'land-navigation-mode', '步行');
+  const navigationCoordinates = el('div', 'land-navigation-coordinates', 'X 0.0 · Y 0.0 · Z 0.0 m');
+  const navigationHeading = el('div', 'land-navigation-heading', '北 · 0°');
+  const navigationDestination = el('div', 'land-navigation-destination', '');
+  navigationHud.append(
+    navigationMode,
+    navigationCoordinates,
+    navigationHeading,
+    navigationDestination,
+  );
+  overlay.append(navigationHud);
+
+  function setNotice(message: string, temporary = false): void {
+    clearTimeout(noticeTimer);
+    notice.textContent = message;
+    notice.hidden = false;
+    if (temporary)
+      noticeTimer = setTimeout(() => {
+        notice.hidden = true;
+      }, 5000);
+  }
 
   const keyHandler = (event: KeyboardEvent): void => {
     if (!dialog.open && event.code === 'Escape' && settings.classList.contains('is-open')) {
@@ -277,24 +318,56 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     }),
   );
   removes.push(
-    events.on('land:state', ({ index, walking, touring: nextTouring }) => {
+    events.on('land:state', ({ index, walking, flying, touring: nextTouring }) => {
       touring = nextTouring;
       tourButton.textContent = touring ? 'Ⅱ　' + PURE_LAND.copy.pause : '▷　' + PURE_LAND.copy.tour;
       tourButton.setAttribute('aria-pressed', String(touring));
       tourButton.setAttribute('aria-label', touring ? PURE_LAND.copy.pause : PURE_LAND.copy.tour);
-      overlay.classList.toggle('is-walking', walking);
+      const roaming = walking || flying;
+      overlay.classList.toggle('is-walking', roaming && !flying);
+      overlay.classList.toggle('is-flying', flying);
       const view = PURE_LAND.views[index] ?? PURE_LAND.views[0];
-      viewName.textContent = walking ? PURE_LAND.copy.walk : view.title;
-      description.textContent = walking
+      viewName.textContent = flying ? '高空观察' : walking ? PURE_LAND.copy.walk : view.title;
+      description.textContent = flying
         ? capabilities.touch
-          ? PURE_LAND.copy.touchControls
-          : PURE_LAND.copy.controls
-        : view.description;
-      viewNumber.textContent = walking ? '↟' : String(index + 1).padStart(2, '0');
-      title.hidden = walking || index !== 0;
+          ? '左侧移动 · 右侧环顾 · ＋/− 升降 · 点击降落'
+          : 'WASD 平移 · E/Q 升降 · V 请求降落'
+        : walking
+          ? capabilities.touch
+            ? PURE_LAND.copy.touchControls
+            : PURE_LAND.copy.controls
+          : view.description;
+      viewNumber.textContent = roaming ? (flying ? '⌃' : '↟') : String(index + 1).padStart(2, '0');
+      title.hidden = roaming || index !== 0;
       viewButtons.forEach((node, i) =>
-        node.setAttribute('aria-current', String(!walking && i === index)),
+        node.setAttribute('aria-current', String(!roaming && i === index)),
       );
+    }),
+  );
+  removes.push(
+    events.on('land:state', ({ walking, flying }) => {
+      flightButton.hidden = !options.thirdPerson || (!walking && !flying);
+      flightButton.textContent = flying ? '降落 · V' : '起飞 · V';
+      flightButton.setAttribute('aria-label', flying ? '请求安全降落' : '起飞');
+      flightTouch.hidden = !capabilities.touch || !flying;
+      navigationHud.hidden = !options.thirdPerson || (!walking && !flying);
+      navigationMode.textContent = flying ? '飞行观察' : '步行漫游';
+      tourButton.disabled = flying;
+      overlay.classList.toggle('is-flying', flying);
+    }),
+  );
+  removes.push(
+    events.on('land:navigation', (info) => {
+      if (!options.thirdPerson) return;
+      navigationMode.textContent = info.flying ? '飞行观察' : '步行漫游';
+      navigationCoordinates.textContent = `X ${info.x.toFixed(1)} · Y ${info.y.toFixed(1)} · Z ${info.z.toFixed(1)} m`;
+      navigationHeading.textContent = `${info.direction} · ${Math.round(info.headingDeg)}°`;
+      navigationDestination.textContent = `${info.area} · 最近地标 ${info.landmark} ${Math.round(info.distance)} m`;
+    }),
+  );
+  removes.push(
+    events.on('land:flightNotice', ({ message }) => {
+      setNotice(message, true);
     }),
   );
   viewButtons[0]?.setAttribute('aria-current', 'true');
@@ -303,6 +376,8 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     viewport,
     move,
     look,
+    ascend,
+    descend,
     touchFeedback(pad: 'move' | 'look', active: boolean, x: number, y: number): void {
       const target = pad === 'move' ? move : look;
       target.dataset['active'] = String(active);
@@ -310,13 +385,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
       target.style.setProperty('--touch-y', `${y * 25}px`);
     },
     showNotice(message: string, temporary = false): void {
-      clearTimeout(noticeTimer);
-      notice.textContent = message;
-      notice.hidden = false;
-      if (temporary)
-        noticeTimer = setTimeout(() => {
-          notice.hidden = true;
-        }, 5000);
+      setNotice(message, temporary);
     },
     dispose(): void {
       clearTimeout(noticeTimer);
@@ -329,6 +398,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
       dialog.remove();
       touch.remove();
       notice.remove();
+      navigationHud.remove();
       root.classList.remove('land-app');
     },
   };

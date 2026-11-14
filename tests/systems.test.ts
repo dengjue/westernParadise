@@ -49,12 +49,14 @@ function idleInput(): InputSource {
   const look = { yaw: 0, pitch: 0 };
   return {
     moveAxis: { x: 0, z: 0 },
+    verticalAxis: 0,
     consumeLookDelta() {
       return look;
     },
     consumeZoomDelta() {
       return 0;
     },
+    consumeFlightToggle: () => false,
     dispose() {
       // 测试输入没有需要释放的事件监听器。
     },
@@ -68,6 +70,7 @@ describe('KeyboardMouseInput', () => {
       keyboardTarget: target,
       pointerTarget: target,
       lookSensitivityRadPerPixel: 0.001,
+      flightControlsEnabled: true,
     });
     target.dispatchEvent(new KeyEvent('keydown', 'KeyW'));
     target.dispatchEvent(new PointerEventLike('pointerdown', 2, 10, 10));
@@ -110,6 +113,47 @@ describe('KeyboardMouseInput', () => {
     target.dispatchEvent(new KeyEvent('keyup', 'KeyW'));
     target.dispatchEvent(new KeyEvent('keyup', 'KeyD'));
     expect(input.moveAxis).toEqual({ x: 0, z: 0 });
+    input.dispose();
+  });
+
+  it('E/Q 控制垂直轴，V 的模式切换请求只消费一次且失焦清除', () => {
+    const target = new EventTarget();
+    const input = new KeyboardMouseInput({
+      keyboardTarget: target,
+      pointerTarget: target,
+      lookSensitivityRadPerPixel: 0.001,
+      flightControlsEnabled: true,
+    });
+
+    target.dispatchEvent(new KeyEvent('keydown', 'KeyE'));
+    expect(input.verticalAxis).toBe(1);
+    target.dispatchEvent(new KeyEvent('keyup', 'KeyE'));
+    target.dispatchEvent(new KeyEvent('keydown', 'KeyQ'));
+    expect(input.verticalAxis).toBe(-1);
+    target.dispatchEvent(new KeyEvent('keydown', 'KeyV'));
+    expect(input.consumeFlightToggle()).toBe(true);
+    expect(input.consumeFlightToggle()).toBe(false);
+    target.dispatchEvent(new Event('blur'));
+    expect(input.verticalAxis).toBe(0);
+    expect(input.consumeFlightToggle()).toBe(false);
+    input.dispose();
+  });
+
+  it('默认第一人称输入不拦截 E/Q/V，保持原有键位语义', () => {
+    const target = new EventTarget();
+    const input = new KeyboardMouseInput({
+      keyboardTarget: target,
+      pointerTarget: target,
+      lookSensitivityRadPerPixel: 0.001,
+    });
+    const ascend = new KeyEvent('keydown', 'KeyE');
+    const toggle = new KeyEvent('keydown', 'KeyV');
+    target.dispatchEvent(ascend);
+    target.dispatchEvent(toggle);
+    expect(ascend.defaultPrevented).toBe(false);
+    expect(toggle.defaultPrevented).toBe(false);
+    expect(input.verticalAxis).toBe(0);
+    expect(input.consumeFlightToggle()).toBe(false);
     input.dispose();
   });
 
@@ -181,8 +225,10 @@ describe('Character', () => {
     const character = new Character({ parent, colliders, events });
     const input: InputSource = {
       moveAxis: { x: 0, z: 1 },
+      verticalAxis: 0,
       consumeLookDelta: () => ({ yaw: 0, pitch: 0 }),
       consumeZoomDelta: () => 0,
+      consumeFlightToggle: () => false,
       dispose: () => undefined,
     };
     const initialZ = character.position.z;
@@ -208,12 +254,14 @@ describe('FollowCamera', () => {
     let zoom = 0;
     const input: InputSource = {
       moveAxis: { x: 0, z: 0 },
+      verticalAxis: 0,
       consumeLookDelta: () => look,
       consumeZoomDelta: () => {
         const value = zoom;
         zoom = 0;
         return value;
       },
+      consumeFlightToggle: () => false,
       dispose: () => undefined,
     };
     const followCamera = new FollowCamera({ camera, input });

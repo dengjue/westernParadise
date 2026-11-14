@@ -54,6 +54,7 @@ export function startPureLand(): () => void {
     quality: decision.tier,
     time,
     noAudio: params.noAudio,
+    thirdPerson: params.cam === 'third',
   });
   document.title = '西方极乐 · 一念清净，万象庄严';
   if (capabilities.webgl === 'none') throw new Error(COPY.noWebgl);
@@ -110,12 +111,15 @@ export function startPureLand(): () => void {
         pointerTarget: window,
         moveRadiusPx: LAND_JOURNEY.moveRadiusPx,
         lookSensitivityRadPerPixel: LAND_JOURNEY.touchSensitivity,
+        ascendTarget: ui.ascend,
+        descendTarget: ui.descend,
         feedback: ui.touchFeedback,
       })
     : new KeyboardMouseInput({
         keyboardTarget: window,
         pointerTarget: window,
         lookSensitivityRadPerPixel: LAND_JOURNEY.mouseSensitivity,
+        flightControlsEnabled: params.cam === 'third',
       });
   // 第三人称原型（?cam=third）：角色挂在场景根上，遮挡回拉以场景为射线对象。
   // 默认体验（第一人称 + 四景点观览）完全不装配 avatar，行为与历史版本一致。
