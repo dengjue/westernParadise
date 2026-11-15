@@ -227,9 +227,15 @@ export function startPureLand(): () => void {
     lost = true;
     loop.stop();
     syncActivity();
-    ui.showNotice('画面连接暂时中断，请刷新页面恢复。');
+    ui.showNotice('画面连接暂时中断，正在等待浏览器恢复；若长时间未恢复，请刷新页面。');
+  };
+  const contextRestored = (): void => {
+    lost = false;
+    syncActivity();
+    ui.showNotice('画面连接已恢复。', true);
   };
   context.canvas.addEventListener('webglcontextlost', contextLost);
+  context.canvas.addEventListener('webglcontextrestored', contextRestored);
   if (capabilities.reducedMotion) ui.showNotice(COPY.reducedMotion, true);
   else if (decision.tier === 'low') ui.showNotice('流畅画质 · 已降低反射与叶片密度', true);
   let disposed = false;
@@ -270,6 +276,7 @@ export function startPureLand(): () => void {
     window.removeEventListener('focus', visibility);
     window.removeEventListener('pageshow', visibility);
     context.canvas.removeEventListener('webglcontextlost', contextLost);
+    context.canvas.removeEventListener('webglcontextrestored', contextRestored);
     input.dispose();
     camera.dispose();
     audio.dispose();
