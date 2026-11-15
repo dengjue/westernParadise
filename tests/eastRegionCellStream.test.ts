@@ -41,6 +41,16 @@ describe('阶段 4 · 东侧 cell 有界运行时调度', () => {
     expect(snapshot.queue.queued).toBeLessThanOrEqual(14);
     expect(parent.children).toHaveLength(1);
 
+    const regionRoot = parent.children[0] as Group;
+    const initialKeys = regionRoot.children.map((cell) => cell.userData['cell']);
+    stream.update({ x: 300, z: 0, forwardX: -1, forwardZ: 0 }, 120);
+    await flushPromises();
+    snapshot = stream.snapshot();
+    const turnedKeys = regionRoot.children.map((cell) => cell.userData['cell']);
+    expect(snapshot.mounted).toBe(snapshot.queue.ready);
+    expect(turnedKeys).toHaveLength(16);
+    expect(turnedKeys.filter((key) => initialKeys.includes(key)).length).toBeLessThan(16);
+
     stream.update(null, 16);
     await flushPromises();
     snapshot = stream.snapshot();
