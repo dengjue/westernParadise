@@ -64,6 +64,7 @@ export function createEastRegionCellPayload(
   const cellMaxX = cellMinX + cellSize;
   const cellMinZ = LAND_WORLD.cellOrigin.z + row * cellSize;
   const cellMaxZ = cellMinZ + cellSize;
+  const route = east.route;
   const contains = (x: number, z: number): boolean =>
     Math.floor((x - LAND_WORLD.cellOrigin.x) / cellSize) === column &&
     Math.floor((z - LAND_WORLD.cellOrigin.z) / cellSize) === row;
@@ -81,15 +82,28 @@ export function createEastRegionCellPayload(
       cellMinZ >= bounds.minZ &&
       cellMaxZ <= bounds.maxZ
     ) {
-      builder.box(
-        materials.dark,
-        [cellMinX + cellSize / 2, groundTop - east.groundThickness / 2, cellMinZ + cellSize / 2],
-        [cellSize, east.groundThickness, cellSize],
-      );
+      const routeMinZ = Math.max(route.minZ, cellMinZ);
+      const routeMaxZ = Math.min(route.maxZ, cellMaxZ);
+      const routeCoversCellX = cellMinX >= route.minX && cellMaxX <= route.maxX;
+      const groundRanges =
+        routeCoversCellX && routeMaxZ > routeMinZ
+          ? [[cellMinZ, routeMinZ] as const, [routeMaxZ, cellMaxZ] as const]
+          : [[cellMinZ, cellMaxZ] as const];
+      for (const [groundMinZ, groundMaxZ] of groundRanges) {
+        if (groundMaxZ <= groundMinZ) continue;
+        builder.box(
+          materials.dark,
+          [
+            cellMinX + cellSize / 2,
+            groundTop - east.groundThickness / 2,
+            (groundMinZ + groundMaxZ) / 2,
+          ],
+          [cellSize, east.groundThickness, groundMaxZ - groundMinZ],
+        );
+      }
     }
 
     // 路面沿 X 按 cell 边界切片，只把本格片段与边缘金线写入本 payload。
-    const route = east.route;
     if (contains((cellMinX + cellMaxX) / 2, (route.minZ + route.maxZ) / 2)) {
       const segmentStart = Math.max(route.minX, cellMinX);
       const segmentEnd = Math.min(route.maxX, cellMaxX);

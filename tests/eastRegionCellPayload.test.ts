@@ -53,6 +53,32 @@ describe('阶段 4 · 东侧水院独立 cell payload', () => {
     for (const material of owned) material.dispose();
   });
 
+  it.each([24, 48])('%d 米路面 cell 不在铺装下重复生成同高地基', (cellSize) => {
+    const { materials, owned } = createMaterials();
+    const { route } = LAND_WORLD.prototype.east;
+    const region = LAND_WORLD.regions.find(({ id }) => id === 'east-water-court')!;
+    const x = Math.max(region.bounds.minX, route.minX) + cellSize / 2;
+    const z = (route.minZ + route.maxZ) / 2;
+    const coordinates = {
+      column: Math.floor((x - LAND_WORLD.cellOrigin.x) / cellSize),
+      row: Math.floor((z - LAND_WORLD.cellOrigin.z) / cellSize),
+    };
+    const payload = createEastRegionCellPayload(coordinates, materials, cellSize);
+    const ground = cellMeshes(payload.root).find(({ material }) => material === materials.dark);
+    expect(ground).toBeDefined();
+    const positions = ground!.geometry.getAttribute('position');
+    const groundZ = Array.from({ length: positions.count }, (_, index) => positions.getZ(index));
+    const groundMinZ = LAND_WORLD.cellOrigin.z + coordinates.row * cellSize;
+    const groundMaxZ = groundMinZ + cellSize;
+
+    expect(groundZ).toContain(Math.max(route.minZ, groundMinZ));
+    expect(groundZ).toContain(Math.min(route.maxZ, groundMaxZ));
+    expect(groundZ).not.toContain(z);
+
+    payload.dispose();
+    for (const material of owned) material.dispose();
+  });
+
   it('释放一个 cell 只销毁自己的几何，不销毁共享材质或相邻 payload', () => {
     const { materials, owned } = createMaterials();
     const pond = LAND_WORLD.prototype.east.pond;
