@@ -29,6 +29,14 @@ describe('resolveLandNavigation', () => {
     expect(result.distance).toBeCloseTo(5, 8);
   });
 
+  it('按 -Z 为北的坐标约定标记南侧出生入口', () => {
+    const southEntry = LAND_NAVIGATION.landmarks.find(({ id }) => id === 'south-entry')!;
+    const result = resolveLandNavigation(0, 85, Math.PI);
+    expect(southEntry.z).toBeGreaterThan(0);
+    expect(result.landmark).toBe('南侧入口');
+    expect(result.distance).toBeCloseTo(1, 8);
+  });
+
   it('八方位边界采用最近方向的稳定分段', () => {
     const heading = (deg: number) => (Math.PI - (deg * Math.PI) / 180) % (Math.PI * 2);
     expect(resolveLandNavigation(0, 0, heading(22.4)).direction).toBe('北');

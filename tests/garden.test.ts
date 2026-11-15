@@ -9,7 +9,7 @@ import {
   Vector3,
 } from 'three';
 import type { BufferGeometry } from 'three';
-import { LAND_GARDEN, LAND_GARDEN_QUALITY, PURE_LAND } from '@/01-shared';
+import { LAND_GARDEN, LAND_GARDEN_QUALITY, LAND_WORLD, PURE_LAND } from '@/01-shared';
 import { createGardenLayout, isPondClear, sampleGardenLeaf } from '@/02-core';
 import type { PondCircle } from '@/02-core';
 import type { PureLandMaterials } from '@/05-materials';
@@ -199,6 +199,44 @@ describe('曲面植物与风动', () => {
       dispose(root, fixture);
     },
   );
+
+  it('第三人称阶段 3 植物 cell 使用全图西北角稳定原点', () => {
+    const root = new Group();
+    const fixture = materials();
+    const builder = new LandBuilder();
+    const garden = createGarden(root, builder, fixture, 20261113, 'high', false);
+    builder.flush(root);
+    const sources = new Map(
+      root.children
+        .filter(
+          (object): object is InstancedMesh =>
+            object instanceof InstancedMesh && object.name !== 'garden-crown-shadow-proxy',
+        )
+        .map((object) => [object.name, object]),
+    );
+    const cellOrigin = [LAND_WORLD.cellOrigin.x, LAND_WORLD.cellOrigin.z] as const;
+    partitionGarden(root, garden.layout.trees, 'high', 48, cellOrigin);
+    for (const lod of root.children) {
+      if (!(lod instanceof DistanceLod)) continue;
+      const base = lod.children[0] as InstancedMesh;
+      const original = sources.get(base.name)!;
+      const indices = base.userData['sourceIndices'] as Uint32Array;
+      const cells = new Set<string>();
+      for (const sourceIndex of indices) {
+        const tree =
+          base.name === 'jewel-tree-leaves'
+            ? garden.layout.trees[Math.floor(sourceIndex / LAND_GARDEN_QUALITY.high.leavesPerTree)]
+            : undefined;
+        const x = tree?.x ?? original.instanceMatrix.array[sourceIndex * 16 + 12]!;
+        const z = tree?.z ?? original.instanceMatrix.array[sourceIndex * 16 + 14]!;
+        cells.add(
+          `${Math.floor((x - cellOrigin[0]) / 48)},${Math.floor((z - cellOrigin[1]) / 48)}`,
+        );
+      }
+      expect(cells).toEqual(new Set([base.userData['cell'] as string]));
+    }
+    dispose(root, fixture);
+  });
 
   it('四档曲面坐标与法线有限；莲叶朝上且边缘高于叶心', () => {
     for (const quality of ['low', 'medium', 'high', 'ultra'] as const) {

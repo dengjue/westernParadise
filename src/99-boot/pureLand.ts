@@ -4,6 +4,7 @@ import {
   LAND_JOURNEY,
   LAND_RENDER,
   LAND_SOUND,
+  LAND_WORLD,
   PURE_LAND,
   QUALITY_PROFILES,
   WEATHER_PRESETS,
@@ -80,6 +81,9 @@ export function startPureLand(): () => void {
     seed: params.seed,
     time,
     reducedMotion: capabilities.reducedMotion,
+    regionPrototype: params.cam === 'third',
+    cellOrigin:
+      params.cam === 'third' ? [LAND_WORLD.cellOrigin.x, LAND_WORLD.cellOrigin.z] : undefined,
     cellSize:
       (params.bench || params.debug) && raw.get('chunk') === '24'
         ? LAND_RENDER.cellCandidates[0]

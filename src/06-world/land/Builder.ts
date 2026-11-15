@@ -23,6 +23,7 @@ import { batchStaticCells } from './CellBatch';
 type Point = readonly [number, number, number];
 interface BuilderOptions {
   cellSize?: number;
+  cellOrigin?: readonly [number, number];
   dynamicLod?: boolean;
   multiDraw?: boolean;
   detail?: LandDetail;
@@ -69,6 +70,7 @@ export class LandBuilder {
       // 先用远档原型生成完整构件，再把尚未合并的区块批次转交父构建器，避免二次复制顶点。
       const child = new LandBuilder({
         cellSize: this.options.cellSize,
+        cellOrigin: this.options.cellOrigin,
         detail: best,
         tubeCache: this.tubeCache,
         cacheStats: this.cacheStats,
@@ -97,6 +99,8 @@ export class LandBuilder {
       const group = new Group();
       if (index < minimum) return group;
       const builder = new LandBuilder({
+        cellSize: this.options.cellSize,
+        cellOrigin: this.options.cellOrigin,
         detail,
         tubeCache: this.tubeCache,
         cacheStats: this.cacheStats,
@@ -141,8 +145,12 @@ export class LandBuilder {
     copy.computeBoundingBox();
     copy.boundingBox!.getCenter(this.center);
     const cell = this.options.cellSize ?? 0;
+    const originX = this.options.cellOrigin?.[0] ?? 0;
+    const originZ = this.options.cellOrigin?.[1] ?? 0;
     const key =
-      cell > 0 ? `${Math.floor(this.center.x / cell)},${Math.floor(this.center.z / cell)}` : 'all';
+      cell > 0
+        ? `${Math.floor((this.center.x - originX) / cell)},${Math.floor((this.center.z - originZ) / cell)}`
+        : 'all';
     let cells = this.batches.get(material);
     if (!cells) {
       cells = new Map();

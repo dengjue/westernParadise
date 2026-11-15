@@ -10,6 +10,27 @@ export { distanceLevel, ReflectionSchedule, AdaptiveRenderBudget } from './rende
 export { LandLightTransition } from './landLightTransition';
 export { sampleLandHeight, moveLandPosition } from './landNavigation';
 export { resolveLandNavigation } from './landNavigationInfo';
+export {
+  landCellCoordinates,
+  resolveLandRegion,
+  resolveLandRegionSeed,
+  sampleEastPrototypeHeight,
+} from './landRegions';
+export { prioritizeLandCells } from './landCellPriority';
+export { LandCellQueue } from './landCellQueue';
+export type {
+  LandCellCameraPose,
+  LandCellCandidate,
+  LandCellPriorityOptions,
+  PrioritizedLandCell,
+} from './landCellPriority';
+export type {
+  LandCellLoadState,
+  LandCellLoader,
+  LandCellQueueOptions,
+  LandCellQueueSnapshot,
+} from './landCellQueue';
+export type { LandRegion } from './landRegions';
 export type { LandNavigationInfo } from './landNavigationInfo';
 export type {
   GardenPoint,

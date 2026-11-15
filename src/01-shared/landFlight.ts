@@ -1,3 +1,5 @@
+import { LAND_WORLD } from './landRegions';
+
 /**
  * 阶段 2 有界飞行和导航原型配置。
  *
@@ -19,7 +21,7 @@ export const LAND_FLIGHT = Object.freeze({
   navigationUpdateMs: 200,
 });
 
-/** 仅用于屏幕定位的区域/地标中心，均为当前世界中的约略标注点。 */
+/** 核心区屏幕定位点与共享地标；区域归属由 LAND_WORLD.bounds 判定。 */
 export const LAND_NAVIGATION = Object.freeze({
   areas: [
     { id: 'central-court', label: '中轴庭院', x: 0, z: 42 },
@@ -31,6 +33,12 @@ export const LAND_NAVIGATION = Object.freeze({
     { id: 'main-hall', label: '无量光殿', x: 0, z: -51 },
     { id: 'lotus-pond', label: '七宝莲池', x: 33, z: 28 },
     { id: 'western-grove', label: '七重宝树', x: -39, z: 28 },
-    { id: 'north-gate', label: '北侧游线', x: 0, z: 84 },
+    { id: 'south-entry', label: '南侧入口', x: 0, z: 84 },
+    {
+      id: 'east-water-view',
+      label: LAND_WORLD.prototype.east.landmark.label,
+      x: LAND_WORLD.prototype.east.landmark.x,
+      z: LAND_WORLD.prototype.east.landmark.z,
+    },
   ],
 } as const);

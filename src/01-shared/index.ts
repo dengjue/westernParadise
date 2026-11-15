@@ -26,6 +26,7 @@ export { LAND_ATMOSPHERE, LAND_LIGHT_QUALITY, LAND_TIMES } from './landLighting'
 export { LAND_JOURNEY } from './landJourney';
 export { LAND_AVATAR } from './landAvatar';
 export { LAND_FLIGHT, LAND_NAVIGATION } from './landFlight';
+export { LAND_REGION_SURFACE_HEIGHT, LAND_WORLD } from './landRegions';
 export { LAND_SOUND } from './landSound';
 export {
   buildingColumns,

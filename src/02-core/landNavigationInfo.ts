@@ -1,4 +1,5 @@
 import { LAND_NAVIGATION } from '@/01-shared';
+import { resolveLandRegion } from './landRegions';
 
 export interface LandNavigationInfo {
   readonly headingDeg: number;
@@ -17,9 +18,9 @@ const DIRECTION_STEP_DEG = 45;
 /**
  * 由世界坐标与角色 yaw 推导轻量导航信息。
  *
- * 北向采用世界 -Z，与场景主殿入口朝向及玩家从北侧向南进入的坐标约定一致；
- * heading 先换算到 [0, 360)，再映射八方位。区域与地标各自取平面最近中心，
- * 只在低频 HUD 刷新时调用，不把分配放到渲染热循环。
+ * 北向采用世界 -Z，与主殿朝南、玩家从南侧向北进入的坐标约定一致；
+ * heading 先换算到 [0, 360)，再映射八方位；区域按共享边界表定位，核心区子区与地标
+ * 再取平面最近中心。只在低频 HUD 刷新时调用，不把分配放到渲染热循环。
  */
 export function resolveLandNavigation(x: number, z: number, yawRad: number): LandNavigationInfo {
   const rawHeading = Math.atan2(Math.sin(yawRad), -Math.cos(yawRad)) * DEGREES_PER_RADIAN;
@@ -45,11 +46,13 @@ export function resolveLandNavigation(x: number, z: number, yawRad: number): Lan
       closestLandmarkDistance = distance;
     }
   }
+  const region = resolveLandRegion(x, z);
+  const area = region && region.id !== 'core-court' ? region.label : closestArea.label;
 
   return {
     headingDeg,
     direction: DIRECTIONS[directionIndex]!,
-    area: closestArea.label,
+    area,
     landmark: closestLandmark.label,
     distance: closestLandmarkDistance,
   };

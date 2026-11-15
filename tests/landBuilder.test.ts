@@ -28,6 +28,20 @@ function geometryBytes(geometry: BufferGeometry): number {
 }
 
 describe('LandBuilder 索引合批', () => {
+  it('按显式世界原点生成稳定 48m cell 索引', () => {
+    const builder = new LandBuilder({ cellSize: 48, cellOrigin: [-360, -360] });
+    const parent = new Group();
+    const material = new MeshStandardMaterial();
+    const box = new BoxGeometry(1, 1, 1);
+    builder.shape(box, material, [-348, 0, -348]);
+    builder.shape(box, material, [-300, 0, -348]);
+    builder.flush(parent);
+    expect(parent.children.map(({ userData }) => userData['cell'])).toEqual(['0,0', '1,0']);
+    for (const child of parent.children) (child as Mesh).geometry.dispose();
+    box.dispose();
+    material.dispose();
+  });
+
   it('平移曲线复用完整网格，位置误差小于 0.1 毫米，法线和三角形不变', () => {
     const builder = new LandBuilder(),
       root = new Group(),

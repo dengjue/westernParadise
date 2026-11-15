@@ -6,9 +6,10 @@ import {
   LAND_STRUCTURE,
   PURE_LAND,
 } from '@/01-shared';
+import { sampleEastPrototypeHeight } from './landRegions';
 
 /** 返回可走高度；柱础、格窗、墙、栏杆和侧亭地板与渲染共用数据。 */
-export function sampleLandHeight(x: number, z: number): number | null {
+export function sampleLandHeight(x: number, z: number, eastPrototype = false): number | null {
   const { hall, stairs, navigation: nav, screens, backWall } = LAND_STRUCTURE;
   let height: number | null = null;
   for (const path of PURE_LAND.paths) {
@@ -39,7 +40,7 @@ export function sampleLandHeight(x: number, z: number): number | null {
       Math.min(1, Math.max(0, (stairs.frontZ - z) / (stairs.frontZ - stairs.backZ))) *
         (hall.base - base);
   }
-  if (height === null) return null;
+  if (height === null) return eastPrototype ? sampleEastPrototypeHeight(x, z) : null;
   if (
     Math.abs(x - hall.x) < backWall.width / 2 + nav.bodyRadius &&
     Math.abs(z - hall.z - backWall.offsetZ) < backWall.depth / 2 + nav.bodyRadius
@@ -70,20 +71,25 @@ export function sampleLandHeight(x: number, z: number): number | null {
 }
 
 /** 小步扫掠 + 分轴滑动；限制高差，不能从阶道侧面一步跃上台基。原地修改，无帧分配。 */
-export function moveLandPosition(position: { x: number; z: number }, dx: number, dz: number): void {
+export function moveLandPosition(
+  position: { x: number; z: number },
+  dx: number,
+  dz: number,
+  eastPrototype = false,
+): void {
   const nav = LAND_STRUCTURE.navigation;
   const count = Math.max(1, Math.ceil(Math.hypot(dx, dz) / nav.sweepStep));
   const stepX = dx / count,
     stepZ = dz / count;
   for (let step = 0; step < count; step++) {
-    let floor = sampleLandHeight(position.x, position.z);
+    let floor = sampleLandHeight(position.x, position.z, eastPrototype);
     if (floor === null) return;
-    const xFloor = sampleLandHeight(position.x + stepX, position.z);
+    const xFloor = sampleLandHeight(position.x + stepX, position.z, eastPrototype);
     if (xFloor !== null && Math.abs(xFloor - floor) <= nav.maximumStep) {
       position.x += stepX;
       floor = xFloor;
     }
-    const zFloor = sampleLandHeight(position.x, position.z + stepZ);
+    const zFloor = sampleLandHeight(position.x, position.z + stepZ, eastPrototype);
     if (zFloor !== null && Math.abs(zFloor - floor) <= nav.maximumStep) position.z += stepZ;
   }
 }

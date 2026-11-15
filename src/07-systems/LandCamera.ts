@@ -1,7 +1,7 @@
 import { Raycaster, Vector3 } from 'three';
 import type { Object3D, PerspectiveCamera } from 'three';
 import type { AppEventMap, EventBusLike } from '@/00-types';
-import { LAND_AVATAR, LAND_FLIGHT, LAND_JOURNEY as J, PURE_LAND } from '@/01-shared';
+import { LAND_AVATAR, LAND_FLIGHT, LAND_JOURNEY as J, LAND_WORLD, PURE_LAND } from '@/01-shared';
 import { moveLandPosition, resolveLandNavigation, sampleLandHeight } from '@/02-core';
 import type { InputSource } from './input/InputSource';
 import type { LandAvatar } from './LandAvatar';
@@ -168,7 +168,8 @@ export class LandCamera {
       this.yaw = Math.PI;
       this.pitch = 0;
     }
-    if (sampleLandHeight(this.position.x, this.position.z) === null) {
+    const eastPrototype = this.avatar !== undefined;
+    if (sampleLandHeight(this.position.x, this.position.z, eastPrototype) === null) {
       let nearest = Infinity;
       for (const entry of J.entries) {
         const distance = Math.hypot(
@@ -185,7 +186,8 @@ export class LandCamera {
     // 第一人称 position 是眼位（地面 + 眼高）；第三人称 position 是脚底贴地点，
     // 眼高换成弹簧臂注视点高度，两者不共用同一套语义。
     this.position.y =
-      sampleLandHeight(this.position.x, this.position.z)! + (this.avatar ? 0 : J.eyeHeight);
+      sampleLandHeight(this.position.x, this.position.z, eastPrototype)! +
+      (this.avatar ? 0 : J.eyeHeight);
     this.steps = 0;
     if (this.avatar) {
       // 重新进入步行：清掉上一次步行的遮挡状态，臂长从目标值起步。
@@ -229,7 +231,7 @@ export class LandCamera {
       const dz = (forwardZ * axis.z + forwardX * axis.x) * PURE_LAND.walkSpeed * dt;
       const oldX = this.position.x,
         oldZ = this.position.z;
-      moveLandPosition(this.position, dx, dz);
+      moveLandPosition(this.position, dx, dz, this.avatar !== undefined);
       const movedX = this.position.x - oldX;
       const movedZ = this.position.z - oldZ;
       this.steps += Math.hypot(movedX, movedZ);
@@ -237,7 +239,7 @@ export class LandCamera {
         this.steps %= J.stepDistance;
         this.events.emit('player:step', this.stepEvent);
       }
-      const floor = sampleLandHeight(this.position.x, this.position.z)!;
+      const floor = sampleLandHeight(this.position.x, this.position.z, this.avatar !== undefined)!;
       // 第一人称贴眼高，第三人称贴脚底；共用同一地面采样与趋缓系数。
       const restHeight = this.avatar ? 0 : J.eyeHeight;
       this.position.y +=
@@ -337,7 +339,7 @@ export class LandCamera {
 
   /** 只允许在当前 x/z 有合法可走地面且下落通道无遮挡时启动降落。 */
   private beginLanding(): void {
-    const ground = sampleLandHeight(this.position.x, this.position.z);
+    const ground = sampleLandHeight(this.position.x, this.position.z, this.avatar !== undefined);
     if (ground === null) {
       this.events.emit('land:flightNotice', {
         message: '当前位置下方没有安全步行面；请飞到庭院游线或台阶上方再降落。',
@@ -445,7 +447,7 @@ export class LandCamera {
     this.flightVelocity.y +=
       (targetVelocityY - this.flightVelocity.y) * (1 - Math.exp(-verticalRate * dt));
 
-    const { bounds } = PURE_LAND;
+    const { bounds } = this.avatar ? LAND_WORLD.prototype : PURE_LAND;
     const minX = bounds.minX + LAND_FLIGHT.worldInset;
     const maxX = bounds.maxX - LAND_FLIGHT.worldInset;
     const minZ = bounds.minZ + LAND_FLIGHT.worldInset;

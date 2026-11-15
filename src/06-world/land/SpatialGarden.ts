@@ -24,6 +24,7 @@ export function partitionGarden(
   trees: readonly GardenTree[],
   quality: QualityTier,
   cellSize: number,
+  cellOrigin: readonly [number, number] = [0, 0],
 ): void {
   const sources = root.children.filter(
     (object): object is InstancedMesh =>
@@ -47,7 +48,7 @@ export function partitionGarden(
       const plant = tree ? trees[Math.floor(index / perTree)] : undefined;
       const x = plant?.x ?? source.instanceMatrix.array[index * 16 + 12]!;
       const z = plant?.z ?? source.instanceMatrix.array[index * 16 + 14]!;
-      const key = `${Math.floor(x / cellSize)},${Math.floor(z / cellSize)}`;
+      const key = `${Math.floor((x - cellOrigin[0]) / cellSize)},${Math.floor((z - cellOrigin[1]) / cellSize)}`;
       const indices = cells.get(key);
       if (indices) indices.push(index);
       else cells.set(key, [index]);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Group, Mesh, PerspectiveCamera } from 'three';
 import type { AppEventMap } from '@/00-types';
-import { LAND_AVATAR, LAND_FLIGHT } from '@/01-shared';
+import { LAND_AVATAR, LAND_FLIGHT, LAND_WORLD } from '@/01-shared';
 import { parseParams } from '@/03-platform';
 import { EventBus } from '@/02-core';
 import { KeyboardMouseInput, LandAvatar, LandCamera } from '@/07-systems';
@@ -313,11 +313,23 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     f.advance(20);
     expect(f.avatar.root.position.y).toBe(LAND_FLIGHT.maxAltitude);
 
-    const maxX = 88 - LAND_FLIGHT.worldInset;
+    const maxX = LAND_WORLD.prototype.bounds.maxX - LAND_FLIGHT.worldInset;
     f.avatar.root.position.x = maxX - 0.1;
     f.input.moveAxis.x = 1;
-    f.advance(10);
+    f.advance(60);
     expect(f.avatar.root.position.x).toBe(maxX);
+    f.control.dispose();
+  });
+
+  it('第三人称可沿南侧门户步行进入东区并停在灰盒边界', () => {
+    const f = fixture();
+    f.control.startWalking(true);
+    f.input.moveAxis.x = 1;
+    f.advance(60);
+    f.input.moveAxis.x = 0;
+    expect(f.avatar.root.position.x).toBeGreaterThan(350);
+    expect(f.avatar.root.position.x).toBeLessThan(LAND_WORLD.prototype.bounds.maxX);
+    expect(f.avatar.root.position.z).toBeCloseTo(85, 2);
     f.control.dispose();
   });
 
@@ -369,12 +381,12 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     f.control.startWalking(true);
     f.events.emit('land:flightToggle', {});
     f.advance(12);
-    // 从北侧游线沿世界 +x、-z 飞到当前步行网以外的水庭上方。
+    // 先沿世界 +x 飞到东区，再朝北飞至莲池上方、避开桥面。
     f.input.moveAxis.x = 1;
-    f.advance(14);
+    f.advance(30);
     f.input.moveAxis.x = 0;
     f.input.moveAxis.z = 1;
-    f.advance(10);
+    f.advance(7.5);
     f.input.moveAxis.z = 0;
     const before = f.avatar.root.position.clone();
     f.events.emit('land:flightToggle', {});

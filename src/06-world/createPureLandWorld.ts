@@ -12,6 +12,7 @@ import { createSculptures } from './land/Sculpture';
 import { createFlowerDrift } from './land/FlowerDrift';
 import { partitionGarden } from './land/SpatialGarden';
 import { createContactShadows } from './land/ContactShadows';
+import { createEastRegionPrototype } from './land/RegionPrototype';
 
 export interface PureLandWorldOptions {
   canvasFactory: CanvasFactory;
@@ -22,6 +23,9 @@ export interface PureLandWorldOptions {
   time: TimeOfDayId;
   reducedMotion: boolean;
   cellSize?: number;
+  cellOrigin?: readonly [number, number];
+  /** 只在第三人称阶段 3 原型启用，不改变默认四景点/第一人称场景。 */
+  regionPrototype?: boolean;
 }
 
 export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions) {
@@ -37,6 +41,7 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   const cellSize = options.cellSize ?? LAND_RENDER.cellSize;
   const builder = new LandBuilder({
     cellSize,
+    cellOrigin: options.cellOrigin,
     dynamicLod: true,
     multiDraw: options.renderer.extensions.has('WEBGL_multi_draw'),
   });
@@ -53,9 +58,10 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
     options.quality,
     options.reducedMotion,
   );
-  partitionGarden(root, garden.layout.trees, options.quality, cellSize);
+  partitionGarden(root, garden.layout.trees, options.quality, cellSize, options.cellOrigin);
   const gardenReady = performance.now();
   builder.flush(root);
+  if (options.regionPrototype) createEastRegionPrototype(root, materials, cellSize);
   createContactShadows(root, builder.contacts, options.canvasFactory);
   scene.add(root);
   const flowers = createFlowerDrift(root, options.seed, options.quality === 'low' ? 120 : 420);
