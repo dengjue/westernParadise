@@ -26,25 +26,42 @@ async function flushPromises(): Promise<void> {
 }
 
 describe('阶段 4 · 东侧 cell 有界运行时调度', () => {
-  it('按角色姿态装配有限 cell，并在无姿态时卸载全部驻留 payload', async () => {
+  it('每逻辑更新最多构建一个 cell，并按姿态装配/卸载驻留 payload', async () => {
     const { materials, owned } = createMaterials();
     const parent = new Group();
     const stream = createEastRegionCellStream(parent, materials);
-    stream.update({ x: 180, z: 0, forwardX: 1, forwardZ: 0 }, 120);
+    const eastPose = { x: 180, z: 0, forwardX: 1, forwardZ: 0 };
+    stream.update(eastPose, 120);
     await flushPromises();
 
     let snapshot = stream.snapshot();
     expect(snapshot.desired).toBe(16);
-    expect(snapshot.mounted).toBe(snapshot.queue.ready);
-    expect(snapshot.mounted).toBeLessThanOrEqual(16);
-    expect(snapshot.queue.loading).toBeLessThanOrEqual(2);
+    expect(snapshot.mounted).toBe(0);
+    expect(snapshot.queue.loading).toBe(2);
     expect(snapshot.queue.queued).toBeLessThanOrEqual(14);
     expect(parent.children).toHaveLength(1);
 
+    for (let tick = 0; tick < 8; tick++) stream.update(eastPose, 1000 / 60);
+    await flushPromises();
+    expect(stream.snapshot().mounted).toBe(1);
+
+    for (let tick = 0; tick < 15; tick++) {
+      stream.update(eastPose, 1000 / 60);
+      await flushPromises();
+    }
+    snapshot = stream.snapshot();
+    expect(snapshot.mounted).toBe(16);
+    expect(snapshot.mounted).toBe(snapshot.queue.ready);
+
     const regionRoot = parent.children[0] as Group;
     const initialKeys = regionRoot.children.map((cell) => cell.userData['cell']);
-    stream.update({ x: 300, z: 0, forwardX: -1, forwardZ: 0 }, 120);
+    const turnedPose = { x: 300, z: 0, forwardX: -1, forwardZ: 0 };
+    stream.update(turnedPose, 120);
     await flushPromises();
+    for (let tick = 0; tick < 16; tick++) {
+      stream.update(turnedPose, 1000 / 60);
+      await flushPromises();
+    }
     snapshot = stream.snapshot();
     const turnedKeys = regionRoot.children.map((cell) => cell.userData['cell']);
     expect(snapshot.mounted).toBe(snapshot.queue.ready);
@@ -63,11 +80,12 @@ describe('阶段 4 · 东侧 cell 有界运行时调度', () => {
     for (const material of owned) material.dispose();
   });
 
-  it('在异步 loader 启动前取消需求，不会挂回迟到 payload', async () => {
+  it('取消等待构建许可的 loader 后，不会挂回迟到 payload', async () => {
     const { materials, owned } = createMaterials();
     const parent = new Group();
     const stream = createEastRegionCellStream(parent, materials);
     stream.update({ x: 180, z: 0, forwardX: 1, forwardZ: 0 }, 120);
+    await flushPromises();
     stream.update(null, 16);
     await flushPromises();
 

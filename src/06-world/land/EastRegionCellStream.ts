@@ -25,6 +25,11 @@ const MAX_CONCURRENT = 2;
 const MAX_PENDING = 14;
 const MAX_CELLS = MAX_CONCURRENT + MAX_PENDING;
 
+interface CellBuildWaiter {
+  grant(): void;
+  cancel(): void;
+}
+
 /**
  * 第三人称东区原型调度器：队列拥有 cell payload，有限需求由姿态规划；
  * cell factory 仍在主线程执行，本模块不宣称 worker/GPU 异步构建。
@@ -72,9 +77,51 @@ export function createEastRegionCellStream(
     maxPending: MAX_PENDING,
     dispose: (payload) => payload.dispose(),
   });
+  const buildWaiters: CellBuildWaiter[] = [];
   let desiredKeys = new Set<string>();
   let reconcileElapsedMs = RECONCILE_INTERVAL_MS;
+  let buildGrantScheduled = false;
   let disposed = false;
+
+  const waitForBuildSlot = (signal: AbortSignal): Promise<void> =>
+    new Promise((resolve, reject) => {
+      if (signal.aborted) {
+        reject(new Error('cell 构建已取消'));
+        return;
+      }
+      const waiter: CellBuildWaiter = {
+        grant(): void {
+          signal.removeEventListener('abort', abort);
+          resolve();
+        },
+        cancel(): void {
+          signal.removeEventListener('abort', abort);
+          reject(new Error('cell 构建已取消'));
+        },
+      };
+      const abort = (): void => {
+        const index = buildWaiters.indexOf(waiter);
+        if (index < 0) return;
+        buildWaiters.splice(index, 1);
+        waiter.cancel();
+      };
+      signal.addEventListener('abort', abort, { once: true });
+      buildWaiters.push(waiter);
+    });
+
+  const grantOneBuildSlot = (): void => {
+    const waiter = buildWaiters.shift();
+    if (waiter) waiter.grant();
+  };
+
+  const scheduleOneBuildSlot = (): void => {
+    if (buildGrantScheduled || buildWaiters.length === 0) return;
+    buildGrantScheduled = true;
+    queueMicrotask(() => {
+      buildGrantScheduled = false;
+      grantOneBuildSlot();
+    });
+  };
 
   const unloadUndesired = (nextKeys: ReadonlySet<string>): void => {
     for (const key of desiredKeys) if (!nextKeys.has(key)) queue.unload(key);
@@ -89,6 +136,10 @@ export function createEastRegionCellStream(
         return;
       }
 
+      // 一轮同步更新（通常是一个 RAF 固定步）最多放行一个同步 cell factory；
+      // 避免追赶步进在同一帧累积 permit，再由 queue 微任务泵连续创建整批几何。
+      // 取消会移除等待 permit 的 loader，不留下悬挂任务。
+      scheduleOneBuildSlot();
       reconcileElapsedMs += Math.max(0, deltaMs);
       if (reconcileElapsedMs < RECONCILE_INTERVAL_MS) return;
       reconcileElapsedMs %= RECONCILE_INTERVAL_MS;
@@ -113,8 +164,10 @@ export function createEastRegionCellStream(
         available--;
         void queue
           .request(item.key, item.priority, (signal) => {
-            if (signal.aborted) throw new Error(`cell ${item.key} 加载已取消`);
-            return createEastRegionCellPayload(coordinates, materials, cellSize);
+            return waitForBuildSlot(signal).then(() => {
+              if (signal.aborted) throw new Error(`cell ${item.key} 加载已取消`);
+              return createEastRegionCellPayload(coordinates, materials, cellSize);
+            });
           })
           .then(
             (payload) => {
