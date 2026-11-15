@@ -14,9 +14,15 @@ import {
 import type { LandBuilding, LandDetail } from '@/01-shared';
 import type { LandBuilder } from './Builder';
 import { chamferedBox } from './CraftGeometry';
-import { createRoof as roof } from './Roof';
+import { createRoofSteps } from './Roof';
 
 type Building = LandBuilding;
+
+function consume(steps: Generator<void, void, void>): void {
+  while (!steps.next().done) {
+    // The synchronous path consumes the same deterministic work units immediately.
+  }
+}
 
 /** 雀替轮廓从柱头承接梁枋，使用薄挤出曲面而不是悬空方块。 */
 function corbel(width: number, height: number, depth: number): ExtrudeGeometry {
@@ -43,7 +49,7 @@ function corbel(width: number, height: number, depth: number): ExtrudeGeometry {
   return geometry;
 }
 
-function column(
+function* columnSteps(
   builder: LandBuilder,
   m: PureLandMaterials,
   x: number,
@@ -53,7 +59,7 @@ function column(
   radius: number,
   detail: LandDetail,
   contactY = base,
-): void {
+): Generator<void, void, void> {
   const craft = LAND_CRAFT.column;
   builder.contacts.push({
     x,
@@ -69,16 +75,22 @@ function column(
   );
   builder.shape(foot, m.carvedStone, [x, base + craft.footHeight / 2, z]);
   foot.dispose();
+  yield;
   const profile = new LatheGeometry(
     craft.profile.map(([r, y]) => new Vector2(r * radius, y)),
     LAND_DETAIL[detail].radialSegments,
   );
   builder.shape(profile, m.carvedStone, [x, base, z]);
   profile.dispose();
+  yield;
   builder.cylinder(m.goldDark, [x, base + 0.78, z], radius * 1.08, 0.12);
+  yield;
   builder.cylinder(m.wood, [x, base + height / 2, z], radius, height);
-  for (const y of [0.85, height - 0.5])
+  yield;
+  for (const y of [0.85, height - 0.5]) {
     builder.cylinder(m.gold, [x, base + y, z], radius * 1.06, 0.18);
+    yield;
+  }
   for (let level = 0; level < craft.bracketLevels; level++) {
     const y = base + height - 0.4 + level * craft.bracketStep;
     builder.box(
@@ -87,6 +99,7 @@ function column(
       [radius * (3.8 + level), 0.22, radius * 1.4],
     );
     builder.box(m.gold, [x, y + 0.12, z], [radius * 1.3, 0.18, radius * (3 + level * 0.7)]);
+    yield;
   }
   if (LAND_DETAIL[detail].ornaments) {
     const bracket = corbel(radius * craft.corbelWidthRatio, craft.corbelHeight, craft.corbelDepth);
@@ -99,16 +112,17 @@ function column(
         side < 0 ? Math.PI : 0,
       );
     bracket.dispose();
+    yield;
   }
 }
 
-export function railing(
+function* railingSteps(
   builder: LandBuilder,
   m: PureLandMaterials,
   from: readonly [number, number],
   to: readonly [number, number],
   base = 1.3,
-): void {
+): Generator<void, void, void> {
   const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
   const count = Math.ceil(length / 3.2);
   for (let i = 0; i <= count; i++) {
@@ -126,18 +140,31 @@ export function railing(
         );
       }
     }
+    yield;
   }
-  for (const y of [0.24, 1.18])
+  for (const y of [0.24, 1.18]) {
     builder.rod(m.gold, [from[0], base + y, from[1]], [to[0], base + y, to[1]], 0.09);
+    yield;
+  }
 }
 
-function pavilion(
+export function railing(
+  builder: LandBuilder,
+  m: PureLandMaterials,
+  from: readonly [number, number],
+  to: readonly [number, number],
+  base = 1.3,
+): void {
+  consume(railingSteps(builder, m, from, to, base));
+}
+
+function* pavilionSteps(
   builder: LandBuilder,
   m: PureLandMaterials,
   b: Building,
   detail: LandDetail,
   floorIncluded = true,
-): void {
+): Generator<void, void, void> {
   const floor = LAND_CRAFT.floor,
     columns = LAND_STRUCTURE.columns;
   if (floorIncluded)
@@ -146,6 +173,7 @@ function pavilion(
       [b.x, b.base - floor.footingThickness / 2, b.z],
       [b.width + 3, floor.footingThickness, b.depth + 3],
     );
+  if (floorIncluded) yield;
   // 压边只放在台基侧面并低于顶面，修复原金属整片与石地面共面的闪烁。
   if (floorIncluded)
     for (const side of [-1, 1]) {
@@ -159,11 +187,12 @@ function pavilion(
         [b.x + (side * (b.width + 3)) / 2, b.base - floor.borderDrop, b.z],
         [floor.borderWidth, floor.borderHeight, b.depth + 3],
       );
+      yield;
     }
   for (const side of [-1, 1]) {
     const columnCount = b.width > 30 ? columns.hallCount : columns.pavilionCount;
     for (const { x, z, radius, index: i } of buildingColumns(b).filter((c) => c.side === side)) {
-      column(builder, m, x, z, b.base, b.height, radius, detail);
+      yield* columnSteps(builder, m, x, z, b.base, b.height, radius, detail);
       if (i < columnCount - 1 && LAND_DETAIL[detail].ornaments) {
         const bay = (b.width - columns.insetX * 2) / (columnCount - 1);
         const panel = new PlaneGeometry(bay - 1.2, 0.54);
@@ -175,6 +204,7 @@ function pavilion(
           side > 0 ? 0 : Math.PI,
         );
         panel.dispose();
+        yield;
       }
     }
     builder.box(
@@ -182,13 +212,15 @@ function pavilion(
       [b.x, b.base + b.height - 0.2, b.z + side * (b.depth / 2 - 0.8)],
       [b.width, 0.7, 0.55],
     );
+    yield;
     builder.box(
       m.gold,
       [b.x, b.base + b.height + 0.25, b.z + side * (b.depth / 2 - 0.8)],
       [b.width + 0.2, 0.15, 0.65],
     );
+    yield;
   }
-  roof(
+  yield* createRoofSteps(
     builder,
     m,
     {
@@ -202,7 +234,7 @@ function pavilion(
   );
 }
 
-function lattice(
+function* latticeSteps(
   builder: LandBuilder,
   m: PureLandMaterials,
   x: number,
@@ -210,16 +242,21 @@ function lattice(
   width: number,
   height: number,
   base: number,
-): void {
+): Generator<void, void, void> {
   builder.box(m.dark, [x, base + height / 2, z - 0.1], [width, height, 0.16]);
-  for (let col = 0; col <= width / 0.65; col++)
+  yield;
+  for (let col = 0; col <= width / 0.65; col++) {
     builder.box(
       m.goldDark,
       [x - width / 2 + col * 0.65, base + height / 2, z],
       [0.075, height, 0.12],
     );
-  for (let row = 0; row <= height / 0.65; row++)
+    yield;
+  }
+  for (let row = 0; row <= height / 0.65; row++) {
     builder.box(m.goldDark, [x, base + row * 0.65, z], [width, 0.075, 0.12]);
+    yield;
+  }
   for (const side of [-1, 1]) {
     builder.box(
       m.wood,
@@ -231,17 +268,20 @@ function lattice(
       [x + side * (width / 2 - 0.04), base + height / 2, z + 0.12],
       [0.04, height, 0.05],
     );
+    yield;
   }
-  for (const y of [base - 0.12, base + height + 0.12])
+  for (const y of [base - 0.12, base + height + 0.12]) {
     builder.box(m.wood, [x, y, z - 0.04], [width + 0.45, 0.25, 0.36]);
+    yield;
+  }
 }
 
-function hall(
+function* hallSteps(
   builder: LandBuilder,
   m: PureLandMaterials,
   plaque: Material,
   detail: LandDetail,
-): void {
+): Generator<void, void, void> {
   const h = PURE_LAND.hall;
   const base = h.base;
   const stairs = LAND_STRUCTURE.stairs;
@@ -256,17 +296,20 @@ function hall(
       depth = terraceDepth + overhang * 2;
     const top = (tier + 1) * tierHeight;
     builder.box(m.stone, [h.x, top - tierHeight / 2, centerZ], [width, tierHeight, depth]);
+    yield;
     for (const side of [-1, 1]) {
       builder.box(
         m.goldDark,
         [h.x + (side * width) / 2, top - LAND_CRAFT.floor.borderDrop, centerZ],
         [LAND_CRAFT.floor.borderWidth, LAND_CRAFT.floor.borderHeight, depth],
       );
+      yield;
       builder.box(
         m.goldDark,
         [h.x, top - LAND_CRAFT.floor.borderDrop, centerZ + (side * depth) / 2],
         [width, LAND_CRAFT.floor.borderHeight, LAND_CRAFT.floor.borderWidth],
       );
+      yield;
     }
   }
   const run = (stairs.frontZ - stairs.backZ) / stairs.count;
@@ -275,28 +318,50 @@ function hall(
   for (let step = 0; step < stairs.count; step++) {
     const height = (step + 1) * rise;
     const geometry = chamferedBox(stairs.width, height, run, stairs.bevel);
-    builder.shape(geometry, m.stone, [
-      stairs.x,
-      LAND_STRUCTURE.courtHeight + height / 2,
-      stairs.frontZ - (step + 0.5) * run,
-    ]);
-    geometry.dispose();
+    try {
+      builder.shape(geometry, m.stone, [
+        stairs.x,
+        LAND_STRUCTURE.courtHeight + height / 2,
+        stairs.frontZ - (step + 0.5) * run,
+      ]);
+    } finally {
+      geometry.dispose();
+    }
+    yield;
   }
-  pavilion(builder, m, { ...h, base }, detail, false);
+  yield* pavilionSteps(builder, m, { ...h, base }, detail, false);
   // 上层檐下留出带状格窗，明暗交替让重檐的悬挑关系可读。
   builder.box(m.jade, [0, 21, h.z], [31, 4, 18]);
-  lattice(builder, m, 0, h.z + 9.1, 29, 2.5, 20);
-  roof(builder, m, { x: 0, z: h.z, width: 38, depth: 25, base: 23, height: 6 }, detail);
-  roof(builder, m, { x: 0, z: h.z, width: 25, depth: 17, base: 29, height: 5 }, detail);
+  yield;
+  yield* latticeSteps(builder, m, 0, h.z + 9.1, 29, 2.5, 20);
+  yield* createRoofSteps(
+    builder,
+    m,
+    { x: 0, z: h.z, width: 38, depth: 25, base: 23, height: 6 },
+    detail,
+  );
+  yield* createRoofSteps(
+    builder,
+    m,
+    { x: 0, z: h.z, width: 25, depth: 17, base: 29, height: 5 },
+    detail,
+  );
   builder.cylinder(m.goldDark, [0, 34.5, h.z], 0.7, 1.1);
+  yield;
   builder.sphere(m.gold, [0, 35.4, h.z], [0.8, 1, 0.8]);
+  yield;
   builder.cylinder(m.gold, [0, 37, h.z], 0.13, 2.4);
+  yield;
   const board = new PlaneGeometry(10, 2.5);
-  builder.shape(board, plaque, [0, 15, h.z + h.depth / 2 + 0.15]);
-  board.dispose();
+  try {
+    builder.shape(board, plaque, [0, 15, h.z + h.depth / 2 + 0.15]);
+  } finally {
+    board.dispose();
+  }
+  yield;
   const { screens, backWall } = LAND_STRUCTURE;
   for (const side of [-1, 1])
-    lattice(
+    yield* latticeSteps(
       builder,
       m,
       side * screens.x,
@@ -310,22 +375,25 @@ function hall(
     [h.x, backWall.centerY, h.z + backWall.offsetZ],
     [backWall.width, backWall.height, backWall.depth],
   );
+  yield;
 }
 
-function pagoda(
+function* pagodaSteps(
   builder: LandBuilder,
   m: PureLandMaterials,
   x: number,
   z: number,
   scale: number,
   levels = 5,
-): void {
+): Generator<void, void, void> {
   const base = 1.2;
   builder.cylinder(m.stone, [x, base, z], 5.5 * scale, 1.6);
+  yield;
   for (let i = 0; i < levels; i++) {
     const width = (8.8 - i * 0.9) * scale,
       y = base + i * 5.5 * scale;
     builder.box(m.jade, [x, y + 2 * scale, z], [width * 0.7, 4 * scale, width * 0.7]);
+    yield;
     for (const dx of [-1, 1])
       for (const dz of [-1, 1]) {
         builder.cylinder(
@@ -334,8 +402,9 @@ function pagoda(
           0.17 * scale,
           4 * scale,
         );
+        yield;
       }
-    roof(
+    yield* createRoofSteps(
       builder,
       m,
       {
@@ -351,15 +420,17 @@ function pagoda(
   }
   const top = base + levels * 5.5 * scale + scale;
   builder.cylinder(m.gold, [x, top + 1.5 * scale, z], 0.14 * scale, 3 * scale);
+  yield;
   builder.sphere(m.gold, [x, top + 2.7 * scale, z], [0.45 * scale, 0.6 * scale, 0.45 * scale]);
+  yield;
 }
 
-export function createArchitecture(
+export function* createArchitectureSteps(
   builder: LandBuilder,
   m: PureLandMaterials,
   plaque: Material,
   detail: LandDetail,
-): void {
+): Generator<void, void, void> {
   for (const path of PURE_LAND.paths) {
     if (path.height !== LAND_STRUCTURE.courtHeight) continue;
     const width = path.maxX - path.minX,
@@ -367,38 +438,51 @@ export function createArchitecture(
     const x = (path.minX + path.maxX) / 2,
       z = (path.minZ + path.maxZ) / 2;
     builder.box(m.stone, [x, 0.3, z], [width, 1.8, depth]);
+    yield;
     builder.box(m.goldDark, [x, 1.12, z], [width + 0.12, 0.12, depth + 0.12]);
+    yield;
     const floor = LAND_CRAFT.floor;
     builder.box(
       m.stone,
       [x, path.height + floor.courtPavingRise - floor.courtPavingThickness / 2, z],
       [width - 0.25, floor.courtPavingThickness, depth - 0.25],
     );
+    yield;
   }
   // 中轴铺装：嵌金的琉璃青块面与小比例白石砖缝，提供真实尺度参照。
   for (let z = -18; z <= 102; z += 4) {
     builder.box(m.jade, [0, 1.27, z], [8, 0.04, 3.8]);
+    yield;
     builder.box(m.gold, [0, 1.3, z - 1.9], [8, 0.035, 0.055]);
-    for (const side of [-1, 1]) builder.box(m.gold, [side * 4, 1.31, z], [0.045, 0.03, 3.8]);
+    yield;
+    for (const side of [-1, 1]) {
+      builder.box(m.gold, [side * 4, 1.31, z], [0.045, 0.03, 3.8]);
+      yield;
+    }
   }
-  for (const rail of LAND_RAILINGS) railing(builder, m, rail.from, rail.to, rail.base);
+  for (const rail of LAND_RAILINGS) yield* railingSteps(builder, m, rail.from, rail.to, rail.base);
   for (const side of [-1, 1]) {
     for (const building of LAND_STRUCTURE.pavilions)
-      pavilion(builder, m, { x: side * LAND_STRUCTURE.corridor.x, ...building }, detail);
-    roof(
+      yield* pavilionSteps(
+        builder,
+        m,
+        { x: side * LAND_STRUCTURE.corridor.x, ...building },
+        detail,
+      );
+    yield* createRoofSteps(
       builder,
       m,
       { x: side * LAND_STRUCTURE.corridor.x, z: -53, width: 17, depth: 15, base: 13, height: 3.6 },
       detail,
     );
-    pagoda(builder, m, side * 88, -90, 0.85);
-    pagoda(builder, m, side * 98, 18, 0.62, 4);
+    yield* pagodaSteps(builder, m, side * 88, -90, 0.85);
+    yield* pagodaSteps(builder, m, side * 98, 18, 0.62, 4);
     // 两侧开放回廊：每个开间能看到池水，而非封闭实体墙。
     const corridor = LAND_STRUCTURE.corridor;
     for (const { x, z, radius } of LAND_CORRIDOR_COLUMNS.filter((c) => c.x * side > 0)) {
       // 柱身自台基起，接触影须在铺装顶面上，不能被最后一层石板遮住。
       const contactY = LAND_STRUCTURE.courtHeight + LAND_CRAFT.floor.courtPavingRise;
-      column(
+      yield* columnSteps(
         builder,
         m,
         x,
@@ -410,7 +494,7 @@ export function createArchitecture(
         contactY,
       );
     }
-    roof(
+    yield* createRoofSteps(
       builder,
       m,
       {
@@ -429,7 +513,7 @@ export function createArchitecture(
         scale = distant.scales[i]!;
       const x = side * (distant.startX + i * distant.spacingX + offset[0]),
         z = distant.startZ - (i % 3) * distant.spacingZ + offset[1];
-      pavilion(
+      yield* pavilionSteps(
         builder,
         m,
         {
@@ -442,8 +526,18 @@ export function createArchitecture(
         },
         'far',
       );
-      if (i % 2 === 0) pagoda(builder, m, x + side * 10, z - 30, 0.65, 4);
+      if (i % 2 === 0) yield* pagodaSteps(builder, m, x + side * 10, z - 30, 0.65, 4);
     }
   }
-  hall(builder, m, plaque, detail);
+  yield* hallSteps(builder, m, plaque, detail);
+}
+
+/** 同步基线路径消费完整的确定性构建步骤。 */
+export function createArchitecture(
+  builder: LandBuilder,
+  m: PureLandMaterials,
+  plaque: Material,
+  detail: LandDetail,
+): void {
+  consume(createArchitectureSteps(builder, m, plaque, detail));
 }

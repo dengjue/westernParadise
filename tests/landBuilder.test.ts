@@ -157,6 +157,55 @@ describe('LandBuilder 索引合批', () => {
     }
   });
 
+  it('lodSteps 与同步 LOD 输出逐属性一致', () => {
+    const options = { cellSize: 10, dynamicLod: true };
+    const synchronous = new LandBuilder(options);
+    const incremental = new LandBuilder(options);
+    const synchronousRoot = new Group();
+    const incrementalRoot = new Group();
+    const material = new MeshStandardMaterial();
+    const build = (builder: LandBuilder): void => {
+      builder.box(material, [7, 2, -3], [4, 5, 6], 0.4);
+      builder.box(material, [17, 2, -3], [2, 3, 4]);
+    };
+
+    synchronous.lod([4, 2, -3], 5, 'roof', 'near', build);
+    const steps = incremental.lodSteps([4, 2, -3], 5, 'roof', 'near', function* (builder) {
+      build(builder);
+      yield;
+    });
+    let result = steps.next();
+    while (!result.done) result = steps.next();
+    expect(result.value).toBe(true);
+
+    synchronous.flush(synchronousRoot);
+    incremental.flush(incrementalRoot);
+
+    const snapshot = (root: Group) => {
+      const meshes: unknown[] = [];
+      root.traverse((object) => {
+        if (!(object instanceof Mesh)) return;
+        meshes.push({
+          name: object.name,
+          cell: object.userData['cell'],
+          position: Array.from(object.geometry.getAttribute('position').array),
+          index: object.geometry.index ? Array.from(object.geometry.index.array) : null,
+        });
+      });
+      return meshes;
+    };
+    expect(snapshot(incrementalRoot)).toEqual(snapshot(synchronousRoot));
+
+    for (const root of [synchronousRoot, incrementalRoot]) {
+      const geometries = new Set<BufferGeometry>();
+      root.traverse((object) => {
+        if (object instanceof Mesh) geometries.add(object.geometry);
+      });
+      for (const geometry of geometries) geometry.dispose();
+    }
+    material.dispose();
+  });
+
   it('平移曲线复用完整网格，位置误差小于 0.1 毫米，法线和三角形不变', () => {
     const builder = new LandBuilder(),
       root = new Group(),

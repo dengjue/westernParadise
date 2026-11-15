@@ -31,6 +31,16 @@ interface BuilderOptions {
   cacheStats?: { hits: number; misses: number; bytes: number };
 }
 
+function disposeObjectGeometries(objects: readonly Object3D[]): void {
+  const geometries = new Set<BufferGeometry>();
+  for (const object of objects)
+    object.traverse((child) => {
+      const geometry = (child as Object3D & { geometry?: BufferGeometry }).geometry;
+      if (geometry) geometries.add(geometry);
+    });
+  for (const geometry of geometries) geometry.dispose();
+}
+
 /** 静态细构件按材质合批。数千栏杆、斗拱、窗格只占少量 draw call。 */
 export class LandBuilder {
   readonly contacts: LandContact[] = [];
@@ -127,6 +137,94 @@ export class LandBuilder {
       shadow,
     );
     return true;
+  }
+
+  /** 与 lod() 输出相同，但在细节级构建/合批间暴露可取消的安全让出点。 */
+  *lodSteps(
+    point: Point,
+    radius: number,
+    kind: 'roof' | 'sculpture',
+    best: LandDetail,
+    build: (builder: LandBuilder, detail: LandDetail) => Generator<void, void, void>,
+  ): Generator<void, boolean, void> {
+    if (!this.options.dynamicLod) return false;
+    const details = ['near', 'middle', 'far'] as const;
+    const minimum = details.indexOf(best);
+    if (best === 'far') {
+      const child = new LandBuilder({
+        cellSize: this.options.cellSize,
+        cellOrigin: this.options.cellOrigin,
+        detail: best,
+        tubeCache: this.tubeCache,
+        cacheStats: this.cacheStats,
+      });
+      try {
+        yield* build(child, best);
+        for (const [material, cells] of child.batches) {
+          let target = this.batches.get(material);
+          if (!target) {
+            target = new Map();
+            this.batches.set(material, target);
+          }
+          for (const [cell, parts] of cells) {
+            const batch = target.get(cell);
+            if (batch) batch.push(...parts);
+            else target.set(cell, parts.slice());
+            parts.length = 0;
+          }
+        }
+      } finally {
+        child.abort();
+      }
+      return true;
+    }
+
+    const levels = details.map(() => new Group());
+    let completed = false;
+    try {
+      for (let index = minimum; index < details.length; index++) {
+        const detail = details[index]!,
+          group = levels[index]!,
+          builder = new LandBuilder({
+            cellSize: this.options.cellSize,
+            cellOrigin: this.options.cellOrigin,
+            detail,
+            tubeCache: this.tubeCache,
+            cacheStats: this.cacheStats,
+          });
+        let levelComplete = false;
+        try {
+          yield* build(builder, detail);
+          yield* builder.flushSteps(group);
+          levelComplete = true;
+        } finally {
+          if (!levelComplete) builder.abort();
+        }
+      }
+
+      const shadow = new Group();
+      levels[Math.max(1, minimum)]!.traverse((object) => {
+        if (!(object instanceof Mesh)) return;
+        const mesh = new Mesh(object.geometry, object.material);
+        mesh.name = 'land-lod-shadow';
+        mesh.castShadow = true;
+        mesh.layers.set(LAND_RENDER.layers.shadow);
+        shadow.add(mesh);
+      });
+      for (const level of levels)
+        level.traverse((object) => {
+          if (object instanceof Mesh) object.castShadow = false;
+        });
+      const config = LAND_RENDER.lod[kind];
+      this.objects.push(
+        new DistanceLod(levels, point, radius, config.distances, config.hysteresis, minimum),
+        shadow,
+      );
+      completed = true;
+      return true;
+    } finally {
+      if (!completed) disposeObjectGeometries(levels);
+    }
   }
 
   shape(
@@ -294,14 +392,9 @@ export class LandBuilder {
   }
 
   private disposeDetachedObjects(): void {
-    const geometries = new Set<BufferGeometry>();
-    for (const object of this.objects)
-      object.traverse((child) => {
-        const geometry = (child as Object3D & { geometry?: BufferGeometry }).geometry;
-        if (geometry) geometries.add(geometry);
-      });
+    const detached = this.objects.slice();
     this.objects.length = 0;
-    for (const geometry of geometries) geometry.dispose();
+    disposeObjectGeometries(detached);
   }
 
   private disposePending(): void {
