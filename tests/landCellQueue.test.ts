@@ -137,4 +137,22 @@ describe('分区加载阶段 4 · 有界异步 cell 队列', () => {
     await flushPromises();
     expect(dispose).toHaveBeenCalledWith('stale');
   });
+
+  it('销毁载荷失败时仍继续释放队列中的其他 ready cell', async () => {
+    const failure = new Error('dispose failed');
+    const disposed: string[] = [];
+    const queue = new LandCellQueue<string>({
+      maxConcurrent: 2,
+      maxPending: 2,
+      dispose: (value) => {
+        disposed.push(value);
+        if (value === 'broken') throw failure;
+      },
+    });
+    await Promise.all([queue.request('a', 0, () => 'broken'), queue.request('b', 1, () => 'safe')]);
+
+    expect(() => queue.dispose()).toThrow(failure);
+    expect(disposed).toEqual(['broken', 'safe']);
+    expect(queue.snapshot()).toMatchObject({ ready: 0, active: 0, pending: 0 });
+  });
 });

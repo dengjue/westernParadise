@@ -3,6 +3,7 @@ import type { Object3D, PerspectiveCamera } from 'three';
 import type { AppEventMap, EventBusLike } from '@/00-types';
 import { LAND_AVATAR, LAND_FLIGHT, LAND_JOURNEY as J, LAND_WORLD, PURE_LAND } from '@/01-shared';
 import { moveLandPosition, resolveLandNavigation, sampleLandHeight } from '@/02-core';
+import type { LandCellCameraPose } from '@/02-core';
 import type { InputSource } from './input/InputSource';
 import type { LandAvatar } from './LandAvatar';
 export { sampleLandHeight } from '@/02-core';
@@ -26,6 +27,7 @@ export class LandCamera {
   private readonly avatar: LandAvatar | undefined;
   private readonly occluder: Object3D | undefined;
   private readonly position = new Vector3();
+  private readonly cellPose = { x: 0, z: 0, forwardX: 0, forwardZ: 1 };
   private readonly target = new Vector3();
   private readonly look = new Vector3();
   private readonly desired = new Vector3();
@@ -121,6 +123,16 @@ export class LandCamera {
 
   get isFlying(): boolean {
     return this.flying;
+  }
+
+  /** 第三人称步行/飞行的角色位置与控制朝向；其余模式不驱动东区 cell 流。 */
+  get cellCameraPose(): LandCellCameraPose | null {
+    if (!this.avatar || (!this.walking && !this.flying)) return null;
+    this.cellPose.x = this.position.x;
+    this.cellPose.z = this.position.z;
+    this.cellPose.forwardX = Math.sin(this.yaw);
+    this.cellPose.forwardZ = Math.cos(this.yaw);
+    return this.cellPose;
   }
 
   selectView(index: number, immediate = false): void {

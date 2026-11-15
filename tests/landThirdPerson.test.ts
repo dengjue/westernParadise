@@ -180,6 +180,25 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     f.control.dispose();
   });
 
+  it('仅第三人称漫游提供区域流姿态，默认第一人称不驱动 cell 调度', () => {
+    const f = fixture();
+    const firstPerson = new LandCamera({
+      camera: new PerspectiveCamera(),
+      input: f.input,
+      events: f.events,
+      reducedMotion: false,
+    });
+    expect(firstPerson.cellCameraPose).toBeNull();
+    firstPerson.dispose();
+
+    expect(f.control.cellCameraPose).toBeNull();
+    f.control.startWalking(true);
+    const pose = f.control.cellCameraPose!;
+    expect(pose).toMatchObject({ x: 0, z: 85, forwardZ: -1 });
+    expect(pose.forwardX).toBeCloseTo(0);
+    f.control.dispose();
+  });
+
   it('释放第三人称角色时移除场景节点并只释放独占资源一次', () => {
     const parent = new Group();
     const avatar = new LandAvatar(parent);

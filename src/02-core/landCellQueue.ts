@@ -115,7 +115,17 @@ export class LandCellQueue<T> {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const key of [...this.entries.keys()]) this.unload(key);
+    let firstError: unknown;
+    let failed = false;
+    for (const key of [...this.entries.keys()]) {
+      try {
+        this.unload(key);
+      } catch (error) {
+        if (!failed) firstError = error;
+        failed = true;
+      }
+    }
+    if (failed) throw firstError;
   }
 
   state(key: string): LandCellLoadState | null {

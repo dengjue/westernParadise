@@ -12,7 +12,8 @@ import { createSculptures } from './land/Sculpture';
 import { createFlowerDrift } from './land/FlowerDrift';
 import { partitionGarden } from './land/SpatialGarden';
 import { createContactShadows } from './land/ContactShadows';
-import { createEastRegionPrototype } from './land/RegionPrototype';
+import { createEastRegionCellStream } from './land/EastRegionCellStream';
+import type { LandCellCameraPose } from '@/02-core';
 
 export interface PureLandWorldOptions {
   canvasFactory: CanvasFactory;
@@ -24,7 +25,7 @@ export interface PureLandWorldOptions {
   reducedMotion: boolean;
   cellSize?: number;
   cellOrigin?: readonly [number, number];
-  /** 只在第三人称阶段 3 原型启用，不改变默认四景点/第一人称场景。 */
+  /** 只在第三人称区域原型启用东区 cell 调度，不改变默认四景点/第一人称场景。 */
   regionPrototype?: boolean;
 }
 
@@ -61,8 +62,8 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   partitionGarden(root, garden.layout.trees, options.quality, cellSize, options.cellOrigin);
   const gardenReady = performance.now();
   builder.flush(root);
-  const disposeRegionPrototype = options.regionPrototype
-    ? createEastRegionPrototype(root, materials, cellSize)
+  const eastCellStream = options.regionPrototype
+    ? createEastRegionCellStream(root, materials, cellSize)
     : undefined;
   createContactShadows(root, builder.contacts, options.canvasFactory);
   scene.add(root);
@@ -95,7 +96,12 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
     lighting: atmosphere.stats,
     cellSize,
     setTime: atmosphere.setTime,
-    update(deltaMs: number): void {
+    get cellStreaming() {
+      return eastCellStream?.snapshot() ?? null;
+    },
+    update(deltaMs: number, cellPose?: LandCellCameraPose | null): void {
+      eastCellStream?.update(cellPose ?? null, deltaMs);
+      if (options.reducedMotion) return;
       elapsed += deltaMs / 1000;
       garden.update(elapsed);
       atmosphere.update(elapsed, deltaMs);
@@ -111,7 +117,7 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
         failed = true;
       }
       try {
-        disposeRegionPrototype?.();
+        eastCellStream?.dispose();
       } catch (error) {
         if (!failed) firstError = error;
         failed = true;

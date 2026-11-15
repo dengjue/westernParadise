@@ -155,6 +155,7 @@ export function startPureLand(): () => void {
     events,
     onStep: (delta) => {
       camera.update(delta);
+      world.update(delta, camera.cellCameraPose);
       audioElapsed += delta;
       if (audioElapsed >= LAND_SOUND.updateMs) {
         audioElapsed %= LAND_SOUND.updateMs;
@@ -162,7 +163,6 @@ export function startPureLand(): () => void {
         events.emit('audio:position', audioPosition);
       }
       audio.update(delta);
-      if (!capabilities.reducedMotion) world.update(delta);
     },
     onRender: () => {
       renderer.info.reset();
