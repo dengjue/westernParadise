@@ -61,7 +61,9 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
   partitionGarden(root, garden.layout.trees, options.quality, cellSize, options.cellOrigin);
   const gardenReady = performance.now();
   builder.flush(root);
-  if (options.regionPrototype) createEastRegionPrototype(root, materials, cellSize);
+  const disposeRegionPrototype = options.regionPrototype
+    ? createEastRegionPrototype(root, materials, cellSize)
+    : undefined;
   createContactShadows(root, builder.contacts, options.canvasFactory);
   scene.add(root);
   const flowers = createFlowerDrift(root, options.seed, options.quality === 'low' ? 120 : 420);
@@ -99,6 +101,22 @@ export function createPureLandWorld(scene: Scene, options: PureLandWorldOptions)
       atmosphere.update(elapsed, deltaMs);
       flowers.update(elapsed);
     },
-    dispose: atmosphere.dispose,
+    dispose(): void {
+      let firstError: unknown;
+      let failed = false;
+      try {
+        atmosphere.dispose();
+      } catch (error) {
+        firstError = error;
+        failed = true;
+      }
+      try {
+        disposeRegionPrototype?.();
+      } catch (error) {
+        if (!failed) firstError = error;
+        failed = true;
+      }
+      if (failed) throw firstError;
+    },
   };
 }

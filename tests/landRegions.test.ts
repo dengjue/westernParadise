@@ -95,22 +95,25 @@ describe('大世界区域契约与阶段 3 东侧灰盒', () => {
       gold: ownedMaterials[5]!,
     } as unknown as PureLandMaterials;
     const root = new Group();
-    createEastRegionPrototype(root, materials, cellSize);
+    const dispose = createEastRegionPrototype(root, materials, cellSize);
     const regionRoot = root.getObjectByName('region-prototype-east-water-court') as Group;
-    const groundCells = regionRoot.children.filter(
-      (child) =>
+    const groundCells: Mesh[] = [];
+    regionRoot.traverse((child) => {
+      if (
+        child instanceof Mesh &&
         child.name === 'land-static-batch' &&
         child.userData['cell'] !== undefined &&
-        (child as { material?: unknown }).material === materials.dark,
-    );
+        child.material === materials.dark
+      )
+        groundCells.push(child);
+    });
     expect(groundCells).toHaveLength((LAND_WORLD.regionSize / cellSize) ** 2);
     expect(regionRoot.userData['cellSize']).toBe(cellSize);
+    expect(regionRoot.children).toHaveLength((LAND_WORLD.regionSize / cellSize) ** 2);
     expect(regionRoot.getObjectByName('region-prototype-east-pond')).toBeDefined();
     expect(regionRoot.getObjectByName('region-prototype-east-pond-shore')).toBeDefined();
 
-    regionRoot.traverse((object) => {
-      if (object instanceof Mesh) object.geometry.dispose();
-    });
+    dispose();
     for (const material of ownedMaterials) material.dispose();
   });
 });

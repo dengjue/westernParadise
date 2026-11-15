@@ -36,9 +36,9 @@ export class LandBuilder {
   readonly contacts: LandContact[] = [];
   private readonly batches = new Map<Material, Map<string, BufferGeometry[]>>();
   private readonly objects: Object3D[] = [];
-  private readonly boxGeometry = new BoxGeometry(1, 1, 1);
-  private readonly cylinderGeometry = new CylinderGeometry(1, 1, 1, 12);
-  private readonly sphereGeometry: SphereGeometry;
+  private boxGeometry: BoxGeometry | undefined;
+  private cylinderGeometry: CylinderGeometry | undefined;
+  private sphereGeometry: SphereGeometry | undefined;
   private readonly transform = new Matrix4();
   private readonly position = new Vector3();
   private readonly rotation = new Quaternion();
@@ -48,8 +48,6 @@ export class LandBuilder {
   readonly cacheStats: { hits: number; misses: number; bytes: number };
 
   constructor(private readonly options: BuilderOptions = {}) {
-    const segments = LAND_RENDER.lod.sphereSegments[options.detail ?? 'near'];
-    this.sphereGeometry = new SphereGeometry(1, ...segments);
     this.tubeCache = options.tubeCache ?? new Map();
     this.cacheStats = options.cacheStats ?? { hits: 0, misses: 0, bytes: 0 };
   }
@@ -162,14 +160,20 @@ export class LandBuilder {
   }
 
   box(material: Material, point: Point, size: Point, yaw = 0): void {
+    this.boxGeometry ??= new BoxGeometry(1, 1, 1);
     this.shape(this.boxGeometry, material, point, size, yaw);
   }
 
   cylinder(material: Material, point: Point, radius: number, height: number): void {
+    this.cylinderGeometry ??= new CylinderGeometry(1, 1, 1, 12);
     this.shape(this.cylinderGeometry, material, point, [radius, height, radius]);
   }
 
   sphere(material: Material, point: Point, size: Point): void {
+    if (!this.sphereGeometry) {
+      const segments = LAND_RENDER.lod.sphereSegments[this.options.detail ?? 'near'];
+      this.sphereGeometry = new SphereGeometry(1, ...segments);
+    }
     this.shape(this.sphereGeometry, material, point, size);
   }
 
@@ -205,6 +209,7 @@ export class LandBuilder {
     const start = new Vector3(...from);
     const end = new Vector3(...to);
     const direction = end.clone().sub(start);
+    this.cylinderGeometry ??= new CylinderGeometry(1, 1, 1, 12);
     const geometry = this.cylinderGeometry.clone();
     geometry.scale(radius, direction.length(), radius);
     geometry.applyQuaternion(
@@ -269,9 +274,12 @@ export class LandBuilder {
     for (const cells of this.batches.values())
       for (const parts of cells.values()) for (const part of parts) part.dispose();
     this.batches.clear();
-    this.boxGeometry.dispose();
-    this.cylinderGeometry.dispose();
-    this.sphereGeometry.dispose();
+    this.boxGeometry?.dispose();
+    this.cylinderGeometry?.dispose();
+    this.sphereGeometry?.dispose();
+    this.boxGeometry = undefined;
+    this.cylinderGeometry = undefined;
+    this.sphereGeometry = undefined;
     if (!this.options.tubeCache) {
       for (const geometry of this.tubeCache.values()) geometry.dispose();
       this.tubeCache.clear();
