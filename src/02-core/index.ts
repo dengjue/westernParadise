@@ -18,6 +18,7 @@ export {
 } from './landRegions';
 export { prioritizeLandCells } from './landCellPriority';
 export { LandCellQueue } from './landCellQueue';
+export { LandCellResourceScope } from './landCellResourceScope';
 export { SharedResourcePool } from './sharedResourcePool';
 export type {
   LandCellCameraPose,
@@ -32,6 +33,7 @@ export type {
   LandCellQueueSnapshot,
 } from './landCellQueue';
 export type { SharedResourceLease, SharedResourcePoolSnapshot } from './sharedResourcePool';
+export type { LandCellResourceScopeSnapshot } from './landCellResourceScope';
 export type { LandRegion } from './landRegions';
 export type { LandNavigationInfo } from './landNavigationInfo';
 export type {
