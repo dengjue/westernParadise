@@ -42,6 +42,7 @@ export class LandBuilder {
   private readonly transform = new Matrix4();
   private readonly position = new Vector3();
   private readonly rotation = new Quaternion();
+  private readonly up = new Vector3(0, 1, 0);
   private readonly scale = new Vector3();
   private readonly center = new Vector3();
   private readonly tubeCache: Map<string, TubeGeometry>;
@@ -136,15 +137,16 @@ export class LandBuilder {
     yaw = 0,
   ): void {
     this.position.fromArray(point);
-    this.rotation.setFromAxisAngle(new Vector3(0, 1, 0), yaw);
+    if (yaw === 0) this.rotation.identity();
+    else this.rotation.setFromAxisAngle(this.up, yaw);
     this.scale.fromArray(size);
     this.transform.compose(this.position, this.rotation, this.scale);
-    const copy = geometry.clone().applyMatrix4(this.transform);
-    copy.computeBoundingBox();
-    copy.boundingBox!.getCenter(this.center);
     const cell = this.options.cellSize ?? 0;
     const originX = this.options.cellOrigin?.[0] ?? 0;
     const originZ = this.options.cellOrigin?.[1] ?? 0;
+    const copy = geometry.clone().applyMatrix4(this.transform);
+    copy.computeBoundingBox();
+    copy.boundingBox!.getCenter(this.center);
     const key =
       cell > 0
         ? `${Math.floor((this.center.x - originX) / cell)},${Math.floor((this.center.z - originZ) / cell)}`

@@ -42,6 +42,28 @@ describe('LandBuilder 索引合批', () => {
     material.dispose();
   });
 
+  it('用缩放旋转后的几何包围盒中心分配 cell，且不变换调用方几何', () => {
+    const builder = new LandBuilder({ cellSize: 10, cellOrigin: [0, 0] });
+    const parent = new Group();
+    const material = new MeshStandardMaterial();
+    const geometry = new BoxGeometry(2, 2, 2);
+    geometry.translate(1, 0, 0);
+    const originalPosition = geometry.getAttribute('position').array.slice();
+
+    builder.shape(geometry, material, [9, 0, 0], [2, 1, 1], Math.PI / 2);
+    builder.flush(parent);
+
+    expect(parent.children.map(({ userData }) => userData['cell'])).toEqual(['0,-1']);
+    expect(geometry.getAttribute('position').array).toEqual(originalPosition);
+    expect(geometry.boundingBox).toBeNull();
+    const mesh = output(parent);
+    expect(mesh.geometry.boundingBox).not.toBeNull();
+    expect(mesh.geometry.boundingSphere).not.toBeNull();
+    mesh.geometry.dispose();
+    geometry.dispose();
+    material.dispose();
+  });
+
   it('平移曲线复用完整网格，位置误差小于 0.1 毫米，法线和三角形不变', () => {
     const builder = new LandBuilder(),
       root = new Group(),
