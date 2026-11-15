@@ -205,7 +205,7 @@ export function startPureLand(): () => void {
     const suspended = document.hidden || !document.hasFocus() || lost || failed;
     input.setEnabled(!modal && !suspended);
     events.emit('land:suspend', { suspended });
-    if (document.hidden || lost || failed) loop.stop();
+    if (suspended) loop.stop();
     else loop.start();
   }
   const visibility = (): void => syncActivity();
