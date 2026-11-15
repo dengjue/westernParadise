@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  BufferGeometry,
   BoxGeometry,
   Group,
   Matrix4,
@@ -12,7 +13,6 @@ import {
   CatmullRomCurve3,
   TubeGeometry,
 } from 'three';
-import type { BufferGeometry } from 'three';
 import { LandBuilder } from '@/06-world/land/Builder';
 
 function output(parent: Group): Mesh {
@@ -62,6 +62,57 @@ describe('LandBuilder 索引合批', () => {
     mesh.geometry.dispose();
     geometry.dispose();
     material.dispose();
+  });
+
+  it('取消时释放尚未合批的副本，但保留调用方几何与材质', () => {
+    const builder = new LandBuilder();
+    const material = new MeshStandardMaterial();
+    const source = new BoxGeometry();
+    const pending = source.clone();
+    const pendingDispose = vi.spyOn(pending, 'dispose');
+    const sourceDispose = vi.spyOn(source, 'dispose');
+    const materialDispose = vi.spyOn(material, 'dispose');
+    vi.spyOn(source, 'clone').mockReturnValue(pending);
+
+    builder.shape(source, material);
+    builder.abort();
+    builder.abort();
+
+    expect(pendingDispose).toHaveBeenCalledTimes(1);
+    expect(sourceDispose).not.toHaveBeenCalled();
+    expect(materialDispose).not.toHaveBeenCalled();
+    source.dispose();
+    material.dispose();
+  });
+
+  it('取消时释放已合批但尚未挂载的 LOD 几何，且共享阴影副本只释放一次', () => {
+    const builder = new LandBuilder({ dynamicLod: true });
+    const material = new MeshStandardMaterial();
+    const disposed = new Set<BufferGeometry>();
+    const dispose = BufferGeometry.prototype.dispose;
+    const disposeSpy = vi.spyOn(BufferGeometry.prototype, 'dispose').mockImplementation(function (
+      this: BufferGeometry,
+    ) {
+      disposed.add(this);
+      return dispose.call(this);
+    });
+
+    try {
+      expect(
+        builder.lod([0, 0, 0], 1, 'roof', 'near', (level) => {
+          level.box(material, [0, 0, 0], [1, 1, 1]);
+        }),
+      ).toBe(true);
+
+      builder.abort();
+
+      // 每级各有模板、合并输入和输出；中档输出还被阴影组共享。
+      expect(disposed.size).toBe(9);
+      expect(disposeSpy).toHaveBeenCalledTimes(9);
+    } finally {
+      disposeSpy.mockRestore();
+      material.dispose();
+    }
   });
 
   it('平移曲线复用完整网格，位置误差小于 0.1 毫米，法线和三角形不变', () => {

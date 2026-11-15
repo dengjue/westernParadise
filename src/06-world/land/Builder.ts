@@ -266,9 +266,29 @@ export class LandBuilder {
       }
       for (const object of this.objects) parent.add(object);
       this.objects.length = 0;
+    } catch (error) {
+      this.disposeDetachedObjects();
+      throw error;
     } finally {
       this.disposePending();
     }
+  }
+
+  /** 取消尚未 flush 的构建，释放 builder 独占的几何与游离 LOD 输出。 */
+  abort(): void {
+    this.disposeDetachedObjects();
+    this.disposePending();
+  }
+
+  private disposeDetachedObjects(): void {
+    const geometries = new Set<BufferGeometry>();
+    for (const object of this.objects)
+      object.traverse((child) => {
+        const geometry = (child as Object3D & { geometry?: BufferGeometry }).geometry;
+        if (geometry) geometries.add(geometry);
+      });
+    this.objects.length = 0;
+    for (const geometry of geometries) geometry.dispose();
   }
 
   private disposePending(): void {
