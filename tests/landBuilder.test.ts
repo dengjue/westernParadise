@@ -115,6 +115,48 @@ describe('LandBuilder 索引合批', () => {
     }
   });
 
+  it('取消分段 flush 时释放未挂载的已合批 cell 与剩余输入', () => {
+    const builder = new LandBuilder({ cellSize: 10 });
+    const parent = new Group();
+    const material = new MeshStandardMaterial();
+    const source = new BoxGeometry();
+    const copies: BufferGeometry[] = [];
+    const clone = source.clone;
+    vi.spyOn(source, 'clone').mockImplementation(function (this: BoxGeometry) {
+      const copy = clone.call(this);
+      copies.push(copy);
+      return copy;
+    });
+    const disposed = new Set<BufferGeometry>();
+    const dispose = BufferGeometry.prototype.dispose;
+    const disposeSpy = vi.spyOn(BufferGeometry.prototype, 'dispose').mockImplementation(function (
+      this: BufferGeometry,
+    ) {
+      disposed.add(this);
+      return dispose.call(this);
+    });
+
+    try {
+      builder.shape(source, material, [0, 0, 0]);
+      builder.shape(source, material, [20, 0, 0]);
+
+      const steps = builder.flushSteps(parent);
+      expect(steps.next().done).toBe(false);
+      expect(disposed.has(copies[0]!)).toBe(true);
+      expect(disposed.has(copies[1]!)).toBe(false);
+      steps.return();
+
+      expect(parent.children).toHaveLength(0);
+      expect(disposed.size).toBe(3);
+      expect(disposed.has(copies[0]!)).toBe(true);
+      expect(disposed.has(copies[1]!)).toBe(true);
+    } finally {
+      disposeSpy.mockRestore();
+      source.dispose();
+      material.dispose();
+    }
+  });
+
   it('平移曲线复用完整网格，位置误差小于 0.1 毫米，法线和三角形不变', () => {
     const builder = new LandBuilder(),
       root = new Group(),

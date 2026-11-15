@@ -223,9 +223,19 @@ export class LandBuilder {
   }
 
   flush(parent: Group): void {
+    const steps = this.flushSteps(parent);
+    while (!steps.next().done) {
+      // The synchronous API consumes the same deterministic steps without yielding.
+    }
+  }
+
+  /** 合批并按 cell 暴露安全让出点；迭代器 return() 会释放尚未挂载的输出。 */
+  *flushSteps(parent: Group): Generator<void, void, void> {
+    let completed = false;
     try {
       for (const [material, cells] of this.batches) {
         const meshes: Mesh<BufferGeometry, Material>[] = [];
+        let attached = false;
         try {
           for (const [cell, parts] of cells) {
             // mergeGeometries 可以混合不同形状，但索引存在性必须一致。
@@ -253,23 +263,26 @@ export class LandBuilder {
             // 每批完成就释放自己的中间副本，降低大场景构建时的峰值驻留。
             for (const part of parts) part.dispose();
             parts.length = 0;
+            yield;
           }
           // 子 LOD 构建器不传 multiDraw，保留独立选级及共享中档阴影几何。
           const batch = this.options.multiDraw ? batchStaticCells(meshes) : null;
           if (batch) parent.add(batch);
           else parent.add(...meshes);
-        } catch (error) {
-          // 同材质尚未挂载的已合并区块，也要覆盖后续区块/批次创建失败的释放路径。
-          for (const mesh of meshes) mesh.geometry.dispose();
-          throw error;
+          attached = true;
+        } finally {
+          // 取消/失败时，已合并但还没挂到 parent 的 cell 输出不在 scene dispose 树中。
+          if (!attached) for (const mesh of meshes) mesh.geometry.dispose();
         }
       }
       for (const object of this.objects) parent.add(object);
       this.objects.length = 0;
+      completed = true;
     } catch (error) {
       this.disposeDetachedObjects();
       throw error;
     } finally {
+      if (!completed) this.disposeDetachedObjects();
       this.disposePending();
     }
   }
