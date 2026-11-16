@@ -2,6 +2,7 @@ export interface FrameBudgetStats {
   frames: number;
   steps: number;
   maxStepMs: number;
+  maxStepLabel: string;
   overBudgetSteps: number;
   elapsedMs: number;
 }
@@ -10,6 +11,7 @@ export interface FrameBudgetDriverOptions<T> {
   iterator: Generator<void, T, void>;
   budgetMs: number;
   deferFirstFrame?: boolean;
+  getStepLabel?: () => string;
   now?: () => number;
   requestFrame?: (callback: FrameRequestCallback) => number;
   cancelFrame?: (id: number) => void;
@@ -23,6 +25,7 @@ export class FrameBudgetDriver<T> {
     frames: 0,
     steps: 0,
     maxStepMs: 0,
+    maxStepLabel: '',
     overBudgetSteps: 0,
     elapsedMs: 0,
   };
@@ -35,6 +38,7 @@ export class FrameBudgetDriver<T> {
   private readonly onComplete: FrameBudgetDriverOptions<T>['onComplete'];
   private readonly onError: FrameBudgetDriverOptions<T>['onError'];
   private readonly deferFirstFrame: boolean;
+  private readonly getStepLabel: (() => string) | undefined;
   private rafId: number | null = null;
   private startedAt = 0;
   private started = false;
@@ -54,6 +58,7 @@ export class FrameBudgetDriver<T> {
     this.onComplete = options.onComplete;
     this.onError = options.onError;
     this.deferFirstFrame = options.deferFirstFrame ?? false;
+    this.getStepLabel = options.getStepLabel;
   }
 
   start(): void {
@@ -115,7 +120,10 @@ export class FrameBudgetDriver<T> {
       }
       const stepMs = Math.max(0, this.now() - stepStart);
       this.stats.steps++;
-      this.stats.maxStepMs = Math.max(this.stats.maxStepMs, stepMs);
+      if (stepMs > this.stats.maxStepMs) {
+        this.stats.maxStepMs = stepMs;
+        this.stats.maxStepLabel = this.getStepLabel?.() ?? '';
+      }
       if (stepMs > this.budgetMs) this.stats.overBudgetSteps++;
 
       if (result.done) {

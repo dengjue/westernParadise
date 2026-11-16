@@ -7,4 +7,4 @@ export type { SkyDomeOptions } from './SkyDome';
 export { WeatherEffect } from './WeatherEffect';
 export type { WeatherEffectOptions } from './WeatherEffect';
 export { createPureLandWorld, createPureLandWorldSteps } from './createPureLandWorld';
-export type { PureLandWorldOptions } from './createPureLandWorld';
+export type { PureLandBuildProgress, PureLandWorldOptions } from './createPureLandWorld';

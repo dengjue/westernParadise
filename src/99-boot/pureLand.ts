@@ -44,6 +44,7 @@ interface StartupStats {
   buildFrames: number;
   buildSteps: number;
   maxBuildStepMs: number;
+  maxBuildStepStage: string;
   buildOverBudgetSteps: number;
 }
 
@@ -92,6 +93,7 @@ export function startPureLand(): () => void {
     buildFrames: 0,
     buildSteps: 0,
     maxBuildStepMs: 0,
+    maxBuildStepStage: '',
     buildOverBudgetSteps: 0,
   };
   const root = document.getElementById('app');
@@ -173,7 +175,8 @@ export function startPureLand(): () => void {
 
   startup.syncMs = performance.now() - start;
   ui.setLoading(true);
-  const steps = createPureLandWorldSteps(context.scene, worldOptions);
+  const buildProgress = { stage: 'waiting' };
+  const steps = createPureLandWorldSteps(context.scene, worldOptions, buildProgress);
   let runtimeDispose: (() => void) | undefined;
   let completedWorld: PureLandWorld | undefined;
   let disposed = false;
@@ -281,6 +284,7 @@ export function startPureLand(): () => void {
     iterator: steps,
     budgetMs: THIRD_PERSON_BUILD_BUDGET_MS,
     deferFirstFrame: true,
+    getStepLabel: () => buildProgress.stage,
     onComplete(world, stats) {
       if (disposed) {
         world.dispose();
@@ -328,6 +332,7 @@ function recordBuildStats(startup: StartupStats, stats: Readonly<FrameBudgetStat
   startup.buildFrames = stats.frames;
   startup.buildSteps = stats.steps;
   startup.maxBuildStepMs = stats.maxStepMs;
+  startup.maxBuildStepStage = stats.maxStepLabel;
   startup.buildOverBudgetSteps = stats.overBudgetSteps;
 }
 

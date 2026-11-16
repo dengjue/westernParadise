@@ -2,12 +2,13 @@ import { Group, Material } from 'three';
 import type { Scene, WebGLRenderer } from 'three';
 import type { QualityTier, TimeOfDayId } from '@/00-types';
 import { LAND_DETAIL_BY_QUALITY, LAND_RENDER } from '@/01-shared';
-import { createHallPlaque, createPureLandMaterials } from '@/05-materials';
+import { createHallPlaqueSteps, createPureLandMaterialsSteps } from '@/05-materials';
 import type { CanvasFactory, PureLandMaterials } from '@/05-materials';
 import { disposeObjectTree } from '@/04-engine';
 import type { LandCellCameraPose } from '@/02-core';
 import { createArchitectureSteps } from './land/Architecture';
-import { createLandAtmosphere } from './land/Atmosphere';
+import { createLandAtmosphereSteps } from './land/Atmosphere';
+import type { LandAtmosphereHandle } from './land/Atmosphere';
 import { LandBuilder } from './land/Builder';
 import { createGardenSteps } from './land/Garden';
 import { createSculpturesSteps } from './land/Sculpture';
@@ -33,6 +34,10 @@ export interface PureLandWorldOptions {
   regionPrototype?: boolean;
 }
 
+export interface PureLandBuildProgress {
+  stage: string;
+}
+
 function ownedMaterials(
   materials: PureLandMaterials | undefined,
   plaque: Material | undefined,
@@ -54,7 +59,7 @@ function createWorldHandle(
   batchesReady: number,
   builder: LandBuilder,
   garden: GardenResult,
-  atmosphere: ReturnType<typeof createLandAtmosphere>,
+  atmosphere: LandAtmosphereHandle,
   cellSize: number,
   eastCellStream: ReturnType<typeof createEastRegionCellStream> | undefined,
   flowers: ReturnType<typeof createFlowerDrift>,
@@ -115,6 +120,7 @@ function createWorldHandle(
 export function* createPureLandWorldSteps(
   scene: Scene,
   options: PureLandWorldOptions,
+  progress?: PureLandBuildProgress,
 ): Generator<void, ReturnType<typeof createWorldHandle>, void> {
   const start = performance.now();
   const root = new Group();
@@ -128,7 +134,7 @@ export function* createPureLandWorldSteps(
   let plaque: Material | undefined;
   let builder: LandBuilder | undefined;
   let eastCellStream: ReturnType<typeof createEastRegionCellStream> | undefined;
-  let atmosphere: ReturnType<typeof createLandAtmosphere> | undefined;
+  let atmosphere: LandAtmosphereHandle | undefined;
   let atmosphereChildren: Set<(typeof scene.children)[number]> | undefined;
   let materialsReady: number;
   let architectureReady: number;
@@ -137,15 +143,20 @@ export function* createPureLandWorldSteps(
   let attached = false;
   let completed = false;
   const cellSize = options.cellSize ?? LAND_RENDER.cellSize;
+  const setStage = (stage: string): void => {
+    if (progress) progress.stage = stage;
+  };
 
   try {
-    const worldMaterials = createPureLandMaterials(
+    setStage('materials');
+    const worldMaterials = yield* createPureLandMaterialsSteps(
       options.canvasFactory,
       options.seed,
       options.anisotropy,
+      setStage,
     );
     materials = worldMaterials;
-    const hallPlaque = createHallPlaque(options.canvasFactory);
+    const hallPlaque = yield* createHallPlaqueSteps(options.canvasFactory, setStage);
     plaque = hallPlaque;
     materialsReady = performance.now();
     yield;
@@ -158,10 +169,13 @@ export function* createPureLandWorldSteps(
     });
     builder = worldBuilder;
     const detail = LAND_DETAIL_BY_QUALITY[options.quality];
+    setStage('architecture');
     yield* createArchitectureSteps(worldBuilder, worldMaterials, hallPlaque, detail);
+    setStage('sculpture');
     yield* createSculpturesSteps(worldBuilder, worldMaterials, detail);
     architectureReady = performance.now();
 
+    setStage('garden');
     const gardenResult = yield* createGardenSteps(
       root,
       worldBuilder,
@@ -170,6 +184,7 @@ export function* createPureLandWorldSteps(
       options.quality,
       options.reducedMotion,
     );
+    setStage('garden-partition');
     yield* partitionGardenSteps(
       root,
       gardenResult.layout.trees,
@@ -179,7 +194,9 @@ export function* createPureLandWorldSteps(
     );
     gardenReady = performance.now();
 
+    setStage('static-flush');
     yield* worldBuilder.flushSteps(root);
+    setStage('region-setup');
     eastCellStream = options.regionPrototype
       ? createEastRegionCellStream(root, worldMaterials, cellSize)
       : undefined;
@@ -192,18 +209,21 @@ export function* createPureLandWorldSteps(
     batchesReady = performance.now();
     yield;
 
+    setStage('atmosphere');
     scene.add(root);
     attached = true;
     atmosphereChildren = new Set(scene.children);
-    const landAtmosphere = createLandAtmosphere(
+    const landAtmosphere = yield* createLandAtmosphereSteps(
       scene,
       options.renderer,
       options.quality,
       options.time,
       options.reducedMotion,
+      setStage,
     );
     atmosphere = landAtmosphere;
     yield;
+    setStage('finalize');
     scene.traverse((object) => {
       if (object.layers.isEnabled(LAND_RENDER.layers.main))
         object.layers.enable(LAND_RENDER.layers.reflection);

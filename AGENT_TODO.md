@@ -148,9 +148,11 @@
 ### 2026-11-16 · 第三人称首次核心构建分帧接线
 
 - [x] 将造像、庭园、植被分区和静态 cell flush 接入可取消的世界构建 generator；`?cam=third` 显示首屏 loading 并经 RAF 切片驱动，默认第一人称继续同步消费同一确定性步骤。
-- [x] `FrameBudgetDriver` 覆盖首次绘制让出、时间切片、单步超预算统计、暂停/恢复与取消关闭 generator；构建取消路径释放 builder pending 几何、场景树及世界自有材质。
-- [x] `npm run verify` 通过：38 个测试文件 / 234 项测试；单文件 850,550 字节，MD5 `e1f3c277d0d4f12802309fff1e5c4ce4`。
-- [~] Headless Firefox 无可用 WebGL，headed Firefox 的 X11 `:1` 无授权，真实浏览器 smoke 未完成；仍需观察最长单步并复核稳定画面/重复启动/取消。6ms 是主线程切片窗口而非设备性能保证。A4、B0、C0 及阶段 1/2 人工手感继续按既定条件阻塞，不宣称阶段 4 完成。
+- [x] 首次材质构建按小块生成纹理、叶脉/纹饰/匾额按步骤让帧；PMREM 环境图逐张烘焙。取消路径覆盖像素处理中断、已生成纹理和已装配材质的释放；环境烘焙中途也清理已完成的目标。
+- [x] `FrameBudgetDriver` 覆盖首次绘制让出、时间切片、单步超预算及阶段标签统计、暂停/恢复与取消关闭 generator；world abort 继续负责 builder pending 几何和部分场景树。
+- [x] `npm run verify` 通过：40 个测试文件 / 237 项测试；单文件 853,029 字节，MD5 `15ead70a0a17fa790b840bbc6f13a13a`。
+- [x] headed Firefox 160 / WebGL2 桌面 smoke：第三人称三次完整启动、重启后立即取消、取消后再启动及最终 dispose 均无 fatal/JS 错误且 DOM/canvas 清零；默认第一人称 `buildSteps=0`，仍走同步路径。最长单步 48/43/50ms，阶段 `atmosphere:environment:bake-0`；构建约 12.5/10.9/12.6s。详见 23 号规范。首次 X11 授权失败记录已由此补测覆盖。
+- [!] 6ms 仅是主线程调度切片，不是设备帧时保证；PMREM 单次烘焙仍不可抢占，桌面 smoke 不能关闭 A4、B0、C0，也不代表阶段 1/2 人工手感通过。阶段 4 保持未关闭。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 

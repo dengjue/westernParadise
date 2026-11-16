@@ -29,9 +29,11 @@ describe('FrameBudgetDriver', () => {
     const frames = new FrameQueue();
     let now = 0,
       work = 0,
-      result: string | undefined;
+      result: string | undefined,
+      stage = 'warmup';
     function* task(): Generator<void, string, void> {
       for (let index = 0; index < 5; index++) {
+        stage = index < 3 ? 'geometry' : 'flush';
         work++;
         now += 2;
         yield;
@@ -43,6 +45,7 @@ describe('FrameBudgetDriver', () => {
       iterator: task(),
       budgetMs: 5,
       deferFirstFrame: true,
+      getStepLabel: () => stage,
       now: () => now,
       requestFrame: frames.request,
       cancelFrame: frames.cancel,
@@ -66,6 +69,7 @@ describe('FrameBudgetDriver', () => {
     expect(driver.stats.frames).toBe(3);
     expect(driver.stats.steps).toBe(6);
     expect(driver.stats.maxStepMs).toBe(2);
+    expect(driver.stats.maxStepLabel).toBe('geometry');
     expect(driver.stats.overBudgetSteps).toBe(0);
   });
 

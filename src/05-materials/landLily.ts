@@ -3,7 +3,10 @@ import { LAND_GARDEN } from '@/01-shared';
 import type { CanvasFactory } from './courtyard';
 
 /** 荷叶纹理是正交平面投影；主脉与分叉细脉从叶心放射，避免把树叶直脉贴到圆叶。 */
-export function createLilyTexture(factory: CanvasFactory): CanvasTexture {
+export function* createLilyTextureSteps(
+  factory: CanvasFactory,
+  onStage?: (stage: string) => void,
+): Generator<void, CanvasTexture, void> {
   const size = 384,
     center = size / 2,
     radius = center * 0.94;
@@ -20,6 +23,7 @@ export function createLilyTexture(factory: CanvasFactory): CanvasTexture {
   ctx.strokeStyle = '#eef0cc';
   ctx.lineCap = 'round';
   for (let vein = 0; vein < LAND_GARDEN.lily.veins; vein++) {
+    onStage?.(`lily-veins:${vein}`);
     const angle = (vein / LAND_GARDEN.lily.veins) * Math.PI * 2;
     ctx.save();
     ctx.translate(center, center);
@@ -41,8 +45,16 @@ export function createLilyTexture(factory: CanvasFactory): CanvasTexture {
         ctx.stroke();
       }
     ctx.restore();
+    yield;
   }
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   return texture;
+}
+
+export function createLilyTexture(factory: CanvasFactory): CanvasTexture {
+  const steps = createLilyTextureSteps(factory);
+  let next = steps.next();
+  while (!next.done) next = steps.next();
+  return next.value;
 }
