@@ -12,7 +12,7 @@ import { LAND_GARDEN_QUALITY, LAND_RENDER } from '@/01-shared';
 import type { GardenTree } from '@/02-core';
 import { DistanceLod } from '@/04-engine';
 import {
-  finishGardenInstances,
+  finishGardenInstancesSteps,
   lilyGeometry,
   lotusPetalGeometry,
   treeLeafGeometry,
@@ -111,7 +111,7 @@ export function* partitionGardenSteps(
             if ((index + 1) % 128 === 0) yield;
           }
           const margin = source.userData['windMargin'] as number;
-          finishGardenInstances(base, margin);
+          yield* finishGardenInstancesSteps(base, margin);
           base.userData['sourceIndices'] = new Uint32Array(indices);
           for (let level = 1; level < levels.length; level++) {
             const mesh = levels[level]!;

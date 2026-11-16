@@ -14,7 +14,7 @@ import type { GardenPoint, GardenTree } from '@/02-core';
 import { applyGardenWind } from '@/05-materials';
 import type { GardenWind, PureLandMaterials } from '@/05-materials';
 import type { LandBuilder } from './Builder';
-import { finishGardenInstances, treeLeafGeometry, windGeometry } from './GardenGeometry';
+import { finishGardenInstancesSteps, treeLeafGeometry, windGeometry } from './GardenGeometry';
 import { taperedTube } from './CraftGeometry';
 
 function consume(steps: Generator<void, void, void>): void {
@@ -174,9 +174,11 @@ export function* createGardenTreesSteps(
   seed: number,
   quality: QualityTier,
   wind: GardenWind,
+  onStage?: (stage: string) => void,
 ): Generator<void, void, void> {
   const detail = LAND_GARDEN_QUALITY[quality],
     config = LAND_GARDEN;
+  onStage?.('garden:trees:allocate');
   const prototype = treeLeafGeometry(quality);
   const count = detail.leavesPerTree * trees.length;
   const geometry = windGeometry(prototype, count);
@@ -193,8 +195,10 @@ export function* createGardenTreesSteps(
   let index = 0,
     attached = false;
   try {
+    onStage?.('garden:trees:skeleton');
     for (const tree of trees) {
       yield* treeSkeletonSteps(builder, m, tree);
+      onStage?.('garden:trees:instances');
       for (let leaf = 0; leaf < detail.leavesPerTree; leaf++) {
         const plan = sampleGardenLeaf(seed, tree, leaf);
         transform.position.fromArray(plan.point);
@@ -207,13 +211,19 @@ export function* createGardenTreesSteps(
         attributes.setXYZW(index++, config.wind.treeAngle, plan.phase, plan.weight, plan.frequency);
         if ((leaf + 1) % 64 === 0) yield;
       }
+      onStage?.('garden:trees:skeleton');
     }
-    finishGardenInstances(leaves, config.wind.treeBounds);
+    onStage?.('garden:trees:bounds');
+    yield* finishGardenInstancesSteps(leaves, config.wind.treeBounds);
     root.add(leaves);
     attached = true;
     yield;
+    onStage?.('garden:trees:pearls');
     yield* pearlGarlandsSteps(builder, m, trees, seed, quality);
-    if (detail.crownShadow) yield* crownShadowSteps(root, trees);
+    if (detail.crownShadow) {
+      onStage?.('garden:trees:crown-shadow');
+      yield* crownShadowSteps(root, trees);
+    }
   } finally {
     if (!attached) {
       leaves.dispose();

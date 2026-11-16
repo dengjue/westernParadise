@@ -99,6 +99,46 @@ describe('FrameBudgetDriver', () => {
     expect(driver.stats.overBudgetSteps).toBe(1);
   });
 
+  it('keeps a bounded descending list of the slowest labeled steps when requested', () => {
+    const frames = new FrameQueue();
+    let now = 0,
+      stage = '';
+    function* task(): Generator<void, void, void> {
+      for (const [label, duration] of [
+        ['small', 2],
+        ['large', 10],
+        ['middle', 6],
+        ['largest', 12],
+      ] as const) {
+        stage = label;
+        now += duration;
+        yield;
+      }
+    }
+
+    const driver = new FrameBudgetDriver({
+      iterator: task(),
+      budgetMs: 100,
+      slowStepLimit: 3,
+      getStepLabel: () => stage,
+      now: () => now,
+      requestFrame: frames.request,
+      cancelFrame: frames.cancel,
+      onComplete: () => {},
+      onError: (error) => {
+        throw error;
+      },
+    });
+    driver.start();
+    frames.runOne();
+
+    expect(driver.stats.slowestSteps).toEqual([
+      { stage: 'largest', durationMs: 12 },
+      { stage: 'large', durationMs: 10 },
+      { stage: 'middle', durationMs: 6 },
+    ]);
+  });
+
   it('pauses pending frames and closes the generator on cancellation', () => {
     const frames = new FrameQueue();
     let now = 0,

@@ -175,7 +175,6 @@ export function* createPureLandWorldSteps(
     yield* createSculpturesSteps(worldBuilder, worldMaterials, detail);
     architectureReady = performance.now();
 
-    setStage('garden');
     const gardenResult = yield* createGardenSteps(
       root,
       worldBuilder,
@@ -183,6 +182,7 @@ export function* createPureLandWorldSteps(
       options.seed,
       options.quality,
       options.reducedMotion,
+      setStage,
     );
     setStage('garden-partition');
     yield* partitionGardenSteps(

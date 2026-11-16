@@ -37,19 +37,20 @@ function* surfaceTextureSteps(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('无法创建材质画布');
   const rng = new Rng(seed);
-  ctx.fillStyle = kind === 'wood' ? '#b3a99a' : '#e1ded3';
-  ctx.fillRect(0, 0, size, size);
+  const base = kind === 'wood' ? [179, 169, 154] : [225, 222, 211];
   onStage?.(`${kind}:pixels`);
   const rowsPerChunk = 8;
+  const image = ctx.createImageData(size, rowsPerChunk);
   for (let y = 0; y < size; y += rowsPerChunk) {
     const height = Math.min(rowsPerChunk, size - y);
-    const image = ctx.getImageData(0, y, size, height);
     for (let i = 0; i < image.data.length; i += 4) {
       const variation = rng.range(-13, 13);
-      for (let channel = 0; channel < 3; channel++)
-        image.data[i + channel] = (image.data[i + channel] ?? 220) + variation;
+      image.data[i] = base[0]! + variation;
+      image.data[i + 1] = base[1]! + variation;
+      image.data[i + 2] = base[2]! + variation;
+      image.data[i + 3] = 255;
     }
-    ctx.putImageData(image, 0, y);
+    ctx.putImageData(image, 0, y, 0, 0, size, height);
     yield;
   }
 

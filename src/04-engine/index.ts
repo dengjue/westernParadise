@@ -8,4 +8,8 @@ export { createCinematicPipeline } from './CinematicPipeline';
 export { DistanceLod } from './DistanceLod';
 export { RenderTelemetry } from './RenderTelemetry';
 export { FrameBudgetDriver } from './FrameBudgetDriver';
-export type { FrameBudgetDriverOptions, FrameBudgetStats } from './FrameBudgetDriver';
+export type {
+  FrameBudgetDriverOptions,
+  FrameBudgetSlowStep,
+  FrameBudgetStats,
+} from './FrameBudgetDriver';

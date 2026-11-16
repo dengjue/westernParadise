@@ -1,4 +1,11 @@
-import { BufferGeometry, Float32BufferAttribute, InstancedBufferAttribute } from 'three';
+import {
+  Box3,
+  BufferGeometry,
+  Float32BufferAttribute,
+  InstancedBufferAttribute,
+  Matrix4,
+  Sphere,
+} from 'three';
 import type { InstancedMesh } from 'three';
 import { LAND_GARDEN, LAND_GARDEN_QUALITY } from '@/01-shared';
 import type { QualityTier } from '@/00-types';
@@ -104,13 +111,35 @@ export function windGeometry(base: BufferGeometry, count: number): BufferGeometr
   return geometry;
 }
 
-export function finishGardenInstances(mesh: InstancedMesh, margin: number): void {
+/** 按 Three 的实例顺序累积同一 Box3/Sphere 结果，每 64 个实例让帧。 */
+export function* finishGardenInstancesSteps(
+  mesh: InstancedMesh,
+  margin: number,
+): Generator<void, void, void> {
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.geometry.getAttribute('gardenWind').needsUpdate = true;
-  mesh.computeBoundingBox();
-  mesh.computeBoundingSphere();
-  mesh.boundingBox!.expandByScalar(margin);
-  mesh.boundingSphere!.radius += margin;
+
+  const geometry = mesh.geometry;
+  if (geometry.boundingBox === null) geometry.computeBoundingBox();
+  if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
+
+  const boundingBox = new Box3().makeEmpty(),
+    boundingSphere = new Sphere().makeEmpty(),
+    instanceMatrix = new Matrix4(),
+    transformedBox = new Box3(),
+    transformedSphere = new Sphere();
+  for (let index = 0; index < mesh.count; index++) {
+    mesh.getMatrixAt(index, instanceMatrix);
+    transformedBox.copy(geometry.boundingBox!).applyMatrix4(instanceMatrix);
+    boundingBox.union(transformedBox);
+    transformedSphere.copy(geometry.boundingSphere!).applyMatrix4(instanceMatrix);
+    boundingSphere.union(transformedSphere);
+    if ((index + 1) % 64 === 0) yield;
+  }
+  mesh.boundingBox = boundingBox;
+  mesh.boundingSphere = boundingSphere;
+  boundingBox.expandByScalar(margin);
+  boundingSphere.radius += margin;
   mesh.userData['windMargin'] = margin;
 }

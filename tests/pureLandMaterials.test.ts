@@ -1,9 +1,10 @@
 import { Material, Texture } from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Rng } from '../src/02-core';
 import type { CanvasFactory, PureLandMaterials } from '../src/05-materials';
 import { createPureLandMaterialsSteps } from '../src/05-materials';
 
-function createCanvasFactory(): CanvasFactory {
+function createCanvasFactory(onPutImageData?: (image: ImageData) => void): CanvasFactory {
   return (width, height) => {
     const context = {
       fillStyle: '',
@@ -16,9 +17,15 @@ function createCanvasFactory(): CanvasFactory {
       textBaseline: 'alphabetic',
       fillRect() {},
       strokeRect() {},
+      createImageData: (imageWidth: number, imageHeight: number) =>
+        ({
+          width: imageWidth,
+          height: imageHeight,
+          data: new Uint8ClampedArray(imageWidth * imageHeight * 4),
+        }) as ImageData,
       getImageData: (_x: number, _y: number, imageWidth: number, imageHeight: number) =>
         ({ data: new Uint8ClampedArray(imageWidth * imageHeight * 4) }) as ImageData,
-      putImageData() {},
+      putImageData: (image: ImageData) => onPutImageData?.(image),
       createLinearGradient: () => ({ addColorStop() {} }),
       createRadialGradient: () => ({ addColorStop() {} }),
       beginPath() {},
@@ -46,6 +53,32 @@ function createCanvasFactory(): CanvasFactory {
 
 describe('createPureLandMaterialsSteps cancellation', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it('writes the same seeded stone variation directly into each pixel chunk', () => {
+    let firstChunk: Uint8ClampedArray | undefined;
+    const steps = createPureLandMaterialsSteps(
+      createCanvasFactory((image) => {
+        firstChunk ??= new Uint8ClampedArray(image.data);
+      }),
+      123,
+      1,
+    );
+
+    expect(steps.next().done).toBe(false);
+    const rng = new Rng(123);
+    const expected = new Uint8ClampedArray(4 * 4);
+    for (let pixel = 0; pixel < 4; pixel++) {
+      const variation = rng.range(-13, 13),
+        offset = pixel * 4;
+      expected[offset] = 225 + variation;
+      expected[offset + 1] = 222 + variation;
+      expected[offset + 2] = 211 + variation;
+      expected[offset + 3] = 255;
+    }
+
+    expect(firstChunk?.slice(0, expected.length)).toEqual(expected);
+    steps.return(undefined as unknown as PureLandMaterials);
+  });
 
   it('disposes generated textures when cancelled during a later texture raster', () => {
     let stage = '';

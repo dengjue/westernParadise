@@ -3,8 +3,14 @@ export interface FrameBudgetStats {
   steps: number;
   maxStepMs: number;
   maxStepLabel: string;
+  slowestSteps: Array<{ stage: string; durationMs: number }>;
   overBudgetSteps: number;
   elapsedMs: number;
+}
+
+export interface FrameBudgetSlowStep {
+  stage: string;
+  durationMs: number;
 }
 
 export interface FrameBudgetDriverOptions<T> {
@@ -12,12 +18,16 @@ export interface FrameBudgetDriverOptions<T> {
   budgetMs: number;
   deferFirstFrame?: boolean;
   getStepLabel?: () => string;
+  /** Optional bounded diagnostic; keep disabled on production paths unless explicitly requested. */
+  slowStepLimit?: number;
   now?: () => number;
   requestFrame?: (callback: FrameRequestCallback) => number;
   cancelFrame?: (id: number) => void;
   onComplete: (value: T, stats: Readonly<FrameBudgetStats>) => void;
   onError: (error: unknown, stats: Readonly<FrameBudgetStats>) => void;
 }
+
+const MAX_SLOW_STEP_SAMPLES = 32;
 
 /** 将确定性 generator 步骤分散到 RAF；单个 next() 仍可能超出预算，统计会暴露该情况。 */
 export class FrameBudgetDriver<T> {
@@ -26,6 +36,7 @@ export class FrameBudgetDriver<T> {
     steps: 0,
     maxStepMs: 0,
     maxStepLabel: '',
+    slowestSteps: [],
     overBudgetSteps: 0,
     elapsedMs: 0,
   };
@@ -39,6 +50,7 @@ export class FrameBudgetDriver<T> {
   private readonly onError: FrameBudgetDriverOptions<T>['onError'];
   private readonly deferFirstFrame: boolean;
   private readonly getStepLabel: (() => string) | undefined;
+  private readonly slowStepLimit: number;
   private rafId: number | null = null;
   private startedAt = 0;
   private started = false;
@@ -59,6 +71,10 @@ export class FrameBudgetDriver<T> {
     this.onError = options.onError;
     this.deferFirstFrame = options.deferFirstFrame ?? false;
     this.getStepLabel = options.getStepLabel;
+    const requestedSlowStepLimit = options.slowStepLimit ?? 0;
+    this.slowStepLimit = Number.isFinite(requestedSlowStepLimit)
+      ? Math.min(MAX_SLOW_STEP_SAMPLES, Math.max(0, Math.floor(requestedSlowStepLimit)))
+      : 0;
   }
 
   start(): void {
@@ -124,6 +140,7 @@ export class FrameBudgetDriver<T> {
         this.stats.maxStepMs = stepMs;
         this.stats.maxStepLabel = this.getStepLabel?.() ?? '';
       }
+      if (this.slowStepLimit > 0) this.recordSlowStep(stepMs);
       if (stepMs > this.budgetMs) this.stats.overBudgetSteps++;
 
       if (result.done) {
@@ -146,5 +163,23 @@ export class FrameBudgetDriver<T> {
     this.stats.elapsedMs = Math.max(0, this.now() - this.startedAt);
     this.cancelPendingFrame();
     this.onError(error, this.stats);
+  }
+
+  private recordSlowStep(durationMs: number): void {
+    const samples = this.stats.slowestSteps;
+    if (
+      samples.length >= this.slowStepLimit &&
+      durationMs <= samples[samples.length - 1]!.durationMs
+    )
+      return;
+
+    const sample = {
+      stage: this.getStepLabel?.() ?? '',
+      durationMs,
+    };
+    let index = 0;
+    while (index < samples.length && samples[index]!.durationMs >= durationMs) index++;
+    samples.splice(index, 0, sample);
+    if (samples.length > this.slowStepLimit) samples.pop();
   }
 }

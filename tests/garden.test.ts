@@ -1,22 +1,35 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  BoxGeometry,
   Group,
   InstancedMesh,
+  InstancedBufferAttribute,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  Object3D,
   Vector3,
 } from 'three';
 import type { BufferGeometry } from 'three';
 import { LAND_GARDEN, LAND_GARDEN_QUALITY, LAND_WORLD, PURE_LAND } from '@/01-shared';
-import { createGardenLayout, isPondClear, sampleGardenLeaf } from '@/02-core';
+import {
+  createGardenLayout,
+  createGardenLayoutSteps,
+  isPondClear,
+  sampleGardenLeaf,
+} from '@/02-core';
 import type { PondCircle } from '@/02-core';
 import type { PureLandMaterials } from '@/05-materials';
 import { createGardenWind } from '@/05-materials';
-import { createGarden } from '@/06-world/land/Garden';
+import { createGarden, createGardenSteps } from '@/06-world/land/Garden';
 import { LandBuilder } from '@/06-world/land/Builder';
-import { lilyGeometry, lotusPetalGeometry, treeLeafGeometry } from '@/06-world/land/GardenGeometry';
+import {
+  finishGardenInstancesSteps,
+  lilyGeometry,
+  lotusPetalGeometry,
+  treeLeafGeometry,
+} from '@/06-world/land/GardenGeometry';
 import { partitionGarden } from '@/06-world/land/SpatialGarden';
 import { DistanceLod } from '@/04-engine';
 
@@ -90,6 +103,16 @@ function dispose(root: Group, fixture: PureLandMaterials): void {
 describe('稳定园林布局', () => {
   it('同 seed 重建逐位一致，独立叶片抽样不影响骨架与花心，不同 seed 有变化', () => {
     const first = createGardenLayout(20261113);
+    const layoutSteps = createGardenLayoutSteps(20261113);
+    let layoutYields = 0,
+      next = layoutSteps.next();
+    while (!next.done) {
+      layoutYields++;
+      next = layoutSteps.next();
+    }
+    expect(next.value).toEqual(first);
+    expect(layoutYields).toBeGreaterThan(400);
+
     for (let index = 0; index < 1000; index++) sampleGardenLeaf(20261113, first.trees[0]!, index);
     expect(createGardenLayout(20261113)).toEqual(first);
     const other = createGardenLayout(20261114);
@@ -140,6 +163,80 @@ describe('稳定园林布局', () => {
 });
 
 describe('曲面植物与风动', () => {
+  it('取消实例包围体分帧阶段会释放尚未挂载的树叶网格', () => {
+    const root = new Group(),
+      fixture = materials(),
+      builder = new LandBuilder();
+    let stage = '';
+    const disposed = vi.spyOn(InstancedMesh.prototype, 'dispose');
+    const steps = createGardenSteps(root, builder, fixture, 20261113, 'high', false, (next) => {
+      stage = next;
+    });
+    let next = steps.next();
+    while (!next.done && stage !== 'garden:trees:bounds') next = steps.next();
+    expect(next.done).toBe(false);
+    expect(stage).toBe('garden:trees:bounds');
+
+    steps.return(undefined as never);
+    builder.abort();
+
+    expect(disposed).toHaveBeenCalled();
+    expect(root.getObjectByName('jewel-tree-leaves')).toBeUndefined();
+    disposed.mockRestore();
+    dispose(root, fixture);
+  });
+
+  it('分帧计算实例包围体与 Three 同步结果一致', () => {
+    const count = 150,
+      margin = 0.55,
+      material = new MeshBasicMaterial(),
+      referenceGeometry = new BoxGeometry(),
+      stagedGeometry = referenceGeometry.clone(),
+      reference = new InstancedMesh(referenceGeometry, material, count),
+      staged = new InstancedMesh(stagedGeometry, material, count),
+      transform = new Object3D();
+
+    referenceGeometry.setAttribute(
+      'gardenWind',
+      new InstancedBufferAttribute(new Float32Array(count * 4), 4),
+    );
+    stagedGeometry.setAttribute(
+      'gardenWind',
+      new InstancedBufferAttribute(new Float32Array(count * 4), 4),
+    );
+    for (let index = 0; index < count; index++) {
+      transform.position.set(index * 0.37 - 20, (index % 7) * 0.13, (index % 11) * -0.29);
+      transform.rotation.set(index * 0.01, index * 0.03, index * -0.02);
+      transform.scale.set(0.8 + (index % 3) * 0.1, 0.7 + (index % 5) * 0.08, 0.9);
+      transform.updateMatrix();
+      reference.setMatrixAt(index, transform.matrix);
+      staged.setMatrixAt(index, transform.matrix);
+    }
+
+    reference.computeBoundingBox();
+    reference.computeBoundingSphere();
+    reference.boundingBox!.expandByScalar(margin);
+    reference.boundingSphere!.radius += margin;
+
+    let yields = 0;
+    const steps = finishGardenInstancesSteps(staged, margin);
+    for (let next = steps.next(); !next.done; next = steps.next()) yields++;
+
+    expect(yields).toBe(2);
+    expect(staged.boundingBox!.min.toArray()).toEqual(reference.boundingBox!.min.toArray());
+    expect(staged.boundingBox!.max.toArray()).toEqual(reference.boundingBox!.max.toArray());
+    expect(staged.boundingSphere!.center.toArray()).toEqual(
+      reference.boundingSphere!.center.toArray(),
+    );
+    expect(staged.boundingSphere!.radius).toBe(reference.boundingSphere!.radius);
+
+    reference.dispose();
+    staged.dispose();
+    referenceGeometry.dispose();
+    stagedGeometry.dispose();
+    material.dispose();
+  });
+
   it.each([24, 48])(
     '%d 米植物分块无实例丢失，三级共享矩阵/颜色/风属性，远景仍覆盖每棵树',
     (cellSize) => {

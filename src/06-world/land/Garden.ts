@@ -1,6 +1,7 @@
 import type { Group } from 'three';
 import type { QualityTier } from '@/00-types';
-import { createGardenLayout } from '@/02-core';
+import { createGardenLayoutSteps } from '@/02-core';
+import type { createGardenLayout } from '@/02-core';
 import { createGardenWind } from '@/05-materials';
 import type { PureLandMaterials } from '@/05-materials';
 import type { LandBuilder } from './Builder';
@@ -21,6 +22,7 @@ export function* createGardenSteps(
   seed: number,
   quality: QualityTier,
   reducedMotion: boolean,
+  onStage?: (stage: string) => void,
 ): Generator<
   void,
   {
@@ -30,12 +32,33 @@ export function* createGardenSteps(
   },
   void
 > {
-  const layout = createGardenLayout(seed),
-    wind = createGardenWind(reducedMotion);
+  onStage?.('garden:layout');
+  const layout = yield* createGardenLayoutSteps(seed);
   yield;
-  yield* createGardenTreesSteps(root, builder, materials, layout.trees, seed, quality, wind);
-  yield* createGardenLotusesSteps(root, builder, materials, layout.lotuses, seed, quality, wind);
+  const wind = createGardenWind(reducedMotion);
+  onStage?.('garden:trees');
+  yield* createGardenTreesSteps(
+    root,
+    builder,
+    materials,
+    layout.trees,
+    seed,
+    quality,
+    wind,
+    onStage,
+  );
+  yield* createGardenLotusesSteps(
+    root,
+    builder,
+    materials,
+    layout.lotuses,
+    seed,
+    quality,
+    wind,
+    onStage,
+  );
   // 远景白鸟保持静态剪影，与植物随机流独立。
+  onStage?.('garden:birds');
   for (let i = 0; i < 9; i++) {
     const x = -40 + i * 5,
       y = 46 + Math.sin(i * 0.6) * 3,

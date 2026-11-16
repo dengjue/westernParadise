@@ -8,7 +8,7 @@ import { applyGardenWind } from '@/05-materials';
 import type { GardenWind, PureLandMaterials } from '@/05-materials';
 import type { LandBuilder } from './Builder';
 import {
-  finishGardenInstances,
+  finishGardenInstancesSteps,
   lilyGeometry,
   lotusPetalGeometry,
   windGeometry,
@@ -33,9 +33,11 @@ export function* createGardenLotusesSteps(
   seed: number,
   quality: QualityTier,
   wind: GardenWind,
+  onStage?: (stage: string) => void,
 ): Generator<void, void, void> {
   const { lotus, lily, wind: motion } = LAND_GARDEN;
   const capacity = m.lotus.map(() => 0);
+  onStage?.('garden:lotus:count-petals');
   for (const plan of plans) {
     for (let layer = 0; layer < plan.petals.length; layer++) {
       for (let petal = 0; petal < plan.petals[layer]!; petal++) {
@@ -54,6 +56,7 @@ export function* createGardenLotusesSteps(
   const counters = m.lotus.map(() => 0);
   let leafIndex = 0;
   try {
+    onStage?.('garden:lotus:allocate-petals');
     const prototype = lotusPetalGeometry(quality);
     try {
       for (let color = 0; color < m.lotus.length; color++) {
@@ -72,10 +75,12 @@ export function* createGardenLotusesSteps(
       prototype.dispose();
     }
     let leafCount = 0;
+    onStage?.('garden:lotus:count-leaves');
     for (const flower of plans) {
       leafCount += flower.leaves.length;
       yield;
     }
+    onStage?.('garden:lotus:allocate-leaves');
     const leafPrototype = lilyGeometry(quality);
     try {
       applyGardenWind(m.lily, wind);
@@ -88,6 +93,7 @@ export function* createGardenLotusesSteps(
     center = new CylinderGeometry(1, 0.68, 1, 12);
     pollen = new SphereGeometry(1, 6, 4);
 
+    onStage?.('garden:lotus:populate');
     for (const plan of plans) {
       const mesh = flowers[plan.color]!,
         y = PURE_LAND.waterY + plan.height;
@@ -169,12 +175,14 @@ export function* createGardenLotusesSteps(
       yield;
     }
     for (const flower of flowers) {
-      finishGardenInstances(flower, motion.petalBounds);
+      onStage?.('garden:lotus:petal-bounds');
+      yield* finishGardenInstancesSteps(flower, motion.petalBounds);
       root.add(flower);
       attached.add(flower);
       yield;
     }
-    finishGardenInstances(leaves, motion.lilyBounds);
+    onStage?.('garden:lotus:lily-bounds');
+    yield* finishGardenInstancesSteps(leaves, motion.lilyBounds);
     root.add(leaves);
     attached.add(leaves);
     yield;

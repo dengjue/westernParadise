@@ -44,6 +44,10 @@ export interface GardenLotus extends PondCircle {
   petals: number[];
   leaves: GardenLily[];
 }
+interface GardenLayout {
+  trees: GardenTree[];
+  lotuses: GardenLotus[];
+}
 
 /** 不消费父随机流：增减一个对象的细节不会移动其他对象。所有运算限制在 32 位。 */
 export function gardenRng(
@@ -63,7 +67,7 @@ export function gardenRng(
   return new Rng((hash ^ (hash >>> 16)) >>> 0);
 }
 
-function createTrees(seed: number): GardenTree[] {
+function* createTreesSteps(seed: number): Generator<void, GardenTree[], void> {
   const config = LAND_GARDEN.trees,
     trees: GardenTree[] = [];
   for (const side of [-1, 1])
@@ -112,6 +116,7 @@ function createTrees(seed: number): GardenTree[] {
           branches.push({ points, twigs });
         }
         trees.push({ id, side, row, lane, x, z, height, radius, lean, branches });
+        yield;
       }
   return trees;
 }
@@ -172,7 +177,10 @@ export function sampleGardenLeaf(seed: number, tree: GardenTree, index: number) 
   };
 }
 
-function createLotuses(seed: number, trees: readonly GardenTree[]): GardenLotus[] {
+function* createLotusesSteps(
+  seed: number,
+  trees: readonly GardenTree[],
+): Generator<void, GardenLotus[], void> {
   const { pond, lotus, lily, wind } = LAND_GARDEN;
   const flowers: GardenLotus[] = [];
   for (let id = 0; id < lotus.count; id++) {
@@ -202,9 +210,11 @@ function createLotuses(seed: number, trees: readonly GardenTree[]): GardenLotus[
         placed = true;
         break;
       }
+      if ((attempt + 1) % 32 === 0) yield;
     }
     if (!placed) throw new Error(`莲花 ${id} 无法在池内留出安全水隙`);
     flowers.push(flower);
+    yield;
   }
   const occupied: PondCircle[] = [...flowers];
   for (const flower of flowers)
@@ -233,16 +243,27 @@ function createLotuses(seed: number, trees: readonly GardenTree[]): GardenLotus[
           placed = true;
           break;
         }
+        if ((attempt + 1) % 32 === 0) yield;
       }
       if (!placed) throw new Error(`莲叶 ${flower.id}/${index} 无法在池内留出安全水隙`);
       flower.leaves.push(leaf);
       occupied.push(leaf);
+      yield;
     }
   return flowers;
 }
 
 /** 与渲染器无关的完整园林骨架；不接受质量参数，从接口上杜绝切档位移。 */
-export function createGardenLayout(seed: number) {
-  const trees = createTrees(seed);
-  return { trees, lotuses: createLotuses(seed, trees) };
+/** 确定性园林布局；大对象放置分步让帧，失败候选搜索也有界让出。 */
+export function* createGardenLayoutSteps(seed: number): Generator<void, GardenLayout, void> {
+  const trees = yield* createTreesSteps(seed);
+  const lotuses = yield* createLotusesSteps(seed, trees);
+  return { trees, lotuses };
+}
+
+export function createGardenLayout(seed: number): GardenLayout {
+  const steps = createGardenLayoutSteps(seed);
+  let next = steps.next();
+  while (!next.done) next = steps.next();
+  return next.value;
 }

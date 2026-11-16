@@ -27,7 +27,7 @@ import {
   Loop,
   RenderTelemetry,
 } from '@/04-engine';
-import type { FrameBudgetStats } from '@/04-engine';
+import type { FrameBudgetSlowStep, FrameBudgetStats } from '@/04-engine';
 import { createPureLandWorld, createPureLandWorldSteps } from '@/06-world';
 import type { PureLandWorldOptions } from '@/06-world';
 import { KeyboardMouseInput, LandAvatar, LandCamera, TouchInput } from '@/07-systems';
@@ -45,6 +45,7 @@ interface StartupStats {
   buildSteps: number;
   maxBuildStepMs: number;
   maxBuildStepStage: string;
+  slowestBuildSteps: FrameBudgetSlowStep[];
   buildOverBudgetSteps: number;
 }
 
@@ -94,6 +95,7 @@ export function startPureLand(): () => void {
     buildSteps: 0,
     maxBuildStepMs: 0,
     maxBuildStepStage: '',
+    slowestBuildSteps: [],
     buildOverBudgetSteps: 0,
   };
   const root = document.getElementById('app');
@@ -285,6 +287,7 @@ export function startPureLand(): () => void {
     budgetMs: THIRD_PERSON_BUILD_BUDGET_MS,
     deferFirstFrame: true,
     getStepLabel: () => buildProgress.stage,
+    slowStepLimit: import.meta.env.DEV || params.debug || params.bench ? 12 : 0,
     onComplete(world, stats) {
       if (disposed) {
         world.dispose();
@@ -333,6 +336,7 @@ function recordBuildStats(startup: StartupStats, stats: Readonly<FrameBudgetStat
   startup.buildSteps = stats.steps;
   startup.maxBuildStepMs = stats.maxStepMs;
   startup.maxBuildStepStage = stats.maxStepLabel;
+  startup.slowestBuildSteps = stats.slowestSteps;
   startup.buildOverBudgetSteps = stats.overBudgetSteps;
 }
 
