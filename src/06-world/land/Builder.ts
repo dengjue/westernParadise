@@ -5,6 +5,7 @@ import {
   CatmullRomCurve3,
   CylinderGeometry,
   Group,
+  Matrix3,
   Matrix4,
   Mesh,
   Quaternion,
@@ -23,6 +24,7 @@ import { batchStaticCells } from './CellBatch';
 
 type Point = readonly [number, number, number];
 const MERGE_GEOMETRY_PARTS_PER_STEP = 16;
+const SHAPE_VERTICES_PER_STEP = 256;
 
 function canMergeIncrementally(parts: readonly BufferGeometry[]): boolean {
   const first = parts[0];
@@ -352,18 +354,96 @@ export class LandBuilder {
     size: Point = [1, 1, 1],
     yaw = 0,
   ): void {
-    this.options.onStage?.(
-      `builder:shape:${geometry.type}:v${geometry.getAttribute('position').count}:i${geometry.index?.count ?? 0}`,
-    );
+    this.options.onStage?.(this.shapeStagePrefix(geometry));
+    const copy = geometry.clone().applyMatrix4(this.shapeTransform(point, size, yaw));
+    this.storeCopy(copy, material);
+  }
+
+  /** 转移调用方拥有的临时几何；取消/失败时释放，成功后由 builder/flush 接管。 */
+  *shapeOwnedSteps(
+    geometry: BufferGeometry,
+    material: Material,
+    point: Point = [0, 0, 0],
+    size: Point = [1, 1, 1],
+    yaw = 0,
+  ): Generator<void, void, void> {
+    let delegated = false;
+    try {
+      const transform = this.shapeTransform(point, size, yaw),
+        stagePrefix = this.shapeStagePrefix(geometry);
+      delegated = true;
+      yield* this.transformShapeSteps(geometry, material, transform, stagePrefix);
+    } finally {
+      if (!delegated) geometry.dispose();
+    }
+  }
+
+  private *transformShapeSteps(
+    geometry: BufferGeometry,
+    material: Material,
+    transform: Matrix4,
+    stagePrefix: string,
+  ): Generator<void, void, void> {
+    let stored = false;
+    try {
+      // Bounds are only used for cell placement; recompute the transformed box once below.
+      geometry.boundingBox = null;
+      geometry.boundingSphere = null;
+      const positions = geometry.getAttribute('position'),
+        normals = geometry.getAttribute('normal'),
+        tangents = geometry.getAttribute('tangent'),
+        normalMatrix = normals ? new Matrix3().getNormalMatrix(transform) : undefined,
+        vertexCount = Math.max(positions.count, normals?.count ?? 0, tangents?.count ?? 0),
+        vector = new Vector3();
+      for (let start = 0; start < vertexCount; start += SHAPE_VERTICES_PER_STEP) {
+        const end = Math.min(start + SHAPE_VERTICES_PER_STEP, vertexCount);
+        for (let index = start; index < Math.min(end, positions.count); index++) {
+          vector.fromBufferAttribute(positions, index).applyMatrix4(transform);
+          positions.setXYZ(index, vector.x, vector.y, vector.z);
+        }
+        if (normals && normalMatrix)
+          for (let index = start; index < Math.min(end, normals.count); index++) {
+            vector.fromBufferAttribute(normals, index).applyNormalMatrix(normalMatrix);
+            normals.setXYZ(index, vector.x, vector.y, vector.z);
+          }
+        if (tangents)
+          for (let index = start; index < Math.min(end, tangents.count); index++) {
+            vector.fromBufferAttribute(tangents, index).transformDirection(transform);
+            tangents.setXYZ(index, vector.x, vector.y, vector.z);
+          }
+        this.options.onStage?.(`${stagePrefix}:transform:${end}/${vertexCount}`);
+        yield;
+      }
+      positions.needsUpdate = true;
+      if (normals) normals.needsUpdate = true;
+      if (tangents) tangents.needsUpdate = true;
+      this.options.onStage?.(`${stagePrefix}:bounds`);
+      this.storeCopy(geometry, material);
+      stored = true;
+    } finally {
+      if (!stored) geometry.dispose();
+    }
+  }
+
+  private shapeTransform(point: Point, size: Point, yaw: number): Matrix4 {
     this.position.fromArray(point);
     if (yaw === 0) this.rotation.identity();
     else this.rotation.setFromAxisAngle(this.up, yaw);
     this.scale.fromArray(size);
     this.transform.compose(this.position, this.rotation, this.scale);
+    return this.transform.clone();
+  }
+
+  private shapeStagePrefix(geometry: BufferGeometry): string {
+    return this.options.onStage
+      ? `builder:shape:${geometry.type}:v${geometry.getAttribute('position').count}:i${geometry.index?.count ?? 0}`
+      : '';
+  }
+
+  private storeCopy(copy: BufferGeometry, material: Material): void {
     const cell = this.options.cellSize ?? 0;
     const originX = this.options.cellOrigin?.[0] ?? 0;
     const originZ = this.options.cellOrigin?.[1] ?? 0;
-    const copy = geometry.clone().applyMatrix4(this.transform);
     copy.computeBoundingBox();
     copy.boundingBox!.getCenter(this.center);
     const key =

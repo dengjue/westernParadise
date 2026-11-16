@@ -86,6 +86,71 @@ describe('LandBuilder 索引合批', () => {
     material.dispose();
   });
 
+  it('shapeOwnedSteps 复用并接管临时几何，输出与 Three 变换一致', () => {
+    const builder = new LandBuilder({ cellSize: 100 }),
+      parent = new Group(),
+      material = new MeshStandardMaterial(),
+      source = new PlaneGeometry(18, 14, 40, 32),
+      point: [number, number, number] = [4, 3, 8],
+      scale: [number, number, number] = [1.2, 0.8, 1.1],
+      yaw = 0.37,
+      matrix = new Matrix4().compose(
+        new Vector3(...point),
+        new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw),
+        new Vector3(...scale),
+      );
+    source.computeTangents();
+    const expected = source.clone().applyMatrix4(matrix),
+      sourceClone = vi.spyOn(source, 'clone'),
+      sourceDispose = vi.spyOn(source, 'dispose');
+
+    let actual: BufferGeometry | undefined;
+    try {
+      let yields = 0;
+      const steps = builder.shapeOwnedSteps(source, material, point, scale, yaw);
+      for (let next = steps.next(); !next.done; next = steps.next()) yields++;
+      builder.flush(parent);
+
+      expect(yields).toBeGreaterThan(1);
+      expect(sourceClone).not.toHaveBeenCalled();
+      expect(sourceDispose).toHaveBeenCalledTimes(1);
+      actual = output(parent).geometry;
+      for (const name of ['position', 'normal', 'uv', 'tangent'])
+        expect(actual.getAttribute(name).array).toEqual(expected.getAttribute(name).array);
+      expect(actual.index!.array).toEqual(expected.index!.array);
+      expect(parent.children.map(({ userData }) => userData['cell'])).toEqual(['0,0']);
+    } finally {
+      actual?.dispose();
+      expected.dispose();
+      builder.abort();
+      const sourceDisposed = sourceDispose.mock.calls.length > 0;
+      sourceClone.mockRestore();
+      sourceDispose.mockRestore();
+      if (!sourceDisposed) source.dispose();
+      material.dispose();
+    }
+  });
+
+  it('取消 shapeOwnedSteps 时释放已转移的输入几何', () => {
+    const builder = new LandBuilder(),
+      source = new PlaneGeometry(18, 14, 40, 32),
+      material = new MeshStandardMaterial(),
+      sourceDispose = vi.spyOn(source, 'dispose'),
+      steps = builder.shapeOwnedSteps(source, material);
+    try {
+      expect(steps.next().done).toBe(false);
+      steps.return();
+
+      expect(sourceDispose).toHaveBeenCalledTimes(1);
+      builder.abort();
+    } finally {
+      steps.return();
+      builder.abort();
+      sourceDispose.mockRestore();
+      material.dispose();
+    }
+  });
+
   it('取消时释放已合批但尚未挂载的 LOD 几何，且共享阴影副本只释放一次', () => {
     const builder = new LandBuilder({ dynamicLod: true });
     const material = new MeshStandardMaterial();

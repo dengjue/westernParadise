@@ -107,25 +107,31 @@ function* createRoofBody(
   const settings = LAND_DETAIL[detail],
     craft = LAND_CRAFT.roof;
   const geometry = roofGeometry(b, detail);
+  let geometryTransferred = false,
+    underside: BufferGeometry | undefined,
+    undersideTransferred = false;
   try {
-    builder.shape(geometry, m.roof, [b.x, b.base, b.z]);
-    {
-      const underside = geometry.clone().translate(0, -craft.thickness, 0);
-      try {
-        const index = underside.index!;
-        for (let i = 0; i < index.count; i += 3) {
-          const second = index.getX(i + 1);
-          index.setX(i + 1, index.getX(i + 2));
-          index.setX(i + 2, second);
-        }
-        underside.computeVertexNormals();
-        builder.shape(underside, m.wood, [b.x, b.base, b.z]);
-      } finally {
-        underside.dispose();
-      }
+    underside = geometry.clone();
+    yield;
+    underside.translate(0, -craft.thickness, 0);
+    const index = underside.index!;
+    for (let i = 0; i < index.count; i += 3) {
+      const second = index.getX(i + 1);
+      index.setX(i + 1, index.getX(i + 2));
+      index.setX(i + 2, second);
     }
+    underside.computeVertexNormals();
+    yield;
+
+    geometryTransferred = true;
+    yield* builder.shapeOwnedSteps(geometry, m.roof, [b.x, b.base, b.z]);
+    undersideTransferred = true;
+    yield* builder.shapeOwnedSteps(underside, m.wood, [b.x, b.base, b.z]);
   } finally {
-    geometry.dispose();
+    if (!geometryTransferred) geometry.dispose();
+    if (underside && !undersideTransferred) {
+      underside.dispose();
+    }
   }
   yield;
 

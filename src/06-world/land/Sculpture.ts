@@ -76,18 +76,10 @@ function* seatedFigureBodySteps(
     petal.dispose();
   }
   const robe = profileSurface(craft.robe, settings.figureRows, settings.figureSegments, robeRelief);
-  try {
-    builder.shape(robe, body, p(0, 0, 0), s(1, 1, 1));
-  } finally {
-    robe.dispose();
-  }
+  yield* builder.shapeOwnedSteps(robe, body, p(0, 0, 0), s(1, 1, 1));
   yield;
   const head = profileSurface(craft.head, settings.figureRows, settings.figureSegments, faceRelief);
-  try {
-    builder.shape(head, body, p(0, 0, 0), s(1, 1, 1));
-  } finally {
-    head.dispose();
-  }
+  yield* builder.shapeOwnedSteps(head, body, p(0, 0, 0), s(1, 1, 1));
   yield;
   builder.sphere(m.dark, p(0, 7.83, -0.09), s(0.75, 0.4, 0.65));
   yield;
