@@ -12,7 +12,8 @@ export const LAND_ATMOSPHERE = Object.freeze({
   fill: { sky: 0xdfebe6, ground: 0x8d9e92, color: 0xe7eee4, position: [45, 65, 95] },
   interior: { color: 0xffe0ae, intensity: 105, distance: 44, position: [0, 13, -40] },
   contact: { textureSize: 128, opacity: 0.22, color: 0x22372e, radiusRatio: 2.35, lift: 0.012 },
-  environment: { size: 256, blur: 0.06, intensity: 0.68 },
+  // PMREM 已做 roughness 预滤波；sigma=0 避免额外两次初始 cube blur pass。
+  environment: { size: 256, blur: 0, intensity: 0.68 },
 } as const);
 
 export const LAND_LIGHT_QUALITY: Readonly<Record<QualityTier, { shadowHz: number }>> = {

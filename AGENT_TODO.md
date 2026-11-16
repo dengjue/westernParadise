@@ -150,9 +150,9 @@
 - [x] 将造像、庭园、植被分区和静态 cell flush 接入可取消的世界构建 generator；`?cam=third` 显示首屏 loading 并经 RAF 切片驱动，默认第一人称继续同步消费同一确定性步骤。
 - [x] 首次材质构建按小块生成纹理、叶脉/纹饰/匾额按步骤让帧；PMREM 环境图逐张烘焙。取消路径覆盖像素处理中断、已生成纹理和已装配材质的释放；环境烘焙中途也清理已完成的目标。
 - [x] `FrameBudgetDriver` 覆盖首次绘制让出、时间切片、单步超预算及阶段标签统计、暂停/恢复与取消关闭 generator；world abort 继续负责 builder pending 几何和部分场景树。
-- [x] `npm run verify` 通过：40 个测试文件 / 237 项测试；单文件 853,029 字节，MD5 `15ead70a0a17fa790b840bbc6f13a13a`。
-- [x] headed Firefox 160 / WebGL2 桌面 smoke：第三人称三次完整启动、重启后立即取消、取消后再启动及最终 dispose 均无 fatal/JS 错误且 DOM/canvas 清零；默认第一人称 `buildSteps=0`，仍走同步路径。最长单步 48/43/50ms，阶段 `atmosphere:environment:bake-0`；构建约 12.5/10.9/12.6s。详见 23 号规范。首次 X11 授权失败记录已由此补测覆盖。
-- [!] 6ms 仅是主线程调度切片，不是设备帧时保证；PMREM 单次烘焙仍不可抢占，桌面 smoke 不能关闭 A4、B0、C0，也不代表阶段 1/2 人工手感通过。阶段 4 保持未关闭。
+- [x] `npm run verify` 通过：40 个测试文件 / 237 项测试；单文件 853,027 字节，MD5 `a046f0d1fd4aedabc4e47b2844826b6f`。
+- [x] headed Firefox 160 / WebGL2 桌面 smoke：第三人称三次完整启动、重启后立即取消、取消后再启动及最终 dispose 均无 fatal/JS 错误且 DOM/canvas 清零；默认第一人称 `buildSteps=0`，仍走同步路径。PMREM blur=0 候选的三次最长单步 39/36/41ms（旧 blur=0.06 对照 68/53/53ms），总构建中位数基本不变。详见 23 号规范。首次 X11 授权失败记录已由此补测覆盖。
+- [!] 6ms 仅是主线程调度切片，不是设备帧时保证；单次 PMREM 烘焙仍不可抢占，桌面 smoke 不能关闭 A4、B0、C0，也不代表阶段 1/2 人工手感通过。阶段 4 保持未关闭。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 
