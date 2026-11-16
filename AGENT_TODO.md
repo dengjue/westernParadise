@@ -152,6 +152,7 @@
 - [x] `FrameBudgetDriver` 覆盖首次绘制让出、时间切片、单步超预算及阶段标签统计、暂停/恢复与取消关闭 generator；world abort 继续负责 builder pending 几何和部分场景树。
 - [x] `npm run verify` 通过：40 个测试文件 / 237 项测试；单文件 853,027 字节，MD5 `a046f0d1fd4aedabc4e47b2844826b6f`。
 - [x] headed Firefox 160 / WebGL2 桌面 smoke：第三人称三次完整启动、重启后立即取消、取消后再启动及最终 dispose 均无 fatal/JS 错误且 DOM/canvas 清零；默认第一人称 `buildSteps=0`，仍走同步路径。PMREM blur=0 候选的三次最长单步 39/36/41ms（旧 blur=0.06 对照 68/53/53ms），总构建中位数基本不变。详见 23 号规范。首次 X11 授权失败记录已由此补测覆盖。
+- [x] 核对 Three r187 PMREM：公开 `fromScene()` / `fromCubemap()` 均同步完成整张图预滤波；逐面源捕获不能拆开逐 mip 预滤波。分 mip 需依赖未公开内部 API 或维护 Three fork，本轮不接入；详见 23 号规范。
 - [!] 6ms 仅是主线程调度切片，不是设备帧时保证；单次 PMREM 烘焙仍不可抢占，桌面 smoke 不能关闭 A4、B0、C0，也不代表阶段 1/2 人工手感通过。阶段 4 保持未关闭。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
