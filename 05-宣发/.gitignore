@@ -1,0 +1,15 @@
+# 05-宣发 本地产物忽略规则
+# 根 .gitignore 已忽略 dist/（项目规范：本地构建产物不入库），两支视频成片因此在 dist/ 内自动排除。
+# 这里再排除 assets/ 下的录屏切片，以及任何其它格式的视频素材。
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.avi
+*.mkv
+
+# 逐帧渲染中间产物（3000+ 张 JPEG / 帧序列，可由 tools/render.mjs 确定性复跑）
+.render/
+
+# 静态交付物放在 assets/ 下正常入库：封面 PNG、GitHub 实截、程序化 BGM。
+# 封面由 tools/make-cover.py 生成，assets/ 那份是入库源，dist/ 那份只是本地预览副本。
