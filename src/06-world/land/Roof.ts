@@ -136,12 +136,7 @@ function* createRoofBody(
   yield;
 
   const edgeBody = fascia(b, settings.roofColumns);
-  try {
-    builder.shape(edgeBody, m.goldDark, [b.x, b.base, b.z]);
-  } finally {
-    edgeBody.dispose();
-  }
-  yield;
+  yield* builder.shapeOwnedSteps(edgeBody, m.goldDark, [b.x, b.base, b.z]);
 
   for (let face = 0; face < 4; face++) {
     const edge: [number, number, number][] = [];

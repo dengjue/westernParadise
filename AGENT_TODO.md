@@ -163,6 +163,15 @@
 - [x] 选择 256 顶点块以增加取消安全点；三次诊断 `buildMs=12,429/12,268/12,299ms`、frames `736/731/731`、steps `13,981`、最长单步 `31/37/31ms`（PMREM）。总耗时没有可证实的稳定收益，变换步骤偶尔仍略超 6ms；该选择是取消粒度与分块开销的折中，不代表长帧通过。第一人称同视点旧截图对比 RGB MAE `0.212/255`、max-channel 差异 >10 像素占比 `0.523%`；仅为本机单视点图像回归，不是人工视觉/手感验收。
 - [!] 全仓 `npm run lint` / `npm run format:check` 仍被未改动的 `05-宣发` 目录文件阻挡；本轮不改无关宣传素材。A4、B0、C0、阶段 1/2 人工手感和阶段 4 验收保持未关闭。
 
+### 2026-11-16 · 非 PMREM shape clone 分配收敛
+
+- [x] 诊断模式对同步 `LandBuilder.shape()` 每 16 次采样一次，将 matrix、clone、apply、bounds、batch route 子耗时附入慢步骤；关闭诊断时不调用计时器。采样显示 clone 偶发承担整段 7–10ms，主要与临时几何克隆分配相关；据此只转移已确认一次性拥有的 geometry，缓存共享模型仍保留 clone 路径。
+- [x] 新增同步 `shapeOwned()`，并将 generator 中栏础、柱身截面、台阶、匾额、檐口、造像 pedestal/sleeves、树干/枝段的临时几何转移到 builder；`ring()` / `rod()` 也不再创建克隆副本。长 generator 资产仍按 256 顶点块 yield，取消时由 builder 回收。共享瓦件、莲瓣/珠粒和 TubeGeometry cache 未转移。
+- [x] 校正后的同机 Firefox 160 / WebGL2 / high / 1280×714 / DPR 1 baseline/candidate 交错 A/B 各三次。基线已恢复旧 `ring()` / `rod()` clone+dispose 路径，并使用同一 shape 采样诊断。baseline `buildMs=12,368/12,446/12,496ms`（中位 12,446）、frames `732/734/744`；candidate `11,578/11,342/11,325ms`（中位 11,342，约 -1,104ms / -8.9%）、frames `686/676/674`。steps `13,981→14,008`；>6ms steps 分别 `12/9/14` 与 `11/5/12`。最大单步仍是 PMREM（baseline `36/43/42ms`，candidate `43/39/41ms`）。这是单机 dev 诊断结果，不代表目标设备收益或帧时通过。
+- [x] 校正后同机第一人称 high dawn A/B 截图 RGB MAE `0.03072/255`、max-channel 差异 >10 的像素占比 `0.0762%`；仅为单视点图像回归。最终单文件 smoke：第三人称 `buildMs=11,574ms`、689 构建帧、14,008 steps、最长 31ms（PMREM）；第一人称 `syncMs=4,032ms`、`buildSteps=0`。无 JS 错误/HTTP(S) 请求，dispose 后 canvas 与 `#app` 子节点清零。
+- [x] 全量 40 个测试文件 / 247 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、双构建和单文件离线断言通过。单文件 859,085 字节，MD5 `7e4dd96c3e67fe0454c84b3bae13f4c7`。校正 A/B 记录、截图和 smoke JSON 在忽略目录 `/tmp/opencode/shape-owned-ab/`、`/tmp/opencode/shape-owned-ab.json`、`/tmp/opencode/owned-one-shot-final-smoke/`；原受污染数据已替换。
+- [!] 全仓 lint/format 仍受未改宣传文件阻挡；PMREM 与部分共享 TubeGeometry 步骤仍不可抢占。A4/B0/C0 和阶段 1/2 人工手感验收继续未关闭；本轮数据不调整 6ms/设备预算。
+
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 
 六阶段交付及 A0–A3 已完成；A4 严格性能未通过，B0 真实手机与 C0 原生生命周期条件仍阻塞。详细历史数值、步骤、验收方法保留在 [性能收敛与真机验收方案](02-方案/18-后续优化-性能收敛与真机验收.md)。**所有当前状态、下一步和新体验阶段统一以[长期工作计划](02-方案/19-长期工作计划-大世界第三人称与性能验收.md)为准**，避免在 TODO 与多个方案里并行维护互相漂移的任务队列。

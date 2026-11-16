@@ -48,12 +48,7 @@ function* treeSkeletonSteps(
     12,
     6,
   );
-  try {
-    builder.shape(trunk, m.goldDark);
-  } finally {
-    trunk.dispose();
-  }
-  yield;
+  yield* builder.shapeOwnedSteps(trunk, m.goldDark);
   for (const branch of tree.branches) {
     const geometry = taperedTube(
       branch.points,
@@ -61,12 +56,7 @@ function* treeSkeletonSteps(
       8,
       5,
     );
-    try {
-      builder.shape(geometry, m.goldDark);
-    } finally {
-      geometry.dispose();
-    }
-    yield;
+    yield* builder.shapeOwnedSteps(geometry, m.goldDark);
     for (const twig of branch.twigs) {
       builder.rod(m.goldDark, twig.from, twig.to, config.twigRadius);
       yield;

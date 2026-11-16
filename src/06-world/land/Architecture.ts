@@ -73,16 +73,12 @@ function* columnSteps(
     radius * craft.footWidthRatio,
     craft.bevel,
   );
-  builder.shape(foot, m.carvedStone, [x, base + craft.footHeight / 2, z]);
-  foot.dispose();
-  yield;
+  yield* builder.shapeOwnedSteps(foot, m.carvedStone, [x, base + craft.footHeight / 2, z]);
   const profile = new LatheGeometry(
     craft.profile.map(([r, y]) => new Vector2(r * radius, y)),
     LAND_DETAIL[detail].radialSegments,
   );
-  builder.shape(profile, m.carvedStone, [x, base, z]);
-  profile.dispose();
-  yield;
+  yield* builder.shapeOwnedSteps(profile, m.carvedStone, [x, base, z]);
   builder.cylinder(m.goldDark, [x, base + 0.78, z], radius * 1.08, 0.12);
   yield;
   builder.cylinder(m.wood, [x, base + height / 2, z], radius, height);
@@ -318,16 +314,11 @@ function* hallSteps(
   for (let step = 0; step < stairs.count; step++) {
     const height = (step + 1) * rise;
     const geometry = chamferedBox(stairs.width, height, run, stairs.bevel);
-    try {
-      builder.shape(geometry, m.stone, [
-        stairs.x,
-        LAND_STRUCTURE.courtHeight + height / 2,
-        stairs.frontZ - (step + 0.5) * run,
-      ]);
-    } finally {
-      geometry.dispose();
-    }
-    yield;
+    yield* builder.shapeOwnedSteps(geometry, m.stone, [
+      stairs.x,
+      LAND_STRUCTURE.courtHeight + height / 2,
+      stairs.frontZ - (step + 0.5) * run,
+    ]);
   }
   yield* pavilionSteps(builder, m, { ...h, base }, detail, false);
   // 上层檐下留出带状格窗，明暗交替让重檐的悬挑关系可读。
@@ -353,12 +344,7 @@ function* hallSteps(
   builder.cylinder(m.gold, [0, 37, h.z], 0.13, 2.4);
   yield;
   const board = new PlaneGeometry(10, 2.5);
-  try {
-    builder.shape(board, plaque, [0, 15, h.z + h.depth / 2 + 0.15]);
-  } finally {
-    board.dispose();
-  }
-  yield;
+  yield* builder.shapeOwnedSteps(board, plaque, [0, 15, h.z + h.depth / 2 + 0.15]);
   const { screens, backWall } = LAND_STRUCTURE;
   for (const side of [-1, 1])
     yield* latticeSteps(

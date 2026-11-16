@@ -25,6 +25,7 @@ import { batchStaticCells } from './CellBatch';
 type Point = readonly [number, number, number];
 const MERGE_GEOMETRY_PARTS_PER_STEP = 16;
 const SHAPE_VERTICES_PER_STEP = 256;
+const SHAPE_TIMING_SAMPLE_INTERVAL = 16;
 
 function canMergeIncrementally(parts: readonly BufferGeometry[]): boolean {
   const first = parts[0];
@@ -173,6 +174,7 @@ export class LandBuilder {
   private readonly center = new Vector3();
   private readonly tubeCache: Map<string, TubeGeometry>;
   readonly cacheStats: { hits: number; misses: number; bytes: number };
+  private shapeTimingCalls = 0;
 
   constructor(private readonly options: BuilderOptions = {}) {
     this.tubeCache = options.tubeCache ?? new Map();
@@ -354,9 +356,56 @@ export class LandBuilder {
     size: Point = [1, 1, 1],
     yaw = 0,
   ): void {
-    this.options.onStage?.(this.shapeStagePrefix(geometry));
-    const copy = geometry.clone().applyMatrix4(this.shapeTransform(point, size, yaw));
-    this.storeCopy(copy, material);
+    const onStage = this.options.onStage;
+    if (!onStage) {
+      const copy = geometry.clone().applyMatrix4(this.shapeTransform(point, size, yaw));
+      this.storeCopy(copy, material);
+      return;
+    }
+
+    const stagePrefix = this.shapeStagePrefix(geometry);
+    onStage(stagePrefix);
+    if (++this.shapeTimingCalls % SHAPE_TIMING_SAMPLE_INTERVAL !== 0) {
+      const copy = geometry.clone().applyMatrix4(this.shapeTransform(point, size, yaw));
+      this.storeCopy(copy, material);
+      return;
+    }
+
+    const measurements: string[] = [];
+    let started = performance.now();
+    const transform = this.shapeTransform(point, size, yaw);
+    measurements.push(`matrix=${(performance.now() - started).toFixed(2)}ms`);
+    started = performance.now();
+    const copy = geometry.clone();
+    measurements.push(`clone=${(performance.now() - started).toFixed(2)}ms`);
+    started = performance.now();
+    copy.applyMatrix4(transform);
+    measurements.push(`apply=${(performance.now() - started).toFixed(2)}ms`);
+    this.storeCopy(copy, material, (stage, durationMs) => {
+      measurements.push(`${stage}=${durationMs.toFixed(2)}ms`);
+    });
+    onStage(`${stagePrefix}:timing:${measurements.join(':')}`);
+  }
+
+  /** 立即接管仅供一次写入的临时几何，避免先克隆再由调用方释放。 */
+  shapeOwned(
+    geometry: BufferGeometry,
+    material: Material,
+    point: Point = [0, 0, 0],
+    size: Point = [1, 1, 1],
+    yaw = 0,
+  ): void {
+    let stored = false;
+    try {
+      this.options.onStage?.(`${this.shapeStagePrefix(geometry)}:owned`);
+      geometry.boundingBox = null;
+      geometry.boundingSphere = null;
+      geometry.applyMatrix4(this.shapeTransform(point, size, yaw));
+      this.storeCopy(geometry, material);
+      stored = true;
+    } finally {
+      if (!stored) geometry.dispose();
+    }
   }
 
   /** 转移调用方拥有的临时几何；取消/失败时释放，成功后由 builder/flush 接管。 */
@@ -440,11 +489,21 @@ export class LandBuilder {
       : '';
   }
 
-  private storeCopy(copy: BufferGeometry, material: Material): void {
+  private storeCopy(
+    copy: BufferGeometry,
+    material: Material,
+    onMeasure?: (stage: string, durationMs: number) => void,
+  ): void {
     const cell = this.options.cellSize ?? 0;
     const originX = this.options.cellOrigin?.[0] ?? 0;
     const originZ = this.options.cellOrigin?.[1] ?? 0;
+    let started = onMeasure ? performance.now() : 0;
     copy.computeBoundingBox();
+    if (onMeasure) {
+      const now = performance.now();
+      onMeasure('bounds', now - started);
+      started = now;
+    }
     copy.boundingBox!.getCenter(this.center);
     const key =
       cell > 0
@@ -458,6 +517,7 @@ export class LandBuilder {
     const batch = cells.get(key);
     if (batch) batch.push(copy);
     else cells.set(key, [copy]);
+    if (onMeasure) onMeasure('route', performance.now() - started);
   }
 
   box(material: Material, point: Point, size: Point, yaw = 0): void {
@@ -480,8 +540,7 @@ export class LandBuilder {
 
   ring(material: Material, point: Point, radius: number, tube: number): void {
     const geometry = new TorusGeometry(radius, tube, 6, 72);
-    this.shape(geometry, material, point);
-    geometry.dispose();
+    this.shapeOwned(geometry, material, point);
   }
 
   tube(material: Material, points: readonly Point[], radius: number, segments = 12): void {
@@ -517,8 +576,7 @@ export class LandBuilder {
       new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), direction.normalize()),
     );
     geometry.translate((from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2);
-    this.shape(geometry, material);
-    geometry.dispose();
+    this.shapeOwned(geometry, material);
   }
 
   flush(parent: Group): void {

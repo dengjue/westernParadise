@@ -46,12 +46,7 @@ function* seatedFigureBodySteps(
     craft.pedestal.map(([r, y]) => new Vector2(r, y)),
     settings.figureSegments,
   );
-  try {
-    builder.shape(pedestal, m.goldDark, p(0, 0, 0), s(1, 1, 1));
-  } finally {
-    pedestal.dispose();
-  }
-  yield;
+  yield* builder.shapeOwnedSteps(pedestal, m.goldDark, p(0, 0, 0), s(1, 1, 1));
   builder.cylinder(m.gold, p(0, 1.05, 0), 3.1 * scale, 0.18 * scale);
   yield;
   builder.cylinder(body, p(0, 1.35, 0.2), 2.45 * scale, 0.5 * scale);
@@ -127,12 +122,7 @@ function* seatedFigureBodySteps(
       craft.armRadii,
       settings.figureRows,
     );
-    try {
-      builder.shape(sleeve, body, p(0, 0, 0), s(1, 1, 1));
-    } finally {
-      sleeve.dispose();
-    }
-    yield;
+    yield* builder.shapeOwnedSteps(sleeve, body, p(0, 0, 0), s(1, 1, 1));
     builder.sphere(body, p(side * 0.3, 2.94, 1.13), s(0.4, 0.16, 0.27));
     yield;
     for (let finger = 0; finger < 4; finger++) {

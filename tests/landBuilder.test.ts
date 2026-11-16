@@ -86,6 +86,24 @@ describe('LandBuilder 索引合批', () => {
     material.dispose();
   });
 
+  it('诊断模式记录 shape 克隆、变换、边界与入批子耗时', () => {
+    const stages: string[] = [],
+      builder = new LandBuilder({ onStage: (stage) => stages.push(stage) }),
+      material = new MeshStandardMaterial(),
+      source = new BoxGeometry();
+    try {
+      for (let index = 0; index < 64; index++) builder.shape(source, material);
+
+      expect(stages.at(-1)).toMatch(
+        /^builder:shape:BoxGeometry:v24:i36:timing:matrix=\d+\.\d{2}ms:clone=\d+\.\d{2}ms:apply=\d+\.\d{2}ms:bounds=\d+\.\d{2}ms:route=\d+\.\d{2}ms$/,
+      );
+    } finally {
+      builder.abort();
+      source.dispose();
+      material.dispose();
+    }
+  });
+
   it('shapeOwnedSteps 复用并接管临时几何，输出与 Three 变换一致', () => {
     const builder = new LandBuilder({ cellSize: 100 }),
       parent = new Group(),
@@ -119,6 +137,44 @@ describe('LandBuilder 索引合批', () => {
         expect(actual.getAttribute(name).array).toEqual(expected.getAttribute(name).array);
       expect(actual.index!.array).toEqual(expected.index!.array);
       expect(parent.children.map(({ userData }) => userData['cell'])).toEqual(['0,0']);
+    } finally {
+      actual?.dispose();
+      expected.dispose();
+      builder.abort();
+      const sourceDisposed = sourceDispose.mock.calls.length > 0;
+      sourceClone.mockRestore();
+      sourceDispose.mockRestore();
+      if (!sourceDisposed) source.dispose();
+      material.dispose();
+    }
+  });
+
+  it('shapeOwned 同步接管一次性几何并与 Three 变换一致', () => {
+    const builder = new LandBuilder(),
+      parent = new Group(),
+      material = new MeshStandardMaterial(),
+      source = new BoxGeometry(),
+      point: [number, number, number] = [2, 3, 4],
+      scale: [number, number, number] = [1.2, 0.8, 1.1],
+      yaw = 0.37,
+      matrix = new Matrix4().compose(
+        new Vector3(...point),
+        new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw),
+        new Vector3(...scale),
+      ),
+      expected = source.clone().applyMatrix4(matrix),
+      sourceClone = vi.spyOn(source, 'clone'),
+      sourceDispose = vi.spyOn(source, 'dispose');
+    let actual: BufferGeometry | undefined;
+    try {
+      builder.shapeOwned(source, material, point, scale, yaw);
+      builder.flush(parent);
+
+      expect(sourceClone).not.toHaveBeenCalled();
+      expect(sourceDispose).toHaveBeenCalledTimes(1);
+      actual = output(parent).geometry;
+      for (const name of ['position', 'normal', 'uv'])
+        expect(actual.getAttribute(name).array).toEqual(expected.getAttribute(name).array);
     } finally {
       actual?.dispose();
       expected.dispose();
