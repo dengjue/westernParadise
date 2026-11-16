@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LAND_RENDER } from '@/01-shared';
 import {
   BufferGeometry,
   BoxGeometry,
+  CylinderGeometry,
   Group,
   Matrix4,
   Mesh,
@@ -228,9 +230,9 @@ describe('LandBuilder 索引合批', () => {
 
       builder.abort();
 
-      // 每级各有模板、合并输入和输出；中档输出还被阴影组共享。
-      expect(disposed.size).toBe(9);
-      expect(disposeSpy).toHaveBeenCalledTimes(9);
+      // 每级各有共享模板与合并输出；中档输出还被阴影组共享。
+      expect(disposed.size).toBe(6);
+      expect(disposeSpy).toHaveBeenCalledTimes(6);
     } finally {
       disposeSpy.mockRestore();
       material.dispose();
@@ -275,6 +277,39 @@ describe('LandBuilder 索引合批', () => {
     } finally {
       disposeSpy.mockRestore();
       source.dispose();
+      material.dispose();
+    }
+  });
+
+  it('取消共享曲线的分块合批变换时释放源与部分输出', () => {
+    const builder = new LandBuilder(),
+      parent = new Group(),
+      material = new MeshStandardMaterial(),
+      points = [
+        [10, 2, -35],
+        [12, 2.4, -38],
+        [14, 4, -41],
+      ] as const,
+      disposed = new Set<BufferGeometry>(),
+      dispose = BufferGeometry.prototype.dispose,
+      disposeSpy = vi.spyOn(BufferGeometry.prototype, 'dispose').mockImplementation(function (
+        this: BufferGeometry,
+      ) {
+        disposed.add(this);
+        return dispose.call(this);
+      });
+    try {
+      builder.tube(material, points, 0.075, 100);
+      const steps = builder.flushSteps(parent);
+      expect(steps.next().done).toBe(false);
+      steps.return();
+
+      expect(parent.children).toHaveLength(0);
+      expect(disposed.size).toBeGreaterThanOrEqual(2);
+      expect(disposeSpy).toHaveBeenCalledTimes(disposed.size);
+    } finally {
+      builder.abort();
+      disposeSpy.mockRestore();
       material.dispose();
     }
   });
@@ -408,6 +443,177 @@ describe('LandBuilder 索引合批', () => {
       for (const geometry of geometries) geometry.dispose();
     }
     material.dispose();
+  });
+
+  it('远景 LOD 转交共享 primitive 时每个源只克隆一次', () => {
+    const builder = new LandBuilder({ dynamicLod: true }),
+      root = new Group(),
+      material = new MeshStandardMaterial(),
+      points: [number, number, number][] = [
+        [-12, 0, 3],
+        [4, 2, -7],
+        [15, 5, 8],
+      ],
+      sizes: [number, number, number][] = [
+        [2, 1, 3],
+        [1, 4, 2],
+        [0.5, 2, 0.75],
+      ],
+      source = new BoxGeometry(),
+      expectedParts = points.map((point, index) =>
+        source
+          .clone()
+          .applyMatrix4(
+            new Matrix4().compose(
+              new Vector3(...point),
+              new Quaternion(),
+              new Vector3(...sizes[index]!),
+            ),
+          ),
+      ),
+      expected = mergeGeometries(expectedParts, false)!,
+      clones: BufferGeometry[] = [],
+      clone = BufferGeometry.prototype.clone,
+      cloneSpy = vi.spyOn(BufferGeometry.prototype, 'clone').mockImplementation(function (
+        this: BufferGeometry,
+      ) {
+        const copy = clone.call(this);
+        clones.push(copy);
+        return copy;
+      });
+    try {
+      builder.lod([0, 0, 0], 10, 'roof', 'far', (level) => {
+        points.forEach((point, index) => level.box(material, point, sizes[index]!));
+      });
+      expect(clones).toHaveLength(1);
+      builder.flush(root);
+
+      const actual = output(root).geometry;
+      for (const name of ['position', 'normal', 'uv'])
+        expect(actual.getAttribute(name).array).toEqual(expected.getAttribute(name).array);
+      expect(actual.index!.array).toEqual(expected.index!.array);
+      actual.dispose();
+    } finally {
+      builder.abort();
+      cloneSpy.mockRestore();
+      source.dispose();
+      expected.dispose();
+      for (const part of expectedParts) part.dispose();
+      material.dispose();
+    }
+  });
+
+  it('取消父构建器时释放由远景 LOD 接管的共享源副本', () => {
+    const builder = new LandBuilder({ dynamicLod: true }),
+      material = new MeshStandardMaterial(),
+      copies: BufferGeometry[] = [],
+      disposed = new Set<BufferGeometry>(),
+      clone = BufferGeometry.prototype.clone,
+      dispose = BufferGeometry.prototype.dispose,
+      cloneSpy = vi.spyOn(BufferGeometry.prototype, 'clone').mockImplementation(function (
+        this: BufferGeometry,
+      ) {
+        const copy = clone.call(this);
+        copies.push(copy);
+        return copy;
+      }),
+      disposeSpy = vi.spyOn(BufferGeometry.prototype, 'dispose').mockImplementation(function (
+        this: BufferGeometry,
+      ) {
+        disposed.add(this);
+        return dispose.call(this);
+      });
+    try {
+      builder.lod([0, 0, 0], 10, 'roof', 'far', (level) => {
+        for (let index = 0; index < 12; index++) level.box(material, [index * 2, 0, 0], [1, 1, 1]);
+      });
+      expect(copies).toHaveLength(1);
+
+      builder.abort();
+
+      expect(disposed.has(copies[0]!)).toBe(true);
+    } finally {
+      builder.abort();
+      disposeSpy.mockRestore();
+      cloneSpy.mockRestore();
+      material.dispose();
+    }
+  });
+
+  it('缓存 primitive 延迟变换合批后与 Three 矩阵变换逐属性一致', () => {
+    const builder = new LandBuilder(),
+      root = new Group(),
+      material = new MeshStandardMaterial(),
+      boxPoint: [number, number, number] = [3, 2, -4],
+      boxSize: [number, number, number] = [2, 1, 0.5],
+      boxYaw = 0.7,
+      cylinderPoint: [number, number, number] = [-2, 4, 1],
+      cylinderSize: [number, number, number] = [0.4, 2, 0.4],
+      spherePoint: [number, number, number] = [6, 1, 5],
+      sphereSize: [number, number, number] = [0.5, 0.75, 0.6],
+      rodFrom: [number, number, number] = [-4, 2, 3],
+      rodTo: [number, number, number] = [1, 5, -2],
+      rodRadius = 0.12,
+      segments = LAND_RENDER.lod.sphereSegments.near,
+      box = new BoxGeometry(),
+      cylinder = new CylinderGeometry(1, 1, 1, 12),
+      sphere = new SphereGeometry(1, ...segments),
+      boxMatrix = new Matrix4().compose(
+        new Vector3(...boxPoint),
+        new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), boxYaw),
+        new Vector3(...boxSize),
+      ),
+      cylinderMatrix = new Matrix4().compose(
+        new Vector3(...cylinderPoint),
+        new Quaternion(),
+        new Vector3(...cylinderSize),
+      ),
+      sphereMatrix = new Matrix4().compose(
+        new Vector3(...spherePoint),
+        new Quaternion(),
+        new Vector3(...sphereSize),
+      ),
+      rodDirection = new Vector3(...rodTo).sub(new Vector3(...rodFrom)),
+      rodMatrix = new Matrix4().compose(
+        new Vector3(
+          (rodFrom[0] + rodTo[0]) / 2,
+          (rodFrom[1] + rodTo[1]) / 2,
+          (rodFrom[2] + rodTo[2]) / 2,
+        ),
+        new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), rodDirection.clone().normalize()),
+        new Vector3(rodRadius, rodDirection.length(), rodRadius),
+      ),
+      expectedParts = [
+        box.clone().applyMatrix4(boxMatrix),
+        cylinder.clone().applyMatrix4(cylinderMatrix),
+        sphere.clone().applyMatrix4(sphereMatrix),
+        cylinder.clone().applyMatrix4(rodMatrix),
+      ],
+      expected = mergeGeometries(expectedParts, false)!;
+    const cloneSpy = vi.spyOn(BufferGeometry.prototype, 'clone');
+    try {
+      builder.box(material, boxPoint, boxSize, boxYaw);
+      builder.cylinder(material, cylinderPoint, cylinderSize[0], cylinderSize[1]);
+      builder.sphere(material, spherePoint, sphereSize);
+      builder.rod(material, rodFrom, rodTo, rodRadius);
+      builder.flush(root);
+
+      expect(cloneSpy).not.toHaveBeenCalled();
+      const actual = output(root).geometry;
+      for (const name of ['position', 'normal', 'uv'])
+        expect(actual.getAttribute(name).array).toEqual(expected.getAttribute(name).array);
+      expect(actual.index!.array).toEqual(expected.index!.array);
+      actual.dispose();
+    } finally {
+      builder.abort();
+      box.dispose();
+      cylinder.dispose();
+      sphere.dispose();
+      expected.dispose();
+      for (const part of expectedParts) part.dispose();
+      cloneSpy.mockRestore();
+      material.dispose();
+    }
   });
 
   it('平移曲线复用完整网格，位置误差小于 0.1 毫米，法线和三角形不变', () => {

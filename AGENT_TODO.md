@@ -172,6 +172,15 @@
 - [x] 全量 40 个测试文件 / 247 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、双构建和单文件离线断言通过。单文件 859,085 字节，MD5 `7e4dd96c3e67fe0454c84b3bae13f4c7`。校正 A/B 记录、截图和 smoke JSON 在忽略目录 `/tmp/opencode/shape-owned-ab/`、`/tmp/opencode/shape-owned-ab.json`、`/tmp/opencode/owned-one-shot-final-smoke/`；原受污染数据已替换。
 - [!] 全仓 lint/format 仍受未改宣传文件阻挡；PMREM 与部分共享 TubeGeometry 步骤仍不可抢占。A4/B0/C0 和阶段 1/2 人工手感验收继续未关闭；本轮数据不调整 6ms/设备预算。
 
+### 2026-11-17 · 共享几何变换延后到静态合批
+
+- [x] Builder 的 box/cylinder/sphere/tube/rod 缓存源不再在每次提交时 clone+apply；将只读源与实例 Matrix4 记入 cell part，在最终 cell 合并时直接写入目标属性数组并变换 position/normal/tangent。大于 256 顶点的源按块 yield，最终仍合成原有 material/cell 网格，不改变 draw-call 合批结构。
+- [x] 明确资源所有权：root Builder 缓存源在 flush/abort 结束时释放；远景 LOD 子 Builder 转交时每个唯一共享源最多克隆一次，由父 Builder 保留至合并/取消；borrowed 源从不被原地变换。覆盖 primitive/tube/rod 与 Three 矩阵结果逐属性一致、缓存 clone 次数、far LOD 转交/取消释放及共享 Tube flush 中途取消。
+- [x] 同机 Firefox 160 / WebGL2 / high / 1280×714 / DPR 1 交错 A/B 三次，baseline `1f3caa2`。buildMs baseline `11,576/11,393/11,555ms`（中位 11,555），candidate `7,033/6,894/6,632ms`（中位 6,894，约 -4,661ms / -40.3%）；frames 中位 `688→408`，steps `14,008→14,022`。>6ms steps 为 `9/7/8→13/8/13`，并未减少；最长仍是 PMREM（baseline `42/29/38ms`，candidate `45/40/40ms`）。这些是本机 debug/dev 诊断结果，不是目标设备验收或帧时通过。
+- [x] 减动效 high dawn 第三人称同视点像素回归 MAE `0/255`、max-channel >10 像素占比 `0%`。单文件 headed Firefox smoke：第三人称 `buildMs=6,893ms`、408 帧、14,022 steps、最长 37ms（PMREM）；第一人称 `syncMs=2,396ms`、`buildSteps=0`。无 JS 错误/HTTP(S) 请求，dispose 后 canvas 与 `#app` 子节点归零。单文件 860,917 字节，MD5 `73fa3ac66133603345925b91c3105171`。
+- [x] 全量 40 个测试文件 / 251 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、双构建和单文件离线断言通过。数据在忽略目录 `/tmp/opencode/shared-shape-ab-final.json`、`/tmp/opencode/shared-shape-ab/reduced/`、`/tmp/opencode/shared-shape-final-smoke/`。
+- [!] >6ms 步骤数量未下降且 PMREM 长步仍存在；全仓 lint/format 及 A4/B0/C0、阶段 1/2 人工手感验收依旧未关闭。不要据本机总构建耗时收益调整切片/设备预算或宣称验收通过。
+
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 
 六阶段交付及 A0–A3 已完成；A4 严格性能未通过，B0 真实手机与 C0 原生生命周期条件仍阻塞。详细历史数值、步骤、验收方法保留在 [性能收敛与真机验收方案](02-方案/18-后续优化-性能收敛与真机验收.md)。**所有当前状态、下一步和新体验阶段统一以[长期工作计划](02-方案/19-长期工作计划-大世界第三人称与性能验收.md)为准**，避免在 TODO 与多个方案里并行维护互相漂移的任务队列。

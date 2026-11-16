@@ -14,7 +14,7 @@ import {
   TubeGeometry,
   Vector3,
 } from 'three';
-import type { Material, Object3D } from 'three';
+import type { Box3, Material, Object3D } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LAND_RENDER } from '@/01-shared';
 import type { LandDetail } from '@/01-shared';
@@ -26,6 +26,14 @@ type Point = readonly [number, number, number];
 const MERGE_GEOMETRY_PARTS_PER_STEP = 16;
 const SHAPE_VERTICES_PER_STEP = 256;
 const SHAPE_TIMING_SAMPLE_INTERVAL = 16;
+
+interface BuilderGeometryPart {
+  geometry: BufferGeometry;
+  /** 未烘焙的实例变换；只用于 builder 缓存/TubeGeometry 等稳定共享源。 */
+  transform?: Matrix4;
+  /** Builder 是否拥有并负责 dispose 几何源。 */
+  owned: boolean;
+}
 
 function canMergeIncrementally(parts: readonly BufferGeometry[]): boolean {
   const first = parts[0];
@@ -55,16 +63,38 @@ function canMergeIncrementally(parts: readonly BufferGeometry[]): boolean {
   });
 }
 
-/** 复制静态 cell 属性时分批让帧，最终仍只产生一个与 mergeGeometries 等价的网格。 */
+/** 合并静态 cell 几何时分批让帧，最终仍只产生与旧复制路径等价的网格。 */
 function* mergeGeometrySteps(
-  parts: readonly BufferGeometry[],
+  parts: readonly BuilderGeometryPart[],
   onStage?: (stage: string) => void,
 ): Generator<void, BufferGeometry | null, void> {
-  if (!canMergeIncrementally(parts)) return mergeGeometries([...parts], false);
-  const first = parts[0]!;
+  const geometries = parts.map((part) => part.geometry);
+  if (!canMergeIncrementally(geometries)) {
+    if (!parts.some((part) => part.transform)) return mergeGeometries(geometries, false);
+    const materialized: BufferGeometry[] = [],
+      temporary: BufferGeometry[] = [];
+    try {
+      for (const part of parts) {
+        if (!part.transform) {
+          materialized.push(part.geometry);
+          continue;
+        }
+        const copy = part.geometry.clone().applyMatrix4(part.transform);
+        materialized.push(copy);
+        temporary.push(copy);
+      }
+      return mergeGeometries(materialized, false);
+    } finally {
+      for (const geometry of temporary) geometry.dispose();
+    }
+  }
+  const first = geometries[0]!;
   const attributeNames = Object.keys(first.attributes),
-    vertexCount = parts.reduce((sum, geometry) => sum + geometry.getAttribute('position').count, 0),
-    indexCount = parts.reduce((sum, geometry) => sum + geometry.index!.count, 0),
+    vertexCount = geometries.reduce(
+      (sum, geometry) => sum + geometry.getAttribute('position').count,
+      0,
+    ),
+    indexCount = geometries.reduce((sum, geometry) => sum + geometry.index!.count, 0),
     merged = new BufferGeometry();
   let completed = false;
   try {
@@ -80,7 +110,7 @@ function* mergeGeometrySteps(
         },
         array = new Constructor(
           parts.reduce(
-            (sum, geometry) => sum + (geometry.getAttribute(name) as BufferAttribute).array.length,
+            (sum, part) => sum + (part.geometry.getAttribute(name) as BufferAttribute).array.length,
             0,
           ),
         ),
@@ -97,21 +127,52 @@ function* mergeGeometrySteps(
       maxIndex = 0;
     const attributeOffsets = new Map(attributeNames.map((name) => [name, 0]));
     for (let partIndex = 0; partIndex < parts.length; partIndex++) {
-      const part = parts[partIndex]!;
+      const part = parts[partIndex]!,
+        geometry = part.geometry;
       for (const name of attributeNames) {
-        const source = part.getAttribute(name) as BufferAttribute,
+        const source = geometry.getAttribute(name) as BufferAttribute,
           target = outputAttributes.get(name)!,
           offset = attributeOffsets.get(name)!;
         target.array.set(source.array, offset);
         attributeOffsets.set(name, offset + source.array.length);
       }
-      const sourceIndex = part.index!;
+      if (part.transform) {
+        const transform = part.transform,
+          position = geometry.getAttribute('position') as BufferAttribute,
+          normal = geometry.getAttribute('normal') as BufferAttribute | undefined,
+          tangent = geometry.getAttribute('tangent') as BufferAttribute | undefined,
+          normalMatrix = normal ? new Matrix3().getNormalMatrix(transform) : undefined,
+          vertexTotal = Math.max(position.count, normal?.count ?? 0, tangent?.count ?? 0);
+        for (let start = 0; start < vertexTotal; start += SHAPE_VERTICES_PER_STEP) {
+          const end = Math.min(start + SHAPE_VERTICES_PER_STEP, vertexTotal);
+          for (const name of ['position', 'normal', 'tangent']) {
+            const source = geometry.getAttribute(name) as BufferAttribute | undefined,
+              target = outputAttributes.get(name);
+            if (!source || !target) continue;
+            const offset = attributeOffsets.get(name)! - source.array.length,
+              array = target.array.subarray(
+                offset + start * source.itemSize,
+                offset + Math.min(end, source.count) * source.itemSize,
+              ) as BufferAttribute['array'],
+              view = new BufferAttribute(array, source.itemSize, source.normalized);
+            view.gpuType = source.gpuType;
+            if (name === 'position') view.applyMatrix4(transform);
+            else if (name === 'normal' && normalMatrix) view.applyNormalMatrix(normalMatrix);
+            else if (name === 'tangent') view.transformDirection(transform);
+          }
+          if (vertexTotal > SHAPE_VERTICES_PER_STEP) {
+            onStage?.(`transform:${geometry.type}:${end}/${vertexTotal}`);
+            yield;
+          }
+        }
+      }
+      const sourceIndex = geometry.index!;
       for (let index = 0; index < sourceIndex.count; index++) {
         const value = sourceIndex.getX(index) + vertexOffset;
         indices[indexOffset + index] = value;
         if (value > maxIndex) maxIndex = value;
       }
-      vertexOffset += part.getAttribute('position').count;
+      vertexOffset += geometry.getAttribute('position').count;
       indexOffset += sourceIndex.count;
       if ((partIndex + 1) % MERGE_GEOMETRY_PARTS_PER_STEP === 0) {
         onStage?.(`merge-copy:${partIndex + 1}/${parts.length}`);
@@ -161,8 +222,9 @@ function disposeObjectGeometries(objects: readonly Object3D[]): void {
 /** 静态细构件按材质合批。数千栏杆、斗拱、窗格只占少量 draw call。 */
 export class LandBuilder {
   readonly contacts: LandContact[] = [];
-  private readonly batches = new Map<Material, Map<string, BufferGeometry[]>>();
+  private readonly batches = new Map<Material, Map<string, BuilderGeometryPart[]>>();
   private readonly objects: Object3D[] = [];
+  private readonly retainedGeometrySources = new Set<BufferGeometry>();
   private boxGeometry: BoxGeometry | undefined;
   private cylinderGeometry: CylinderGeometry | undefined;
   private sphereGeometry: SphereGeometry | undefined;
@@ -205,19 +267,7 @@ export class LandBuilder {
       });
       try {
         build(child, best);
-        for (const [material, cells] of child.batches) {
-          let target = this.batches.get(material);
-          if (!target) {
-            target = new Map();
-            this.batches.set(material, target);
-          }
-          for (const [cell, parts] of cells) {
-            const batch = target.get(cell);
-            if (batch) batch.push(...parts);
-            else target.set(cell, parts.slice());
-            parts.length = 0;
-          }
-        }
+        this.absorbBatches(child);
       } finally {
         child.disposePending();
       }
@@ -281,19 +331,7 @@ export class LandBuilder {
       });
       try {
         yield* build(child, best);
-        for (const [material, cells] of child.batches) {
-          let target = this.batches.get(material);
-          if (!target) {
-            target = new Map();
-            this.batches.set(material, target);
-          }
-          for (const [cell, parts] of cells) {
-            const batch = target.get(cell);
-            if (batch) batch.push(...parts);
-            else target.set(cell, parts.slice());
-            parts.length = 0;
-          }
-        }
+        this.absorbBatches(child);
       } finally {
         child.abort();
       }
@@ -483,6 +521,45 @@ export class LandBuilder {
     return this.transform.clone();
   }
 
+  /** 将子构建器的批次转交给父构建器；共享源只克隆一次并由父级释放。 */
+  private absorbBatches(child: LandBuilder): void {
+    const sharedCopies = new Map<BufferGeometry, BufferGeometry>();
+    for (const [material, cells] of child.batches) {
+      let target = this.batches.get(material);
+      if (!target) {
+        target = new Map();
+        this.batches.set(material, target);
+      }
+      for (const [cell, parts] of cells) {
+        let batch = target.get(cell);
+        if (!batch) {
+          batch = [];
+          target.set(cell, batch);
+        }
+        for (const part of parts) {
+          if (part.owned) {
+            batch.push(part);
+            continue;
+          }
+          let copy = sharedCopies.get(part.geometry);
+          if (!copy) {
+            copy = part.geometry.clone();
+            sharedCopies.set(part.geometry, copy);
+            this.retainedGeometrySources.add(copy);
+          }
+          batch.push({
+            ...part,
+            geometry: copy,
+            owned: false,
+          });
+        }
+        parts.length = 0;
+      }
+      cells.clear();
+    }
+    child.batches.clear();
+  }
+
   private shapeStagePrefix(geometry: BufferGeometry): string {
     return this.options.onStage
       ? `builder:shape:${geometry.type}:v${geometry.getAttribute('position').count}:i${geometry.index?.count ?? 0}`
@@ -494,9 +571,6 @@ export class LandBuilder {
     material: Material,
     onMeasure?: (stage: string, durationMs: number) => void,
   ): void {
-    const cell = this.options.cellSize ?? 0;
-    const originX = this.options.cellOrigin?.[0] ?? 0;
-    const originZ = this.options.cellOrigin?.[1] ?? 0;
     let started = onMeasure ? performance.now() : 0;
     copy.computeBoundingBox();
     if (onMeasure) {
@@ -504,7 +578,32 @@ export class LandBuilder {
       onMeasure('bounds', now - started);
       started = now;
     }
-    copy.boundingBox!.getCenter(this.center);
+    this.routePart(
+      { geometry: copy, owned: true },
+      copy.boundingBox!,
+      material,
+      onMeasure,
+      started,
+    );
+  }
+
+  private storeShared(geometry: BufferGeometry, material: Material, transform: Matrix4): void {
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    const bounds = geometry.boundingBox!.clone().applyMatrix4(transform);
+    this.routePart({ geometry, transform, owned: false }, bounds, material);
+  }
+
+  private routePart(
+    part: BuilderGeometryPart,
+    bounds: Box3,
+    material: Material,
+    onMeasure?: (stage: string, durationMs: number) => void,
+    started = 0,
+  ): void {
+    const cell = this.options.cellSize ?? 0;
+    const originX = this.options.cellOrigin?.[0] ?? 0;
+    const originZ = this.options.cellOrigin?.[1] ?? 0;
+    bounds.getCenter(this.center);
     const key =
       cell > 0
         ? `${Math.floor((this.center.x - originX) / cell)},${Math.floor((this.center.z - originZ) / cell)}`
@@ -515,19 +614,40 @@ export class LandBuilder {
       this.batches.set(material, cells);
     }
     const batch = cells.get(key);
-    if (batch) batch.push(copy);
-    else cells.set(key, [copy]);
+    if (batch) batch.push(part);
+    else cells.set(key, [part]);
     if (onMeasure) onMeasure('route', performance.now() - started);
+  }
+
+  private shapeShared(
+    geometry: BufferGeometry,
+    material: Material,
+    point: Point,
+    size: Point = [1, 1, 1],
+    yaw = 0,
+  ): void {
+    const transform = this.shapeTransform(point, size, yaw);
+    this.options.onStage?.(`${this.shapeStagePrefix(geometry)}:deferred`);
+    this.storeShared(geometry, material, transform);
+  }
+
+  private shapeSharedTransform(
+    geometry: BufferGeometry,
+    material: Material,
+    transform: Matrix4,
+  ): void {
+    this.options.onStage?.(`${this.shapeStagePrefix(geometry)}:deferred`);
+    this.storeShared(geometry, material, transform.clone());
   }
 
   box(material: Material, point: Point, size: Point, yaw = 0): void {
     this.boxGeometry ??= new BoxGeometry(1, 1, 1);
-    this.shape(this.boxGeometry, material, point, size, yaw);
+    this.shapeShared(this.boxGeometry, material, point, size, yaw);
   }
 
   cylinder(material: Material, point: Point, radius: number, height: number): void {
     this.cylinderGeometry ??= new CylinderGeometry(1, 1, 1, 12);
-    this.shape(this.cylinderGeometry, material, point, [radius, height, radius]);
+    this.shapeShared(this.cylinderGeometry, material, point, [radius, height, radius]);
   }
 
   sphere(material: Material, point: Point, size: Point): void {
@@ -535,7 +655,7 @@ export class LandBuilder {
       const segments = LAND_RENDER.lod.sphereSegments[this.options.detail ?? 'near'];
       this.sphereGeometry = new SphereGeometry(1, ...segments);
     }
-    this.shape(this.sphereGeometry, material, point, size);
+    this.shapeShared(this.sphereGeometry, material, point, size);
   }
 
   ring(material: Material, point: Point, radius: number, tube: number): void {
@@ -562,21 +682,20 @@ export class LandBuilder {
         (geometry.index?.array.byteLength ?? 0) +
         Object.values(geometry.attributes).reduce((sum, a) => sum + a.array.byteLength, 0);
     } else this.cacheStats.hits++;
-    this.shape(geometry, material, origin);
+    this.shapeShared(geometry, material, origin);
   }
 
   rod(material: Material, from: Point, to: Point, radius: number): void {
     const start = new Vector3(...from);
     const end = new Vector3(...to);
     const direction = end.clone().sub(start);
+    const length = direction.length();
     this.cylinderGeometry ??= new CylinderGeometry(1, 1, 1, 12);
-    const geometry = this.cylinderGeometry.clone();
-    geometry.scale(radius, direction.length(), radius);
-    geometry.applyQuaternion(
-      new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), direction.normalize()),
-    );
-    geometry.translate((from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2);
-    this.shapeOwned(geometry, material);
+    this.position.set((from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2);
+    this.rotation.setFromUnitVectors(this.up, direction.normalize());
+    this.scale.set(radius, length, radius);
+    this.transform.compose(this.position, this.rotation, this.scale);
+    this.shapeSharedTransform(this.cylinderGeometry, material, this.transform);
   }
 
   flush(parent: Group): void {
@@ -602,19 +721,20 @@ export class LandBuilder {
             // mergeGeometries 可以混合不同形状，但索引存在性必须一致。
             // 保留原索引，避免球体/管线展开成三倍逐面顶点；不按位置焊接，保留法线与 UV 接缝。
             for (const part of parts) {
-              if (part.index) continue;
-              const count = part.getAttribute('position').count;
+              const geometry = part.geometry;
+              if (geometry.index) continue;
+              const count = geometry.getAttribute('position').count;
               // 非索引输入只补顺序索引；65535 是 WebGL2 的 16 位 primitive-restart 保留值。
               const indices = count > 65535 ? new Uint32Array(count) : new Uint16Array(count);
               for (let i = 0; i < count; i++) indices[i] = i;
-              part.setIndex(new BufferAttribute(indices, 1));
+              geometry.setIndex(new BufferAttribute(indices, 1));
             }
             if (this.options.onStage) {
               const vertices = parts.reduce(
-                (sum, part) => sum + part.getAttribute('position').count,
+                (sum, part) => sum + part.geometry.getAttribute('position').count,
                 0,
               );
-              const indices = parts.reduce((sum, part) => sum + part.index!.count, 0);
+              const indices = parts.reduce((sum, part) => sum + part.geometry.index!.count, 0);
               this.options.onStage?.(`${stagePrefix}:v${vertices}:i${indices}:merge-start`);
             }
             const geometry = yield* mergeGeometrySteps(
@@ -636,7 +756,7 @@ export class LandBuilder {
             mesh.layers.enable(LAND_RENDER.layers.shadow);
             meshes.push(mesh);
             // 每批完成就释放自己的中间副本，降低大场景构建时的峰值驻留。
-            for (const part of parts) part.dispose();
+            for (const part of parts) if (part.owned) part.geometry.dispose();
             parts.length = 0;
             this.options.onStage?.(`${stagePrefix}:attached-ready`);
             yield;
@@ -676,10 +796,13 @@ export class LandBuilder {
   }
 
   private disposePending(): void {
-    // 失败路径也清理尚未合并的副本；输入原型与最终输出几何的生命周期仍归调用方。
+    // 失败路径只释放 builder 拥有的输入；共享原型在合并完成后由其缓存拥有者释放。
     for (const cells of this.batches.values())
-      for (const parts of cells.values()) for (const part of parts) part.dispose();
+      for (const parts of cells.values())
+        for (const part of parts) if (part.owned) part.geometry.dispose();
     this.batches.clear();
+    for (const geometry of this.retainedGeometrySources) geometry.dispose();
+    this.retainedGeometrySources.clear();
     this.boxGeometry?.dispose();
     this.cylinderGeometry?.dispose();
     this.sphereGeometry?.dispose();
