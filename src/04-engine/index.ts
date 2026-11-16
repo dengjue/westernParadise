@@ -1,4 +1,4 @@
-export { createSceneContext } from './SceneContext';
+export { createSceneContext, disposeObjectTree } from './SceneContext';
 export type { SceneContext, SceneContextOptions } from './SceneContext';
 export { Renderer } from './Renderer';
 export type { RendererOptions } from './Renderer';
@@ -7,3 +7,5 @@ export type { LoopOptions } from './Loop';
 export { createCinematicPipeline } from './CinematicPipeline';
 export { DistanceLod } from './DistanceLod';
 export { RenderTelemetry } from './RenderTelemetry';
+export { FrameBudgetDriver } from './FrameBudgetDriver';
+export type { FrameBudgetDriverOptions, FrameBudgetStats } from './FrameBudgetDriver';

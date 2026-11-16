@@ -20,16 +20,80 @@ import {
   selectQuality,
   writeStoredQuality,
 } from '@/03-platform';
-import { createCinematicPipeline, createSceneContext, Loop, RenderTelemetry } from '@/04-engine';
-import { createPureLandWorld } from '@/06-world';
+import {
+  createCinematicPipeline,
+  createSceneContext,
+  FrameBudgetDriver,
+  Loop,
+  RenderTelemetry,
+} from '@/04-engine';
+import type { FrameBudgetStats } from '@/04-engine';
+import { createPureLandWorld, createPureLandWorldSteps } from '@/06-world';
+import type { PureLandWorldOptions } from '@/06-world';
 import { KeyboardMouseInput, LandAvatar, LandCamera, TouchInput } from '@/07-systems';
 import { mountPureLandUi } from '@/08-ui';
 import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics';
 
+/** 主线程让出切片，不是目标设备/A4 的性能预算或帧时保证。 */
+const THIRD_PERSON_BUILD_BUDGET_MS = 6;
+
+interface StartupStats {
+  syncMs: number;
+  firstFrameMs: number;
+  buildMs: number;
+  buildFrames: number;
+  buildSteps: number;
+  maxBuildStepMs: number;
+  buildOverBudgetSteps: number;
+}
+
+type PureLandWorld = ReturnType<typeof createPureLandWorld>;
+type RuntimeParams = ReturnType<typeof parseParams>;
+type RuntimeCapabilities = ReturnType<typeof detectCapabilities>;
+type RuntimeDecision = ReturnType<typeof selectQuality>;
+type PureLandUi = ReturnType<typeof mountPureLandUi>;
+type PureLandContext = ReturnType<typeof createSceneContext>;
+
+interface PureLandRuntimeOptions {
+  start: number;
+  startup: StartupStats;
+  params: RuntimeParams;
+  capabilities: RuntimeCapabilities;
+  decision: RuntimeDecision;
+  adaptive: AdaptiveRenderBudget;
+  events: EventBus<AppEventMap>;
+  ui: PureLandUi;
+  context: PureLandContext;
+  world: PureLandWorld;
+  initialTime: RuntimeParams['tod'];
+}
+
+function releaseAll(dispose: readonly (() => void)[]): void {
+  let firstError: unknown;
+  let failed = false;
+  for (const release of dispose) {
+    try {
+      release();
+    } catch (error) {
+      if (!failed) firstError = error;
+      failed = true;
+    }
+  }
+  if (failed) throw firstError;
+}
+
 /** 新世界独立装配，历史庭院仍可通过 scene=courtyard 复现。 */
 export function startPureLand(): () => void {
   const start = performance.now();
-  const startup = { syncMs: 0, firstFrameMs: 0 };
+  const startup: StartupStats = {
+    syncMs: 0,
+    firstFrameMs: 0,
+    buildMs: 0,
+    buildFrames: 0,
+    buildSteps: 0,
+    maxBuildStepMs: 0,
+    buildOverBudgetSteps: 0,
+  };
   const root = document.getElementById('app');
   if (!root) throw new Error('缺少 #app 挂载点');
   const params = parseParams(window.location.search);
@@ -47,15 +111,16 @@ export function startPureLand(): () => void {
         ? 1.75
         : Math.min(1.5, QUALITY_PROFILES[decision.tier].pixelRatioCap),
   };
-  let time = raw.has('tod') ? params.tod : ('dawn' as const);
+  const initialTime = raw.has('tod') ? params.tod : ('dawn' as const);
   const events = new EventBus<AppEventMap>();
+  const thirdPerson = params.cam === 'third';
   const ui = mountPureLandUi(root, {
     events,
     capabilities,
     quality: decision.tier,
-    time,
+    time: initialTime,
     noAudio: params.noAudio,
-    thirdPerson: params.cam === 'third',
+    thirdPerson,
   });
   document.title = '西方极乐世界 · 数字园境共创';
   if (capabilities.webgl === 'none') throw new Error(COPY.noWebgl);
@@ -68,7 +133,7 @@ export function startPureLand(): () => void {
   const renderer = context.rendering.renderer;
   Object.assign(context.camera, { fov: PURE_LAND.fov, near: PURE_LAND.near, far: PURE_LAND.far });
   context.camera.updateProjectionMatrix();
-  const world = createPureLandWorld(context.scene, {
+  const worldOptions: PureLandWorldOptions = {
     canvasFactory: (width, height) => {
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -79,16 +144,208 @@ export function startPureLand(): () => void {
     quality: decision.tier,
     anisotropy: profile.anisotropy,
     seed: params.seed,
-    time,
+    time: initialTime,
     reducedMotion: capabilities.reducedMotion,
-    regionPrototype: params.cam === 'third',
-    cellOrigin:
-      params.cam === 'third' ? [LAND_WORLD.cellOrigin.x, LAND_WORLD.cellOrigin.z] : undefined,
+    regionPrototype: thirdPerson,
+    cellOrigin: thirdPerson ? [LAND_WORLD.cellOrigin.x, LAND_WORLD.cellOrigin.z] : undefined,
     cellSize:
       (params.bench || params.debug) && raw.get('chunk') === '24'
         ? LAND_RENDER.cellCandidates[0]
         : LAND_RENDER.cellSize,
+  };
+
+  if (!thirdPerson) {
+    const world = createPureLandWorld(context.scene, worldOptions);
+    return startPureLandRuntime({
+      start,
+      startup,
+      params,
+      capabilities,
+      decision,
+      adaptive,
+      events,
+      ui,
+      context,
+      world,
+      initialTime,
+    });
+  }
+
+  startup.syncMs = performance.now() - start;
+  ui.setLoading(true);
+  const steps = createPureLandWorldSteps(context.scene, worldOptions);
+  let runtimeDispose: (() => void) | undefined;
+  let completedWorld: PureLandWorld | undefined;
+  let disposed = false;
+  let contextDisposed = false;
+  let listenersRemoved = false;
+  let contextLost = false;
+
+  const removeLoadingListeners = (): void => {
+    if (listenersRemoved) return;
+    listenersRemoved = true;
+    window.removeEventListener('pagehide', pageHide);
+    window.removeEventListener('pageshow', pageShow);
+    document.removeEventListener('visibilitychange', visibility);
+    context.canvas.removeEventListener('webglcontextlost', onContextLost);
+    context.canvas.removeEventListener('webglcontextrestored', onContextRestored);
+  };
+
+  function dispose(): void {
+    if (disposed) return;
+    disposed = true;
+    if (runtimeDispose) {
+      releaseAll([() => driver.cancel(), removeLoadingListeners, runtimeDispose]);
+      return;
+    }
+    releaseAll([
+      () => driver.cancel(),
+      removeLoadingListeners,
+      () => {
+        try {
+          completedWorld?.dispose();
+        } finally {
+          completedWorld = undefined;
+        }
+      },
+      () => {
+        if (contextDisposed) return;
+        try {
+          context.dispose();
+        } finally {
+          contextDisposed = true;
+        }
+      },
+      () => ui.dispose(),
+      () => events.clear(),
+    ]);
+  }
+
+  const fail = (error: unknown): void => {
+    if (disposed) return;
+    const message = error instanceof Error ? error.message : String(error);
+    markFatal(message);
+    ui.setLoading(true, '场景准备失败，请刷新页面重试');
+    try {
+      releaseAll([
+        () => {
+          try {
+            completedWorld?.dispose();
+          } finally {
+            completedWorld = undefined;
+          }
+        },
+        () => {
+          if (contextDisposed) return;
+          try {
+            context.dispose();
+          } finally {
+            contextDisposed = true;
+          }
+        },
+        removeLoadingListeners,
+      ]);
+    } catch (cleanupError) {
+      console.error('第三人称场景清理失败', cleanupError);
+    }
+  };
+
+  const onContextLost = (event: Event): void => {
+    event.preventDefault();
+    contextLost = true;
+    driver?.pause();
+    ui.setLoading(true, '画面连接中断，正在等待浏览器恢复');
+    ui.showNotice('画面连接暂时中断，正在等待浏览器恢复。');
+  };
+  const onContextRestored = (): void => {
+    contextLost = false;
+    ui.setLoading(true);
+    if (!document.hidden) driver?.resume();
+  };
+  function pageHide(event: PageTransitionEvent): void {
+    if (!event.persisted) {
+      dispose();
+      return;
+    }
+    driver?.pause();
+  }
+  function pageShow(): void {
+    if (!document.hidden && !contextLost) driver?.resume();
+  }
+  const visibility = (): void => {
+    if (document.hidden) driver?.pause();
+    else if (!contextLost) driver?.resume();
+  };
+
+  const driver = new FrameBudgetDriver({
+    iterator: steps,
+    budgetMs: THIRD_PERSON_BUILD_BUDGET_MS,
+    deferFirstFrame: true,
+    onComplete(world, stats) {
+      if (disposed) {
+        world.dispose();
+        return;
+      }
+      completedWorld = world;
+      recordBuildStats(startup, stats);
+      removeLoadingListeners();
+      ui.setLoading(false);
+      try {
+        runtimeDispose = startPureLandRuntime({
+          start,
+          startup,
+          params,
+          capabilities,
+          decision,
+          adaptive,
+          events,
+          ui,
+          context,
+          world,
+          initialTime,
+        });
+        completedWorld = undefined;
+      } catch (error) {
+        fail(error);
+      }
+    },
+    onError(error, stats) {
+      recordBuildStats(startup, stats);
+      fail(error);
+    },
   });
+  window.addEventListener('pagehide', pageHide);
+  window.addEventListener('pageshow', pageShow);
+  document.addEventListener('visibilitychange', visibility);
+  context.canvas.addEventListener('webglcontextlost', onContextLost);
+  context.canvas.addEventListener('webglcontextrestored', onContextRestored);
+  driver.start();
+  return dispose;
+}
+
+function recordBuildStats(startup: StartupStats, stats: Readonly<FrameBudgetStats>): void {
+  startup.buildMs = stats.elapsedMs;
+  startup.buildFrames = stats.frames;
+  startup.buildSteps = stats.steps;
+  startup.maxBuildStepMs = stats.maxStepMs;
+  startup.buildOverBudgetSteps = stats.overBudgetSteps;
+}
+
+function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
+  const {
+    start,
+    startup,
+    params,
+    capabilities,
+    decision,
+    adaptive: adaptiveBudget,
+    events,
+    ui,
+    context,
+    world,
+  } = options;
+  let time = options.initialTime;
+  const renderer = context.rendering.renderer;
   const pipeline = createCinematicPipeline(
     renderer,
     context.scene,
@@ -102,10 +359,10 @@ export function startPureLand(): () => void {
   let elapsedMs = 0;
   const removeBudget = events.on('app:frame', (frame) => {
     elapsedMs = frame.elapsedMs;
-    if (adaptive.update(frame.deltaMs)) {
-      renderer.setPixelRatio(basePixelRatio * adaptive.scale);
-      pipeline.setScale(adaptive.scale);
-      world.reflection.setScale(adaptive.scale);
+    if (adaptiveBudget.update(frame.deltaMs)) {
+      renderer.setPixelRatio(basePixelRatio * adaptiveBudget.scale);
+      pipeline.setScale(adaptiveBudget.scale);
+      world.reflection.setScale(adaptiveBudget.scale);
     }
   });
   const input = capabilities.touch
@@ -125,8 +382,7 @@ export function startPureLand(): () => void {
         lookSensitivityRadPerPixel: LAND_JOURNEY.mouseSensitivity,
         flightControlsEnabled: params.cam === 'third',
       });
-  // 第三人称原型（?cam=third）：角色挂在场景根上，遮挡回拉以场景为射线对象。
-  // 默认体验（第一人称 + 四景点观览）完全不装配 avatar，行为与历史版本一致。
+  // 默认第一人称与四景点观览不装配 avatar；第三人称原型才启用角色和遮挡回拉。
   const avatar = params.cam === 'third' ? new LandAvatar(context.scene) : undefined;
   const camera = new LandCamera({
     camera: context.camera,
@@ -249,43 +505,49 @@ export function startPureLand(): () => void {
     audio,
     quality: decision.tier,
     seed: params.seed,
-    renderBudget: { adaptive, pipeline: pipeline.stats, telemetry: telemetry.stats },
+    renderBudget: {
+      adaptive: adaptiveBudget,
+      pipeline: pipeline.stats,
+      telemetry: telemetry.stats,
+    },
     startup,
-    // 仅诊断页暴露真实释放/重挂入口，回归检测同一文档里的资源与监听器，而非只测刷新。
     dispose,
     restart: () => {
       dispose();
       return startPureLand();
     },
   });
-  startup.syncMs = performance.now() - start;
+  if (params.cam !== 'third') startup.syncMs = performance.now() - start;
   syncActivity();
   events.emit('app:ready', { startedAt: Date.now() });
+
   function dispose(): void {
     if (disposed) return;
     disposed = true;
-    loop.stop();
-    removeTime();
-    removeBudget();
-    removeTrap();
-    removeModal();
-    window.removeEventListener('resize', resize);
-    window.removeEventListener('pagehide', pageHide);
-    document.removeEventListener('visibilitychange', visibility);
-    window.removeEventListener('blur', visibility);
-    window.removeEventListener('focus', visibility);
-    window.removeEventListener('pageshow', visibility);
-    context.canvas.removeEventListener('webglcontextlost', contextLost);
-    context.canvas.removeEventListener('webglcontextrestored', contextRestored);
-    input.dispose();
-    camera.dispose();
-    audio.dispose();
-    world.dispose();
-    pipeline.dispose();
-    telemetry.dispose();
-    context.dispose();
-    ui.dispose();
-    events.clear();
+    releaseAll([
+      () => loop.stop(),
+      removeTime,
+      removeBudget,
+      removeTrap,
+      removeModal,
+      () => window.removeEventListener('resize', resize),
+      () => window.removeEventListener('pagehide', pageHide),
+      () => document.removeEventListener('visibilitychange', visibility),
+      () => window.removeEventListener('blur', visibility),
+      () => window.removeEventListener('focus', visibility),
+      () => window.removeEventListener('pageshow', visibility),
+      () => context.canvas.removeEventListener('webglcontextlost', contextLost),
+      () => context.canvas.removeEventListener('webglcontextrestored', contextRestored),
+      () => input.dispose(),
+      () => camera.dispose(),
+      () => audio.dispose(),
+      () => world.dispose(),
+      () => pipeline.dispose(),
+      () => telemetry.dispose(),
+      () => context.dispose(),
+      () => ui.dispose(),
+      () => events.clear(),
+    ]);
   }
   window.addEventListener('pagehide', pageHide);
   return dispose;

@@ -56,6 +56,13 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   const removes: (() => void)[] = [];
   root.classList.add('land-app');
   const viewport = el('div', 'viewport land-viewport');
+  const loading = el('div', 'land-loading');
+  loading.setAttribute('role', 'status');
+  loading.setAttribute('aria-live', 'polite');
+  const loadingText = el('span', 'land-loading-text', '正在分帧构建核心场景');
+  loading.append(el('span', 'land-loading-spinner'), loadingText);
+  loading.hidden = !options.thirdPerson;
+  viewport.append(loading);
   root.append(viewport);
   const overlay = el('main', 'land-ui');
   const header = el('header', 'land-header');
@@ -386,6 +393,10 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     },
     showNotice(message: string, temporary = false): void {
       setNotice(message, temporary);
+    },
+    setLoading(active: boolean, message = '正在分帧构建核心场景'): void {
+      loadingText.textContent = message;
+      loading.hidden = !active;
     },
     dispose(): void {
       clearTimeout(noticeTimer);

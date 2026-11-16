@@ -1,5 +1,5 @@
 import { BatchedMesh, InstancedMesh, PerspectiveCamera, Scene, Texture } from 'three';
-import type { Material, BufferGeometry } from 'three';
+import type { BufferGeometry, Material, Object3D } from 'three';
 import type { QualityProfile } from '@/00-types';
 import { RENDER } from '@/01-shared';
 import { Renderer } from './Renderer';
@@ -75,7 +75,7 @@ function disposeMaterial(material: Material, textures: Set<Texture>): void {
 }
 
 /** 统一释放几何体、材质与材质贴图，长时间运行时不释放会持续占用 GPU 显存。 */
-export function disposeObjectTree(root: Scene): void {
+export function disposeObjectTree(root: Object3D, ownedMaterials: readonly Material[] = []): void {
   const textures = new Set<Texture>();
   const geometries = new Set<BufferGeometry>();
   const seenMaterials = new Set<Material>();
@@ -113,6 +113,11 @@ export function disposeObjectTree(root: Scene): void {
       }
     }
   });
+  for (const material of ownedMaterials) {
+    if (seenMaterials.has(material)) continue;
+    seenMaterials.add(material);
+    disposeMaterial(material, textures);
+  }
 }
 
 export function createSceneContext(host: HTMLElement, options: SceneContextOptions): SceneContext {

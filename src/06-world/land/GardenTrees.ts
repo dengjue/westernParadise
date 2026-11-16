@@ -17,13 +17,26 @@ import type { LandBuilder } from './Builder';
 import { finishGardenInstances, treeLeafGeometry, windGeometry } from './GardenGeometry';
 import { taperedTube } from './CraftGeometry';
 
-function treeSkeleton(builder: LandBuilder, m: PureLandMaterials, tree: GardenTree): void {
+function consume(steps: Generator<void, void, void>): void {
+  while (!steps.next().done) {
+    // Synchronous callers consume the same work units immediately.
+  }
+}
+
+function* treeSkeletonSteps(
+  builder: LandBuilder,
+  m: PureLandMaterials,
+  tree: GardenTree,
+): Generator<void, void, void> {
   const config = LAND_GARDEN.trees,
     { x, z, height, lean } = tree,
     island = config.island;
   builder.box(m.stone, [x, island.stoneY, z], [6, island.stoneHeight, 6]);
+  yield;
   builder.box(m.gold, [x, island.rimY, z], [island.halfWidth * 2, 0.12, island.halfWidth * 2]);
+  yield;
   builder.box(m.jade, [x, island.topY, z], [5.5, 0.1, 5.5]);
+  yield;
   const trunk = taperedTube(
     [
       [x, island.topY, z],
@@ -35,8 +48,12 @@ function treeSkeleton(builder: LandBuilder, m: PureLandMaterials, tree: GardenTr
     12,
     6,
   );
-  builder.shape(trunk, m.goldDark);
-  trunk.dispose();
+  try {
+    builder.shape(trunk, m.goldDark);
+  } finally {
+    trunk.dispose();
+  }
+  yield;
   for (const branch of tree.branches) {
     const geometry = taperedTube(
       branch.points,
@@ -44,20 +61,27 @@ function treeSkeleton(builder: LandBuilder, m: PureLandMaterials, tree: GardenTr
       8,
       5,
     );
-    builder.shape(geometry, m.goldDark);
-    geometry.dispose();
-    for (const twig of branch.twigs) builder.rod(m.goldDark, twig.from, twig.to, config.twigRadius);
+    try {
+      builder.shape(geometry, m.goldDark);
+    } finally {
+      geometry.dispose();
+    }
+    yield;
+    for (const twig of branch.twigs) {
+      builder.rod(m.goldDark, twig.from, twig.to, config.twigRadius);
+      yield;
+    }
   }
 }
 
 /** 珠线两端连接真实枝端，不再用固定高度穿过树冠；珠粒用共享低面数球体。 */
-function pearlGarlands(
+function* pearlGarlandsSteps(
   builder: LandBuilder,
   m: PureLandMaterials,
   trees: readonly GardenTree[],
   seed: number,
   quality: QualityTier,
-): void {
+): Generator<void, void, void> {
   const config = LAND_GARDEN.pearls,
     detail = LAND_GARDEN_QUALITY[quality];
   const pearl = new SphereGeometry(1, detail.pearlSegments, detail.pearlSegments - 2);
@@ -66,38 +90,47 @@ function pearlGarlands(
       const point = branch.points.at(-1)!;
       return point[2] * direction > best[2] * direction ? point : best;
     }, tree.branches[0]!.points.at(-1)!);
-  for (const tree of trees) {
-    if (tree.lane !== 1 || tree.row === LAND_GARDEN.trees.rows - 1) continue;
-    const next = trees.find(
-      (other) => other.side === tree.side && other.lane === tree.lane && other.row === tree.row + 1,
-    )!;
-    const from = anchor(tree, 1),
-      to = anchor(next, -1);
-    const rng = gardenRng(seed, 'ornament', tree.id),
-      sag = config.sag * rng.range(0.82, 1.15);
-    const points: GardenPoint[] = [];
-    for (let index = 0; index <= config.samples; index++) {
-      const t = index / config.samples;
-      const point: GardenPoint = [
-        from[0] + (to[0] - from[0]) * t,
-        from[1] + (to[1] - from[1]) * t - Math.sin(Math.PI * t) * sag,
-        from[2] + (to[2] - from[2]) * t,
-      ];
-      points.push(point);
-      if (index % detail.pearlStep === 0)
-        builder.shape(pearl, m.pearl, point, [config.radius, config.radius, config.radius]);
+  try {
+    for (const tree of trees) {
+      if (tree.lane !== 1 || tree.row === LAND_GARDEN.trees.rows - 1) continue;
+      const next = trees.find(
+        (other) =>
+          other.side === tree.side && other.lane === tree.lane && other.row === tree.row + 1,
+      )!;
+      const from = anchor(tree, 1),
+        to = anchor(next, -1);
+      const rng = gardenRng(seed, 'ornament', tree.id),
+        sag = config.sag * rng.range(0.82, 1.15);
+      const points: GardenPoint[] = [];
+      for (let index = 0; index <= config.samples; index++) {
+        const t = index / config.samples;
+        const point: GardenPoint = [
+          from[0] + (to[0] - from[0]) * t,
+          from[1] + (to[1] - from[1]) * t - Math.sin(Math.PI * t) * sag,
+          from[2] + (to[2] - from[2]) * t,
+        ];
+        points.push(point);
+        if (index % detail.pearlStep === 0) {
+          builder.shape(pearl, m.pearl, point, [config.radius, config.radius, config.radius]);
+          yield;
+        }
+      }
+      builder.tube(m.gold, points, config.threadRadius, config.samples);
+      yield;
+      const middle = points[config.samples / 2]!;
+      const drop: GardenPoint = [middle[0], middle[1] - 0.38, middle[2]];
+      builder.rod(m.gold, middle, drop, config.threadRadius * 0.6);
+      yield;
+      builder.shape(pearl, m.pearl, drop, [config.radius, config.radius * 1.6, config.radius]);
+      yield;
     }
-    builder.tube(m.gold, points, config.threadRadius, config.samples);
-    const middle = points[config.samples / 2]!;
-    const drop: GardenPoint = [middle[0], middle[1] - 0.38, middle[2]];
-    builder.rod(m.gold, middle, drop, config.threadRadius * 0.6);
-    builder.shape(pearl, m.pearl, drop, [config.radius, config.radius * 1.6, config.radius]);
+  } finally {
+    pearl.dispose();
   }
-  pearl.dispose();
 }
 
 /** 稀疏冠团只写入缓存阴影：主视图与反射禁写颜色/深度，避免与细叶闪烁。 */
-function crownShadow(root: Group, trees: readonly GardenTree[]): void {
+function* crownShadowSteps(root: Group, trees: readonly GardenTree[]): Generator<void, void, void> {
   const material = new MeshBasicMaterial({ colorWrite: false, depthWrite: false });
   const proxy = new InstancedMesh(
     new IcosahedronGeometry(1, 0),
@@ -106,23 +139,34 @@ function crownShadow(root: Group, trees: readonly GardenTree[]): void {
   );
   const transform = new Object3D();
   let index = 0;
-  for (const tree of trees)
-    for (const branch of tree.branches) {
-      transform.position.fromArray(branch.points.at(-1)!);
-      transform.position.y += 0.32;
-      transform.scale.fromArray(LAND_GARDEN.trees.shadowScale);
-      transform.updateMatrix();
-      proxy.setMatrixAt(index++, transform.matrix);
+  let attached = false;
+  try {
+    for (const tree of trees)
+      for (const branch of tree.branches) {
+        transform.position.fromArray(branch.points.at(-1)!);
+        transform.position.y += 0.32;
+        transform.scale.fromArray(LAND_GARDEN.trees.shadowScale);
+        transform.updateMatrix();
+        proxy.setMatrixAt(index++, transform.matrix);
+        if (index % 32 === 0) yield;
+      }
+    proxy.name = 'garden-crown-shadow-proxy';
+    proxy.castShadow = true;
+    proxy.instanceMatrix.needsUpdate = true;
+    proxy.computeBoundingBox();
+    proxy.computeBoundingSphere();
+    root.add(proxy);
+    attached = true;
+  } finally {
+    if (!attached) {
+      proxy.dispose();
+      proxy.geometry.dispose();
+      material.dispose();
     }
-  proxy.name = 'garden-crown-shadow-proxy';
-  proxy.castShadow = true;
-  proxy.instanceMatrix.needsUpdate = true;
-  proxy.computeBoundingBox();
-  proxy.computeBoundingSphere();
-  root.add(proxy);
+  }
 }
 
-export function createGardenTrees(
+export function* createGardenTreesSteps(
   root: Group,
   builder: LandBuilder,
   m: PureLandMaterials,
@@ -130,7 +174,7 @@ export function createGardenTrees(
   seed: number,
   quality: QualityTier,
   wind: GardenWind,
-): void {
+): Generator<void, void, void> {
   const detail = LAND_GARDEN_QUALITY[quality],
     config = LAND_GARDEN;
   const prototype = treeLeafGeometry(quality);
@@ -146,23 +190,46 @@ export function createGardenTrees(
   const transform = new Object3D(),
     color = new Color(),
     attributes = geometry.getAttribute('gardenWind');
-  let index = 0;
-  for (const tree of trees) {
-    treeSkeleton(builder, m, tree);
-    for (let leaf = 0; leaf < detail.leavesPerTree; leaf++) {
-      const plan = sampleGardenLeaf(seed, tree, leaf);
-      transform.position.fromArray(plan.point);
-      transform.rotation.set(plan.pitch, plan.yaw, plan.roll, 'YXZ');
-      transform.scale.set(plan.size * plan.width, plan.size, plan.size);
-      transform.updateMatrix();
-      leaves.setMatrixAt(index, transform.matrix);
-      color.setHSL(plan.hue, plan.saturation, plan.lightness).convertSRGBToLinear();
-      leaves.setColorAt(index, color);
-      attributes.setXYZW(index++, config.wind.treeAngle, plan.phase, plan.weight, plan.frequency);
+  let index = 0,
+    attached = false;
+  try {
+    for (const tree of trees) {
+      yield* treeSkeletonSteps(builder, m, tree);
+      for (let leaf = 0; leaf < detail.leavesPerTree; leaf++) {
+        const plan = sampleGardenLeaf(seed, tree, leaf);
+        transform.position.fromArray(plan.point);
+        transform.rotation.set(plan.pitch, plan.yaw, plan.roll, 'YXZ');
+        transform.scale.set(plan.size * plan.width, plan.size, plan.size);
+        transform.updateMatrix();
+        leaves.setMatrixAt(index, transform.matrix);
+        color.setHSL(plan.hue, plan.saturation, plan.lightness).convertSRGBToLinear();
+        leaves.setColorAt(index, color);
+        attributes.setXYZW(index++, config.wind.treeAngle, plan.phase, plan.weight, plan.frequency);
+        if ((leaf + 1) % 64 === 0) yield;
+      }
+    }
+    finishGardenInstances(leaves, config.wind.treeBounds);
+    root.add(leaves);
+    attached = true;
+    yield;
+    yield* pearlGarlandsSteps(builder, m, trees, seed, quality);
+    if (detail.crownShadow) yield* crownShadowSteps(root, trees);
+  } finally {
+    if (!attached) {
+      leaves.dispose();
+      leaves.geometry.dispose();
     }
   }
-  finishGardenInstances(leaves, config.wind.treeBounds);
-  root.add(leaves);
-  pearlGarlands(builder, m, trees, seed, quality);
-  if (detail.crownShadow) crownShadow(root, trees);
+}
+
+export function createGardenTrees(
+  root: Group,
+  builder: LandBuilder,
+  m: PureLandMaterials,
+  trees: readonly GardenTree[],
+  seed: number,
+  quality: QualityTier,
+  wind: GardenWind,
+): void {
+  consume(createGardenTreesSteps(root, builder, m, trees, seed, quality, wind));
 }

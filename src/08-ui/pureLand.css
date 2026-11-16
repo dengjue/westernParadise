@@ -24,6 +24,34 @@
   transition: opacity 0.5s;
 }
 
+.land-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 18px;
+  background: rgb(18 39 36 / 88%);
+  color: var(--land-cream);
+  font-family: var(--land-serif);
+  font-size: 16px;
+  letter-spacing: 0.12em;
+}
+.land-loading-spinner {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgb(226 194 140 / 35%);
+  border-top-color: var(--land-gold);
+  border-radius: 50%;
+  animation: land-loading-turn 1.1s linear infinite;
+}
+@keyframes land-loading-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .land-app [hidden] {
   display: none !important;
 }
@@ -889,6 +917,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .land-loading-spinner {
+    animation: none;
+  }
   .land-app * {
     transition: none !important;
   }

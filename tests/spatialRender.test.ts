@@ -122,4 +122,17 @@ describe('空间批次与相机独立分级', () => {
     for (const spy of [geometryDispose, materialDispose, textureDispose, instanceDispose])
       expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  it('未挂入场景的构建自有材质也能随取消路径释放且不会重复释放', () => {
+    const root = new Group(),
+      texture = new Texture(),
+      material = new MeshBasicMaterial({ map: texture }),
+      materialDispose = vi.spyOn(material, 'dispose'),
+      textureDispose = vi.spyOn(texture, 'dispose');
+
+    disposeObjectTree(root, [material, material]);
+
+    expect(materialDispose).toHaveBeenCalledTimes(1);
+    expect(textureDispose).toHaveBeenCalledTimes(1);
+  });
 });
