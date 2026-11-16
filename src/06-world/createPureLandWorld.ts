@@ -36,6 +36,7 @@ export interface PureLandWorldOptions {
 
 export interface PureLandBuildProgress {
   stage: string;
+  detailed?: boolean;
 }
 
 function ownedMaterials(
@@ -166,6 +167,7 @@ export function* createPureLandWorldSteps(
       cellOrigin: options.cellOrigin,
       dynamicLod: true,
       multiDraw: options.renderer.extensions.has('WEBGL_multi_draw'),
+      onStage: progress?.detailed ? setStage : undefined,
     });
     builder = worldBuilder;
     const detail = LAND_DETAIL_BY_QUALITY[options.quality];

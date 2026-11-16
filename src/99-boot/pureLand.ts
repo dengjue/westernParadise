@@ -177,7 +177,10 @@ export function startPureLand(): () => void {
 
   startup.syncMs = performance.now() - start;
   ui.setLoading(true);
-  const buildProgress = { stage: 'waiting' };
+  const buildProgress = {
+    stage: 'waiting',
+    detailed: import.meta.env.DEV || params.debug || params.bench,
+  };
   const steps = createPureLandWorldSteps(context.scene, worldOptions, buildProgress);
   let runtimeDispose: (() => void) | undefined;
   let completedWorld: PureLandWorld | undefined;

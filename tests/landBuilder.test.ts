@@ -14,6 +14,7 @@ import {
   TubeGeometry,
 } from 'three';
 import { LandBuilder } from '@/06-world/land/Builder';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 function output(parent: Group): Mesh {
   const mesh = parent.children[0];
@@ -150,6 +151,88 @@ describe('LandBuilder 索引合批', () => {
       expect(disposed.size).toBe(3);
       expect(disposed.has(copies[0]!)).toBe(true);
       expect(disposed.has(copies[1]!)).toBe(true);
+    } finally {
+      disposeSpy.mockRestore();
+      source.dispose();
+      material.dispose();
+    }
+  });
+
+  it('大量 cell 构件分批合并仍与 Three 合并逐属性/索引一致', () => {
+    const builder = new LandBuilder({ cellSize: 100 }),
+      parent = new Group(),
+      material = new MeshStandardMaterial(),
+      source = new BoxGeometry(1, 2, 3),
+      expectedParts: BufferGeometry[] = [];
+    for (let index = 0; index < 64; index++) {
+      const point: [number, number, number] = [index * 0.1, index % 5, index * 0.07],
+        scale: [number, number, number] = [1 + (index % 3) * 0.1, 1, 0.8],
+        yaw = (index % 7) * 0.03,
+        matrix = new Matrix4().compose(
+          new Vector3(...point),
+          new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw),
+          new Vector3(...scale),
+        );
+      builder.shape(source, material, point, scale, yaw);
+      expectedParts.push(source.clone().applyMatrix4(matrix));
+    }
+    const expected = mergeGeometries(expectedParts, false)!;
+
+    let yields = 0;
+    const steps = builder.flushSteps(parent);
+    for (let next = steps.next(); !next.done; next = steps.next()) yields++;
+
+    expect(yields).toBeGreaterThan(4);
+    const actual = output(parent).geometry;
+    for (const name of ['position', 'normal', 'uv']) {
+      const actualArray = actual.getAttribute(name).array,
+        expectedArray = expected.getAttribute(name).array;
+      expect(actualArray.length).toBe(expectedArray.length);
+      for (let index = 0; index < actualArray.length; index++)
+        expect(actualArray[index]).toBe(expectedArray[index]);
+    }
+    expect(actual.index!.array).toEqual(expected.index!.array);
+    expect(actual.index!.array.constructor).toBe(expected.index!.array.constructor);
+
+    actual.dispose();
+    expected.dispose();
+    for (const part of expectedParts) part.dispose();
+    source.dispose();
+    material.dispose();
+  });
+
+  it('取消 cell 几何分批复制时释放部分输出和全部待合并输入', () => {
+    const builder = new LandBuilder({ cellSize: 100 }),
+      parent = new Group(),
+      material = new MeshStandardMaterial(),
+      source = new BoxGeometry(),
+      copies: BufferGeometry[] = [],
+      clone = source.clone,
+      disposed = new Set<BufferGeometry>(),
+      dispose = BufferGeometry.prototype.dispose,
+      disposeSpy = vi.spyOn(BufferGeometry.prototype, 'dispose').mockImplementation(function (
+        this: BufferGeometry,
+      ) {
+        disposed.add(this);
+        return dispose.call(this);
+      });
+    vi.spyOn(source, 'clone').mockImplementation(function (this: BoxGeometry) {
+      const copy = clone.call(this);
+      copies.push(copy);
+      return copy;
+    });
+    try {
+      for (let index = 0; index < 32; index++) builder.shape(source, material, [index * 0.1, 0, 0]);
+      const steps = builder.flushSteps(parent);
+      expect(steps.next().done).toBe(false);
+      expect(copies.some((copy) => disposed.has(copy))).toBe(false);
+      steps.return();
+
+      expect(parent.children).toHaveLength(0);
+      expect(copies).toHaveLength(32);
+      expect(copies.every((copy) => disposed.has(copy))).toBe(true);
+      expect(disposed.size).toBeGreaterThan(copies.length);
+      expect(disposeSpy).toHaveBeenCalledTimes(disposed.size);
     } finally {
       disposeSpy.mockRestore();
       source.dispose();

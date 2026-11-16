@@ -150,8 +150,8 @@
 - [x] 将造像、庭园、植被分区和静态 cell flush 接入可取消的世界构建 generator；`?cam=third` 显示首屏 loading 并经 RAF 切片驱动，默认第一人称继续同步消费同一确定性步骤。
 - [x] 首次材质构建按小块生成纹理、叶脉/纹饰/匾额按步骤让帧；PMREM 环境图逐张烘焙。取消路径覆盖像素处理中断、已生成纹理和已装配材质的释放；环境烘焙中途也清理已完成的目标。
 - [x] `FrameBudgetDriver` 覆盖首次绘制让出、时间切片、单步超预算及阶段标签统计、暂停/恢复与取消关闭 generator；world abort 继续负责 builder pending 几何和部分场景树。
-- [x] `npm test`：40 个测试文件 / 241 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、双构建和单文件离线断言通过。单文件 854,496 字节，MD5 `8e02d447ba2587b44f7890c07dc903e3`。完整 `npm run verify` 被远端宣传素材两个 ESLint 错误阻挡，未改无关素材文件。
-- [x] headed Firefox 160 / WebGL2 桌面 smoke：blur=0 后又优化材质纹理直接 ImageData 写入、庭园布局分步及实例包围体分帧；最终三次最长单步 46/43/38ms（仍为 PMREM），>6ms 步骤 16/19/15。单文件第三人称离线 smoke 无 fatal/异常/外链，dispose 后 DOM/canvas 清零；默认第一人称 `buildSteps=0`，仍走同步路径且同样清理完全。视觉对照见 23 号规范。首次 X11 授权失败记录已由后续 smoke 覆盖。
+- [x] `npm test`：40 个测试文件 / 243 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、双构建和单文件离线断言通过。单文件 857,014 字节，MD5 `daa22e957ff4cd3d17918ea9082b2293`。完整 `npm run verify` 仍被未改宣传目录两个 ESLint 错误阻挡。
+- [x] headed Firefox 160 / WebGL2 桌面 smoke：保留 blur=0、直接 ImageData、庭园布局/实例边界分步；静态 cell attributes/index 改为最多 16 个输入几何一批复制，取消时回收部分输出，仍输出单网格。三次诊断 build 中位数基本持平（11.91→11.95s），>6ms 步骤中位数 21→15，最长 37/39/38ms（PMREM）。最终单文件第三人称 `buildMs=12,427ms`，第一人称 `buildSteps=0`；均无 fatal/异常/HTTP(S) 资源，dispose 后 DOM/canvas 清零。视觉与详细记录见 23 号规范。桌面 smoke 不代表目标设备性能或人工手感通过。
 - [x] 核对 Three r187 PMREM：公开 `fromScene()` / `fromCubemap()` 均同步完成整张图预滤波；逐面源捕获不能拆开逐 mip 预滤波。分 mip 需依赖未公开内部 API 或维护 Three fork，本轮不接入；详见 23 号规范。
 - [!] 6ms 仅是主线程调度切片，不是设备帧时保证；单次 PMREM 烘焙仍不可抢占，桌面 smoke 不能关闭 A4、B0、C0，也不代表阶段 1/2 人工手感通过。阶段 4 保持未关闭。
 
