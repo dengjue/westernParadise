@@ -1,14 +1,18 @@
 import { Mesh, PMREMGenerator, Scene } from 'three';
+import type { DataTexture } from 'three';
 import type { ShaderMaterial, SphereGeometry, WebGLRenderer } from 'three';
 import { LAND_ATMOSPHERE, LAND_TIMES } from '@/01-shared';
+import type { LandPmremAtlasHandle } from './LandPmremAtlas';
 
 type EnvironmentTarget = ReturnType<PMREMGenerator['fromScene']>;
 type EnvironmentBaker = Pick<PMREMGenerator, 'fromScene' | 'dispose'>;
 
 export interface LandEnvironmentHandle {
   targets: EnvironmentTarget[];
+  atlases: DataTexture[];
   stats: {
     bakes: number;
+    source: 'runtime-pmrem' | 'prebaked-atlas';
     maps: Array<{
       size: number;
       faces: number;
@@ -59,8 +63,10 @@ export function* createLandEnvironmentSteps(
     let disposed = false;
     const result: LandEnvironmentHandle = {
       targets,
+      atlases: [],
       stats: {
         bakes: targets.length,
+        source: 'runtime-pmrem',
         maps,
         estimatedBytes: maps.reduce((sum, map) => sum + map.estimatedBytes, 0),
       },
@@ -78,6 +84,39 @@ export function* createLandEnvironmentSteps(
     sky.material.toneMapped = toneMapped;
     sky.material.needsUpdate = true;
   }
+}
+
+/** 接管已解码的 2D mip 图集；图集模式不绑定 scene.environment，也不触发运行时 PMREM。 */
+export function createLandAtlasEnvironment(atlas: LandPmremAtlasHandle): LandEnvironmentHandle {
+  const maps = atlas.textures.map((texture) => {
+    const size = texture.image.width;
+    const mipCount = texture.mipmaps.length;
+    return {
+      size,
+      faces: 6,
+      mipCount,
+      estimatedBytes: Array.from(
+        { length: mipCount },
+        (_unused, level) => 6 * 8 * (size >> level) ** 2,
+      ).reduce((sum, bytes) => sum + bytes, 0),
+    };
+  });
+  let disposed = false;
+  return {
+    targets: [],
+    atlases: atlas.textures,
+    stats: {
+      bakes: 0,
+      source: 'prebaked-atlas',
+      maps,
+      estimatedBytes: maps.reduce((sum, map) => sum + map.estimatedBytes, 0),
+    },
+    dispose(): void {
+      if (disposed) return;
+      disposed = true;
+      atlas.dispose();
+    },
+  };
 }
 
 export function createLandEnvironment(

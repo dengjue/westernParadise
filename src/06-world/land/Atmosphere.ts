@@ -12,7 +12,7 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
-import type { Material, Scene, WebGLRenderer } from 'three';
+import type { Material, Scene, Texture, WebGLRenderer } from 'three';
 import type { QualityTier, TimeOfDayId } from '@/00-types';
 import {
   LAND_ATMOSPHERE,
@@ -27,8 +27,9 @@ import { LandLightTransition } from '@/02-core';
 import { applyLandAtmosphere, LAND_HAZE_GLSL } from '@/05-materials';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { budgetReflection } from './LandReflection';
-import { createLandEnvironmentSteps } from './LandEnvironment';
+import { createLandAtlasEnvironment, createLandEnvironmentSteps } from './LandEnvironment';
 import type { LandEnvironmentHandle } from './LandEnvironment';
+import type { LandPmremAtlasHandle } from './LandPmremAtlas';
 
 /** 输入已由 Color 转到线性空间，逐通道累加避免逐帧创建临时 Color。 */
 function addWeightedColor(target: Color, source: Color, weight: number): void {
@@ -136,6 +137,7 @@ export function* createLandAtmosphereSteps(
   initial: TimeOfDayId,
   reducedMotion = false,
   onStage?: (stage: string) => void,
+  prebakedEnvironment?: LandPmremAtlasHandle,
 ): Generator<void, LandAtmosphereHandle, void> {
   const previous = {
     fog: scene.fog,
@@ -249,27 +251,36 @@ export function* createLandAtmosphereSteps(
     waterUniforms['fogColor']!.value = fog.color;
     onStage?.('atmosphere:environment-prepare');
     yield;
-    const environment = yield* createLandEnvironmentSteps(
-      renderer,
-      sky,
-      (index) => {
-        const preset = presets[index]!;
-        uniforms.topColor.value.copy(preset.topColor);
-        uniforms.horizonColor.value.copy(preset.horizonColor);
-        fog.color.copy(preset.hazeColor);
-        uniforms.sunDirection.value.copy(preset.position).normalize();
-      },
-      (stage) => onStage?.(`atmosphere:${stage}`),
-    );
+    let environment: LandEnvironmentHandle;
+    if (prebakedEnvironment) {
+      environment = createLandAtlasEnvironment(prebakedEnvironment);
+    } else {
+      environment = yield* createLandEnvironmentSteps(
+        renderer,
+        sky,
+        (index) => {
+          const preset = presets[index]!;
+          uniforms.topColor.value.copy(preset.topColor);
+          uniforms.horizonColor.value.copy(preset.horizonColor);
+          fog.color.copy(preset.hazeColor);
+          uniforms.sunDirection.value.copy(preset.position).normalize();
+        },
+        (stage) => onStage?.(`atmosphere:${stage}`),
+      );
+    }
     environmentForCleanup = environment;
-    scene.environment = environment.targets[0]!.texture;
+    scene.environment = environment.targets[0]?.texture ?? null;
     scene.environmentIntensity = config.environment.intensity;
+    const environmentMaps: Texture[] =
+      environment.atlases.length > 0
+        ? environment.atlases
+        : environment.targets.map((target) => target.texture);
     const materialUniforms = {
       landHazeColor: { value: fog.color },
       landLightWeights: { value: transition.weights },
-      landEnvDawn: { value: environment.targets[0]!.texture },
-      landEnvNoon: { value: environment.targets[1]!.texture },
-      landEnvDusk: { value: environment.targets[2]!.texture },
+      landEnvDawn: { value: environmentMaps[0]! },
+      landEnvNoon: { value: environmentMaps[1]! },
+      landEnvDusk: { value: environmentMaps[2]! },
     };
     const materials = new Set<Material>();
     scene.traverse((object) => {
@@ -278,7 +289,11 @@ export function* createLandAtmosphereSteps(
       for (const entry of Array.isArray(material) ? material : [material]) {
         if (entry instanceof ShaderMaterial || materials.has(entry)) continue;
         materials.add(entry);
-        applyLandAtmosphere(entry, materialUniforms);
+        applyLandAtmosphere(
+          entry,
+          materialUniforms,
+          environment.stats.source === 'prebaked-atlas' ? 'atlas' : 'cube',
+        );
       }
     });
     const stats = { transition, environment: environment.stats, shadowRequests: 0 };
@@ -356,6 +371,7 @@ export function* createLandAtmosphereSteps(
   } finally {
     if (!completed) {
       environmentForCleanup?.dispose();
+      prebakedEnvironment?.dispose();
       waterForCleanup?.dispose();
       sunForCleanup?.shadow.dispose();
       scene.fog = previous.fog;

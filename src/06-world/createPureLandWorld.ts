@@ -9,6 +9,7 @@ import type { LandCellCameraPose } from '@/02-core';
 import { createArchitectureSteps } from './land/Architecture';
 import { createLandAtmosphereSteps } from './land/Atmosphere';
 import type { LandAtmosphereHandle } from './land/Atmosphere';
+import type { LandPmremAtlasHandle } from './land/LandPmremAtlas';
 import { LandBuilder } from './land/Builder';
 import { createGardenSteps } from './land/Garden';
 import { createSculpturesSteps } from './land/Sculpture';
@@ -32,6 +33,8 @@ export interface PureLandWorldOptions {
   cellOrigin?: readonly [number, number];
   /** 只在第三人称区域原型启用东区 cell 调度，不改变默认四景点/第一人称场景。 */
   regionPrototype?: boolean;
+  /** 第三人称可传入已分帧解码的离线环境图集；未提供时保留运行时 PMREM。 */
+  prebakedEnvironment?: LandPmremAtlasHandle;
 }
 
 export interface PureLandBuildProgress {
@@ -222,6 +225,7 @@ export function* createPureLandWorldSteps(
       options.time,
       options.reducedMotion,
       setStage,
+      options.prebakedEnvironment,
     );
     atmosphere = landAtmosphere;
     yield;
@@ -250,6 +254,7 @@ export function* createPureLandWorldSteps(
     return world;
   } finally {
     if (!completed) {
+      options.prebakedEnvironment?.dispose();
       try {
         builder?.abort();
       } catch {

@@ -28,7 +28,7 @@ import {
   RenderTelemetry,
 } from '@/04-engine';
 import type { FrameBudgetSlowStep, FrameBudgetStats } from '@/04-engine';
-import { createPureLandWorld, createPureLandWorldSteps } from '@/06-world';
+import { createPureLandWorld, createPureLandWorldSteps, loadLandPmremAtlas } from '@/06-world';
 import type { PureLandWorldOptions } from '@/06-world';
 import { KeyboardMouseInput, LandAvatar, LandCamera, TouchInput } from '@/07-systems';
 import { mountPureLandUi } from '@/08-ui';
@@ -40,6 +40,9 @@ const THIRD_PERSON_BUILD_BUDGET_MS = 6;
 interface StartupStats {
   syncMs: number;
   firstFrameMs: number;
+  assetDecodeMs: number;
+  assetDecodeFrames: number;
+  assetDecodeBytes: number;
   buildMs: number;
   buildFrames: number;
   buildSteps: number;
@@ -90,6 +93,9 @@ export function startPureLand(): () => void {
   const startup: StartupStats = {
     syncMs: 0,
     firstFrameMs: 0,
+    assetDecodeMs: 0,
+    assetDecodeFrames: 0,
+    assetDecodeBytes: 0,
     buildMs: 0,
     buildFrames: 0,
     buildSteps: 0,
@@ -181,7 +187,8 @@ export function startPureLand(): () => void {
     stage: 'waiting',
     detailed: import.meta.env.DEV || params.debug || params.bench,
   };
-  const steps = createPureLandWorldSteps(context.scene, worldOptions, buildProgress);
+  const assetAbort = new AbortController();
+  let driver: FrameBudgetDriver<PureLandWorld> | undefined;
   let runtimeDispose: (() => void) | undefined;
   let completedWorld: PureLandWorld | undefined;
   let disposed = false;
@@ -203,11 +210,17 @@ export function startPureLand(): () => void {
     if (disposed) return;
     disposed = true;
     if (runtimeDispose) {
-      releaseAll([() => driver.cancel(), removeLoadingListeners, runtimeDispose]);
+      releaseAll([
+        () => assetAbort.abort(),
+        () => driver?.cancel(),
+        removeLoadingListeners,
+        runtimeDispose,
+      ]);
       return;
     }
     releaseAll([
-      () => driver.cancel(),
+      () => assetAbort.abort(),
+      () => driver?.cancel(),
       removeLoadingListeners,
       () => {
         try {
@@ -236,6 +249,8 @@ export function startPureLand(): () => void {
     ui.setLoading(true, '场景准备失败，请刷新页面重试');
     try {
       releaseAll([
+        () => assetAbort.abort(),
+        () => driver?.cancel(),
         () => {
           try {
             completedWorld?.dispose();
@@ -285,51 +300,85 @@ export function startPureLand(): () => void {
     else if (!contextLost) driver?.resume();
   };
 
-  const driver = new FrameBudgetDriver({
-    iterator: steps,
-    budgetMs: THIRD_PERSON_BUILD_BUDGET_MS,
-    deferFirstFrame: true,
-    getStepLabel: () => buildProgress.stage,
-    slowStepLimit: import.meta.env.DEV || params.debug || params.bench ? 12 : 0,
-    onComplete(world, stats) {
-      if (disposed) {
-        world.dispose();
-        return;
-      }
-      completedWorld = world;
-      recordBuildStats(startup, stats);
-      removeLoadingListeners();
-      ui.setLoading(false);
-      try {
-        runtimeDispose = startPureLandRuntime({
-          start,
-          startup,
-          params,
-          capabilities,
-          decision,
-          adaptive,
-          events,
-          ui,
-          context,
-          world,
-          initialTime,
-        });
-        completedWorld = undefined;
-      } catch (error) {
-        fail(error);
-      }
-    },
-    onError(error, stats) {
-      recordBuildStats(startup, stats);
-      fail(error);
-    },
-  });
+  const beginBuild = (
+    prebakedEnvironment: NonNullable<PureLandWorldOptions['prebakedEnvironment']>,
+  ): void => {
+    if (disposed) {
+      prebakedEnvironment.dispose();
+      return;
+    }
+    const steps = createPureLandWorldSteps(
+      context.scene,
+      { ...worldOptions, prebakedEnvironment },
+      buildProgress,
+    );
+    try {
+      driver = new FrameBudgetDriver({
+        iterator: steps,
+        budgetMs: THIRD_PERSON_BUILD_BUDGET_MS,
+        deferFirstFrame: true,
+        getStepLabel: () => buildProgress.stage,
+        slowStepLimit: import.meta.env.DEV || params.debug || params.bench ? 12 : 0,
+        onComplete(world, stats) {
+          if (disposed) {
+            world.dispose();
+            return;
+          }
+          completedWorld = world;
+          recordBuildStats(startup, stats);
+          removeLoadingListeners();
+          ui.setLoading(false);
+          try {
+            runtimeDispose = startPureLandRuntime({
+              start,
+              startup,
+              params,
+              capabilities,
+              decision,
+              adaptive,
+              events,
+              ui,
+              context,
+              world,
+              initialTime,
+            });
+            completedWorld = undefined;
+          } catch (error) {
+            fail(error);
+          }
+        },
+        onError(error, stats) {
+          recordBuildStats(startup, stats);
+          fail(error);
+        },
+      });
+    } catch (error) {
+      steps.return?.(undefined as unknown as PureLandWorld);
+      prebakedEnvironment.dispose();
+      throw error;
+    }
+    if (document.hidden || contextLost) driver.pause();
+    driver.start();
+  };
+
   window.addEventListener('pagehide', pageHide);
   window.addEventListener('pageshow', pageShow);
   document.addEventListener('visibilitychange', visibility);
   context.canvas.addEventListener('webglcontextlost', onContextLost);
   context.canvas.addEventListener('webglcontextrestored', onContextRestored);
-  driver.start();
+  void loadLandPmremAtlas(assetAbort.signal, (stage) => {
+    buildProgress.stage = stage;
+  })
+    .then((environment) => {
+      startup.assetDecodeMs = environment.stats.decodeMs;
+      startup.assetDecodeFrames = environment.stats.yieldedFrames;
+      startup.assetDecodeBytes = environment.stats.compressedBytes;
+      beginBuild(environment);
+    })
+    .catch((error: unknown) => {
+      if (disposed || assetAbort.signal.aborted) return;
+      fail(error);
+    });
   return dispose;
 }
 

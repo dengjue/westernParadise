@@ -184,6 +184,15 @@
 - [!] 两项未保留实验：复用 transformed-bounds scratch 的交错三轮 build 中位数 `6,823→6,820ms`，无总耗时改善且长步计数波动；把变换块从 256 降至 128 后，steps `14,022→16,234`、build 中位 `6,818→6,965ms`，取消更细但没有性能收益；另一个无 subarray wrapper 的直接变换候选 build 中位 `6,597→6,958ms`。均已撤回，保留 256 顶点策略。详细 JSON 在 `/tmp/opencode/shared-shape-overbudget-32.json`、`/tmp/opencode/shared-bounds-ab.json`、`/tmp/opencode/shared-chunk128-ab.json`、`/tmp/opencode/shared-transform-ab.json`。
 - [!] 材质像素后续实验（Firefox 160 / WebGL2 / high / 1280×714 / DPR 1 交错三轮）：内联等价 `Rng.range(-13,13)` 运算并提取 base 通道后 build 中位 `6,688→6,698ms`、steps 不变、>6ms 中位 `9→11`；将纹理像素块从 8 行缩为 4 行后，build 中位 `6,795→6,762ms`（无稳定差异）、steps `14,022→14,342`、frames 中位保持 399、>6ms 中位 `9→11`。两项实现均撤回，维持原像素与 8 行切片；测试保留并扩充为逐值校验首个完整 8 行 / 4,096 像素块。样本 `/tmp/opencode/material-noise-ab.json`、`/tmp/opencode/material-rows4-ab.json`。
 
+### 2026-11-17 · 第三人称预烘焙 PMREM 图集原型
+
+- [x] 以公开 PMREM 读回 API 导出 dawn/noon/dusk 三组 RGB half-float 六级 mip，打包为随单文件内联的 gzip；运行时分片解码 Paeth、还原到 RGBA `DataTexture` 2D 面图集，并手动跨面双线性与 LOD 采样。资源 gzip `1,426,384 B`，解压 `9,434,880 B`，half 数据往返逐位一致；不使用 Three 私有运行时 API。
+- [x] 只在 `?cam=third` 异步读取候选；base64、gzip 和 Paeth 分片响应取消，资源释放幂等。离线 Firefox 160 / WebGL2 smoke：第三人称 `source=prebaked-atlas`、PMREM bake `0`、`scene.environment=null`、无 WebGL 错误/资源请求；取消解码后 canvas 与 `#app` 子节点归零，重新载入成功。
+- [x] 减动效 high / seed 42 / 1280×714 dawn/noon/dusk 全场景静态对照：RGB MAE `0.000187/0.000330/0.000229 /255`，最大通道差均为 `1/255`，无通道差超过 10；仅为本机静态像素回归，不替代人工画面验收。候选解码 `520–525ms`、31 次让帧；各时段首帧 `7.078–7.398s`、world build `6.112–6.410s`。顺序桌面样本的首帧耗时有升有降，不据此宣称总体启动变快；避免三张同步 PMREM bake，但仍有最长约 `15ms` 的其他世界构建步骤。
+- [x] 默认第一人称离线 smoke：候选解码字节/帧均为 `0`，仍运行时烘焙三张 PMREM、`buildSteps=0`；无资源请求/GL 错误，dispose 后 canvas 与 `#app` 子节点归零，保持原装配路径。
+- [x] `npm test`：41 文件 / 254 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、site/single 双构建、单文件离线断言通过。最终 `dist/single/index.html` 为 `2,778,186 B`（MD5 `de4aa714b0d28752709cdd76b9af4125`）：低于 `2,932,900 B` 硬上限 `154,714 B`，但超出 1.5 MiB 目标 `1,205,322 B`。静态零外链断言通过，运行时零请求另由本机 `file://` smoke 观察。
+- [!] 全仓 lint 仍被未改的 `05-宣发/tools/make-github-shot.mjs:42`、`05-宣发/tools/render.mjs:90` 阻塞；全仓 format 仍被这两脚本与 `05-宣发/preview.html` 阻塞。A4 缺旧 A3 页面、Tabbit CLI 与 macOS `pmset`；B0 缺目标手机；C0 缺原生生命周期通道；阶段 1/2 人工手感验收未完成。原型和桌面证据不关闭这些门槛，也不调整设备预算。
+
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 
 六阶段交付及 A0–A3 已完成；A4 严格性能未通过，B0 真实手机与 C0 原生生命周期条件仍阻塞。详细历史数值、步骤、验收方法保留在 [性能收敛与真机验收方案](02-方案/18-后续优化-性能收敛与真机验收.md)。**所有当前状态、下一步和新体验阶段统一以[长期工作计划](02-方案/19-长期工作计划-大世界第三人称与性能验收.md)为准**，避免在 TODO 与多个方案里并行维护互相漂移的任务队列。

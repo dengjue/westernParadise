@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: './',
+    assetsInclude: ['**/*.gz', '**/*.gz?inline'],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

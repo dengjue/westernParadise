@@ -7,6 +7,7 @@ import { defineConfig } from 'vitest/config';
  * 核心逻辑因此可以在无 DOM 环境下直接测试，也不需要截图类脆弱断言。
  */
 export default defineConfig({
+  assetsInclude: ['**/*.gz', '**/*.gz?inline'],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
