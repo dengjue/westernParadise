@@ -180,6 +180,8 @@
 - [x] 减动效 high dawn 第三人称同视点像素回归 MAE `0/255`、max-channel >10 像素占比 `0%`。单文件 headed Firefox smoke：第三人称 `buildMs=6,893ms`、408 帧、14,022 steps、最长 37ms（PMREM）；第一人称 `syncMs=2,396ms`、`buildSteps=0`。无 JS 错误/HTTP(S) 请求，dispose 后 canvas 与 `#app` 子节点归零。单文件 860,917 字节，MD5 `73fa3ac66133603345925b91c3105171`。
 - [x] 全量 40 个测试文件 / 251 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、双构建和单文件离线断言通过。数据在忽略目录 `/tmp/opencode/shared-shape-ab-final.json`、`/tmp/opencode/shared-shape-ab/reduced/`、`/tmp/opencode/shared-shape-final-smoke/`。
 - [!] >6ms 步骤数量未下降且 PMREM 长步仍存在；全仓 lint/format 及 A4/B0/C0、阶段 1/2 人工手感验收依旧未关闭。不要据本机总构建耗时收益调整切片/设备预算或宣称验收通过。
+- [!] 后续归因实验（2026-11-17）：临时把诊断慢步样本上限从 12 提到 32 后，一次候选运行 `buildMs=6,697ms`、max step `32ms`（PMREM）；其后可见的峰值包括 `materials:stone:pixels=13ms` 与若干 deferred Box/Cylinder shape `6–8ms`。其他 A/B 次数中 >6ms 总量在 5–15 间波动，表明这是受机器/GC/driver 影响的桌面诊断计数，不适合作为单独验收指标；诊断上限已恢复 12。Three r187 的 `PMREMGenerator.fromScene()` 是同步调用，内部连续渲染 cube faces 与预滤 mip；当前 size 已为其最小 256，blur=0 已避开额外 blur pass，公开 API 没有可逐 mip yield 的 fromScene 接口，因此不碰私有 API/fork。
+- [!] 两项未保留实验：复用 transformed-bounds scratch 的交错三轮 build 中位数 `6,823→6,820ms`，无总耗时改善且长步计数波动；把变换块从 256 降至 128 后，steps `14,022→16,234`、build 中位 `6,818→6,965ms`，取消更细但没有性能收益；另一个无 subarray wrapper 的直接变换候选 build 中位 `6,597→6,958ms`。均已撤回，保留 256 顶点策略。详细 JSON 在 `/tmp/opencode/shared-shape-overbudget-32.json`、`/tmp/opencode/shared-bounds-ab.json`、`/tmp/opencode/shared-chunk128-ab.json`、`/tmp/opencode/shared-transform-ab.json`。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 
