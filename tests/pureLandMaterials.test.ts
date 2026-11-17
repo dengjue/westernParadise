@@ -66,17 +66,16 @@ describe('createPureLandMaterialsSteps cancellation', () => {
 
     expect(steps.next().done).toBe(false);
     const rng = new Rng(123);
-    const expected = new Uint8ClampedArray(4 * 4);
-    for (let pixel = 0; pixel < 4; pixel++) {
-      const variation = rng.range(-13, 13),
-        offset = pixel * 4;
-      expected[offset] = 225 + variation;
-      expected[offset + 1] = 222 + variation;
-      expected[offset + 2] = 211 + variation;
-      expected[offset + 3] = 255;
+    const expected = new Uint8ClampedArray(firstChunk!.length);
+    for (let pixel = 0; pixel < expected.length; pixel += 4) {
+      const variation = rng.range(-13, 13);
+      expected[pixel] = 225 + variation;
+      expected[pixel + 1] = 222 + variation;
+      expected[pixel + 2] = 211 + variation;
+      expected[pixel + 3] = 255;
     }
 
-    expect(firstChunk?.slice(0, expected.length)).toEqual(expected);
+    expect(firstChunk).toEqual(expected);
     steps.return(undefined as unknown as PureLandMaterials);
   });
 

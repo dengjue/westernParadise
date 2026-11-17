@@ -182,6 +182,7 @@
 - [!] >6ms 步骤数量未下降且 PMREM 长步仍存在；全仓 lint/format 及 A4/B0/C0、阶段 1/2 人工手感验收依旧未关闭。不要据本机总构建耗时收益调整切片/设备预算或宣称验收通过。
 - [!] 后续归因实验（2026-11-17）：临时把诊断慢步样本上限从 12 提到 32 后，一次候选运行 `buildMs=6,697ms`、max step `32ms`（PMREM）；其后可见的峰值包括 `materials:stone:pixels=13ms` 与若干 deferred Box/Cylinder shape `6–8ms`。其他 A/B 次数中 >6ms 总量在 5–15 间波动，表明这是受机器/GC/driver 影响的桌面诊断计数，不适合作为单独验收指标；诊断上限已恢复 12。Three r187 的 `PMREMGenerator.fromScene()` 是同步调用，内部连续渲染 cube faces 与预滤 mip；当前 size 已为其最小 256，blur=0 已避开额外 blur pass，公开 API 没有可逐 mip yield 的 fromScene 接口，因此不碰私有 API/fork。
 - [!] 两项未保留实验：复用 transformed-bounds scratch 的交错三轮 build 中位数 `6,823→6,820ms`，无总耗时改善且长步计数波动；把变换块从 256 降至 128 后，steps `14,022→16,234`、build 中位 `6,818→6,965ms`，取消更细但没有性能收益；另一个无 subarray wrapper 的直接变换候选 build 中位 `6,597→6,958ms`。均已撤回，保留 256 顶点策略。详细 JSON 在 `/tmp/opencode/shared-shape-overbudget-32.json`、`/tmp/opencode/shared-bounds-ab.json`、`/tmp/opencode/shared-chunk128-ab.json`、`/tmp/opencode/shared-transform-ab.json`。
+- [!] 材质像素后续实验（Firefox 160 / WebGL2 / high / 1280×714 / DPR 1 交错三轮）：内联等价 `Rng.range(-13,13)` 运算并提取 base 通道后 build 中位 `6,688→6,698ms`、steps 不变、>6ms 中位 `9→11`；将纹理像素块从 8 行缩为 4 行后，build 中位 `6,795→6,762ms`（无稳定差异）、steps `14,022→14,342`、frames 中位保持 399、>6ms 中位 `9→11`。两项实现均撤回，维持原像素与 8 行切片；测试保留并扩充为逐值校验首个完整 8 行 / 4,096 像素块。样本 `/tmp/opencode/material-noise-ab.json`、`/tmp/opencode/material-rows4-ab.json`。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 
