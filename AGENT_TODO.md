@@ -213,6 +213,9 @@
 - [x] 补做 42m 东区真实飞行矩阵：W3C `V` 起飞、`D` 东飞至 x≈212–214；四档 × dawn/noon/dusk 共 12 张视口截图。东行最大需求/挂载 14–15 格，队列没有 queued/pending/errors；high/ultra 各有一个采样点 active/loading=1，其余为 0。稳定飞行 14/14，转向东俯视后 12/12，31/31 streamed PBR 命中 atlas；12 张均 bake/GL/Resource Timing 为 0。
 - [x] 右拖掉头向西、W 返航后东区 cell 四档均卸载为 0；V 安全落地 y=1.25。飞行全程约 300ms 轮询，无 GL 或页面错误；截图与逐段状态在 `/tmp/opencode/land-pmrem-dynamic-matrix-20261118/summary-flight42m-x210.json` 和 `*-flight42m-x210.png`。renderer 几何数与落地后初始计数略有差异，不等同进程/GPU 内存回稳证明。
 - [x] 视觉复核仍看到大片深绿色水面、狭长浅色游线与稀疏构件；作为灰盒内容密度/边界和构图待人工评审，动态流式 smoke 不标记为视觉通过。
+- [x] 扩展至莲池 `(x≈252,z≈10)`、东侧观景台 `(x≈314–317,z≈43)`：四档 × 两机位 × 晨/午/暮共 24 张截图，报告 `summary-flight-landmarks-20261118.json`。莲池稳定 15–16 格、观景台 15 格；PBR hook 分别 21–22/21–22、33/33，atlas bake/GL/Resource Timing 均为 0。飞行采样峰值 16 格；high active/loading 峰值 2，其余档 1，queued/pending/errors 均为 0。
+- [x] 双地标路线转西返航后四档需求/挂载和队列均归零，再安全落地 y=1.25。另在观景台同坐标对照朝西/朝北：`armDistance=armTarget=7.2`、`occludedDistance=null`，排除本次画面由弹簧臂遮挡压短造成；大面积水面/窄游线和稀疏构件仍需人工复核具体场景几何与构图，不擅自调整相机参数。诊断截图为 `flight-platform-low-{west,north}-camera-diagnostic.png`。
+- [x] 双地标 24 张截图、逐段采样及上述机位诊断均保存在忽略目录 `/tmp/opencode/land-pmrem-dynamic-matrix-20261118/`；renderer 几何计数返程与起点存在差异，不作为进程/GPU 总内存或单独泄漏证明。
 - [!] 阶段 4、A4、B0、C0、阶段 1/2 人工手感仍未关闭；并行候选仍是 `?cam=third` 原型，不扩展为发布/设备结论。全仓 lint 与 format 阻塞仍为上节未改宣传目录问题。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
