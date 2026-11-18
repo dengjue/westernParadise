@@ -207,6 +207,9 @@
 - [x] Firefox 160 / WebGL2 localhost HTTP 启动中 BFCache 往返：第三人称启动约 150ms 后导航离开再返回，记录到 `pagehide.persisted=true` 和 `pageshow.persisted=true`；恢复后并行启动完成，atlas source / bake 0、无 GL error，dispose 后 canvas 与 `#app` 子节点归零。HTTP 仅用于 BFCache 场景，测试还观察到本地应用页/away 页请求及浏览器自动 `/favicon.ico` 404；不将此项记作离线请求断言或 C0 通过。结果 `/tmp/opencode/land-pmrem-startup-bfcache-20261118.json`。
 - [x] 同机交错 6+6 启动样本（baseline/candidate 配对交替，high / 减动效 / dawn / seed 42 / 1280×714）：运行时 PMREM 基线首帧/build 中位 `6,635.5/6,197ms`，并行图集候选 `6,802/6,308.5ms`；候选分别慢约 `167/112ms`，两者范围重叠。候选解码 `544–620ms`（中位 `567ms`，31 次让帧）；最长步骤中位从 baseline PMREM `38ms` 降至候选非 PMREM `11ms`。相较此前串行图集样本首帧观察上有改善，但启动 A/B 有明显桌面波动，不能据此声称稳定提速；局部长步消失也不等于 A4/设备帧时通过。逐次数据 `/tmp/opencode/land-pmrem-parallel-startup-ab-20261118.json`。
 - [x] 解码切片单变量实验（Firefox 160 / WebGL2 / 同一 `file://` single / high / 减动效 / dawn / seed 42 / 1280×714，使用相同的临时 max-slice 诊断代码做交错 6+6）：128 行的解码 max-slice 中位 `6ms`（范围 `6–7ms`），256 行为 `11ms`（`10–12ms`）；256 行解码中位快约 `74ms`、少 11 次让帧，首帧/build 中位分别快约 `32/54ms`，但首帧与 build 的样本范围重叠，且启动方向与此前未配对诊断的样本不一致。没有稳定总启动收益，保留更细的 128 行切片；撤销仅用于实验的 max-slice 计时字段，避免生产热路径增加计时开销。逐次数据 `/tmp/opencode/land-pmrem-slice-128diag-vs-256diag-20261118.json`。
+- [x] 扩展 x≈210 东区机位真实动态矩阵：Firefox 160 headed / WebGL2 / `file://`，W3C 步行至东区后右拖朝东俯视；四档 × dawn/noon/dusk 共 12 张 WebDriver 视口截图。稳定态均为 12/12 需求/挂载，31/31 streamed PBR 命中 atlas hook，PMREM bake/GL error/Resource Timing 条目均为 0。
+- [x] 修正返回验收姿态：朝东按 `S` 回到核心区仍可能因前向预取保留 1 格；转西后按 `W` 继续，low/medium/high/ultra 均在 x≈-5…-6 时需求、挂载、队列归零。几何计数 low/medium `518→487`、high/ultra `562→531`，纹理数回到同档基线。
+- [x] 图片及逐档状态记录保存在忽略目录 `/tmp/opencode/land-pmrem-dynamic-matrix-20261118/`，报告为 `summary-x210.json`。截图仍显示大面积灰盒铺装/水面及稀疏远处构件，记录为内容密度/边界和构图待人工复核，不将 ready/mounted 当视觉通过。
 - [!] 阶段 4、A4、B0、C0、阶段 1/2 人工手感仍未关闭；并行候选仍是 `?cam=third` 原型，不扩展为发布/设备结论。全仓 lint 与 format 阻塞仍为上节未改宣传目录问题。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
