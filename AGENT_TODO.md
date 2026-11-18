@@ -189,6 +189,7 @@
 - [x] 以公开 PMREM 读回 API 导出 dawn/noon/dusk 三组 RGB half-float 六级 mip，打包为随单文件内联的 gzip；运行时分片解码 Paeth、还原到 RGBA `DataTexture` 2D 面图集，并手动跨面双线性与 LOD 采样。资源 gzip `1,426,384 B`，解压 `9,434,880 B`，half 数据往返逐位一致；不使用 Three 私有运行时 API。
 - [x] 只在 `?cam=third` 异步读取候选；base64、gzip 和 Paeth 分片响应取消，资源释放幂等。离线 Firefox 160 / WebGL2 smoke：第三人称 `source=prebaked-atlas`、PMREM bake `0`、`scene.environment=null`、无 WebGL 错误/资源请求；取消解码后 canvas 与 `#app` 子节点归零，重新载入成功。
 - [x] 减动效 high / seed 42 / 1280×714 dawn/noon/dusk 全场景静态对照：RGB MAE `0.000187/0.000330/0.000229 /255`，最大通道差均为 `1/255`，无通道差超过 10；仅为本机静态像素回归，不替代人工画面验收。候选解码 `520–525ms`、31 次让帧；各时段首帧 `7.078–7.398s`、world build `6.112–6.410s`。顺序桌面样本的首帧耗时有升有降，不据此宣称总体启动变快；避免三张同步 PMREM bake，但仍有最长约 `15ms` 的其他世界构建步骤。
+- [x] 扩展到四个预设观景点 × dawn/noon/dusk 共 12 对基线/候选全场景截图（减动效 high / seed 42 / 1280×714）：RGB MAE 范围 `0.000206–0.000674 /255`，最大通道差 `1/255`，无差异超过 10；各对页面均无 GL 错误/资源请求。联系表 `/tmp/opencode/land-pmrem-visual-matrix-12pairs.png`。仍是本机静态像素回归，不替代人工画面验收。
 - [x] 非减动效下用 `setTime()` 与受控 `1,600ms` 逻辑步检查 dawn→noon、noon→dusk、dusk→dawn 三个半程过渡（权重各为 0.5/0.5）。baseline/candidate MAE `0.000299/0.000315/0.000413 /255`，最大通道差 `1/255`、无通道差超过 10；无 GL 错误/资源请求，候选 bake 0、基线 bake 3。属于受控桌面过渡回归，不是人工操作或性能测试。
 - [x] 图集环境中向东区注入第三人称姿态后，流式队列收敛到 14/14 个目标/挂载 cell，29 个 PBR 材质的 program key 均走 atlas hook；无队列错误、GL 错误或资源请求，环境 bake 0。该测试通过诊断入口直接设置姿态，不代表真实键鼠路线、持续画面或帧时验收。
 - [x] Firefox 160 headed WebDriver 真实键盘事件沿入口东行至 `(x≈133,z=85)`：需求/挂载 `9/9`，17 个 streamed PBR 材质全部命中 atlas hook；按原路线折返回 `(x≈3,z=85)` 后需求/挂载与 queue 均归零。无 fatal、queue/GL 错误或资源请求，PMREM bake 0。是桌面自动输入与卸载回归，不代表手动手感、持续视觉或帧时通过。
