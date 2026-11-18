@@ -204,6 +204,7 @@
 - [x] 增加 gate 成功/失败/解码中取消及构建中取消资源测试，并覆盖 `FrameBudgetDriver` yielded-step pause 与 callback failure cleanup。全量 42 个测试文件 / 260 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、站点/单文件双构建和 `verify:single` 通过。单文件 `2,779,658 B`（MD5 `d4b3ba65eb55f6f39f5042f3e459ef2c`），低于硬上限 `153,242 B`，仍超 1.5 MiB 目标 `1,206,794 B`。
 - [x] Firefox 160 / WebGL2 headed 离线 smoke：第三人称 atlas source / bake 0 / 无 GL 错误与请求；真实 W3C 东行至 `x≈132m` 时 9/9 cell、17/17 streamed PBR hook 命中。默认第一人称解码 0、运行时 bake 3；dispose 后 DOM/canvas 归零。第三人称启动早期及构建过程中触发非持久 pagehide，均清除 canvas 与 `#app` 子节点。
 - [x] 同机交错 6+6 启动样本（baseline/candidate 配对交替，high / 减动效 / dawn / seed 42 / 1280×714）：运行时 PMREM 基线首帧/build 中位 `6,635.5/6,197ms`，并行图集候选 `6,802/6,308.5ms`；候选分别慢约 `167/112ms`，两者范围重叠。候选解码 `544–620ms`（中位 `567ms`，31 次让帧）；最长步骤中位从 baseline PMREM `38ms` 降至候选非 PMREM `11ms`。相较此前串行图集样本首帧观察上有改善，但启动 A/B 有明显桌面波动，不能据此声称稳定提速；局部长步消失也不等于 A4/设备帧时通过。逐次数据 `/tmp/opencode/land-pmrem-parallel-startup-ab-20261118.json`。
+- [x] 解码切片单变量实验（Firefox 160 / WebGL2 / 同一 `file://` single / high / 减动效 / dawn / seed 42 / 1280×714，使用相同的临时 max-slice 诊断代码做交错 6+6）：128 行的解码 max-slice 中位 `6ms`（范围 `6–7ms`），256 行为 `11ms`（`10–12ms`）；256 行解码中位快约 `74ms`、少 11 次让帧，首帧/build 中位分别快约 `32/54ms`，但首帧与 build 的样本范围重叠，且启动方向与此前未配对诊断的样本不一致。没有稳定总启动收益，保留更细的 128 行切片；撤销仅用于实验的 max-slice 计时字段，避免生产热路径增加计时开销。逐次数据 `/tmp/opencode/land-pmrem-slice-128diag-vs-256diag-20261118.json`。
 - [!] 阶段 4、A4、B0、C0、阶段 1/2 人工手感仍未关闭；并行候选仍是 `?cam=third` 原型，不扩展为发布/设备结论。全仓 lint 与 format 阻塞仍为上节未改宣传目录问题。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
