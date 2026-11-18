@@ -210,6 +210,9 @@
 - [x] 扩展 x≈210 东区机位真实动态矩阵：Firefox 160 headed / WebGL2 / `file://`，W3C 步行至东区后右拖朝东俯视；四档 × dawn/noon/dusk 共 12 张 WebDriver 视口截图。稳定态均为 12/12 需求/挂载，31/31 streamed PBR 命中 atlas hook，PMREM bake/GL error/Resource Timing 条目均为 0。
 - [x] 修正返回验收姿态：朝东按 `S` 回到核心区仍可能因前向预取保留 1 格；转西后按 `W` 继续，low/medium/high/ultra 均在 x≈-5…-6 时需求、挂载、队列归零。几何计数 low/medium `518→487`、high/ultra `562→531`，纹理数回到同档基线。
 - [x] 图片及逐档状态记录保存在忽略目录 `/tmp/opencode/land-pmrem-dynamic-matrix-20261118/`，报告为 `summary-x210.json`。截图仍显示大面积灰盒铺装/水面及稀疏远处构件，记录为内容密度/边界和构图待人工复核，不将 ready/mounted 当视觉通过。
+- [x] 补做 42m 东区真实飞行矩阵：W3C `V` 起飞、`D` 东飞至 x≈212–214；四档 × dawn/noon/dusk 共 12 张视口截图。东行最大需求/挂载 14–15 格，队列没有 queued/pending/errors；high/ultra 各有一个采样点 active/loading=1，其余为 0。稳定飞行 14/14，转向东俯视后 12/12，31/31 streamed PBR 命中 atlas；12 张均 bake/GL/Resource Timing 为 0。
+- [x] 右拖掉头向西、W 返航后东区 cell 四档均卸载为 0；V 安全落地 y=1.25。飞行全程约 300ms 轮询，无 GL 或页面错误；截图与逐段状态在 `/tmp/opencode/land-pmrem-dynamic-matrix-20261118/summary-flight42m-x210.json` 和 `*-flight42m-x210.png`。renderer 几何数与落地后初始计数略有差异，不等同进程/GPU 内存回稳证明。
+- [x] 视觉复核仍看到大片深绿色水面、狭长浅色游线与稀疏构件；作为灰盒内容密度/边界和构图待人工评审，动态流式 smoke 不标记为视觉通过。
 - [!] 阶段 4、A4、B0、C0、阶段 1/2 人工手感仍未关闭；并行候选仍是 `?cam=third` 原型，不扩展为发布/设备结论。全仓 lint 与 format 阻塞仍为上节未改宣传目录问题。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
