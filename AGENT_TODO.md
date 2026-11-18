@@ -217,6 +217,7 @@
 - [x] 双地标路线转西返航后四档需求/挂载和队列均归零，再安全落地 y=1.25。另在观景台同坐标对照朝西/朝北：`armDistance=armTarget=7.2`、`occludedDistance=null`，排除本次画面由弹簧臂遮挡压短造成；大面积水面/窄游线和稀疏构件仍需人工复核具体场景几何与构图，不擅自调整相机参数。诊断截图为 `flight-platform-low-{west,north}-camera-diagnostic.png`。
 - [x] 源码核对解释当前构图：东区显著灰盒主体是直径 60m 水池、宽 8m/长 78m 步桥、四柱观景台，主要横向铺装在 `z=75…91`；诊断角色到池心约 68m。与稳定 cell 已就绪的证据合看，现有截图的大水面/稀疏构件符合当前灰盒几何，未见 cell 漏挂证据；是否调整池桥比例、内容密度或构图需人工评审，本轮不改场景/相机。
 - [x] 双地标 24 张截图、逐段采样及上述机位诊断均保存在忽略目录 `/tmp/opencode/land-pmrem-dynamic-matrix-20261118/`；renderer 几何计数返程与起点存在差异，不作为进程/GPU 总内存或单独泄漏证明。
+- [x] Firefox 160 / WebGL2 / `file://` 再验当前单文件双相机路径：第三人称 low atlas/bake 0，默认第一人称 `runtime-pmrem`/bake 3；两者 Resource Timing 与 GL error 为 0，dispose 后 canvas 和 app 子节点归零。单文件 `2,779,658 B`（MD5 `d4b3ba65eb55f6f39f5042f3e459ef2c`），距硬上限尚有 `153,242 B`；Node/npm 不可用，未运行测试套件。
 - [!] 阶段 4、A4、B0、C0、阶段 1/2 人工手感仍未关闭；并行候选仍是 `?cam=third` 原型，不扩展为发布/设备结论。全仓 lint 与 format 阻塞仍为上节未改宣传目录问题。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
