@@ -198,6 +198,14 @@
 - [x] `npm test`：41 文件 / 254 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、site/single 双构建、单文件离线断言通过。最终 `dist/single/index.html` 为 `2,778,186 B`（MD5 `de4aa714b0d28752709cdd76b9af4125`）：低于 `2,932,900 B` 硬上限 `154,714 B`，但超出 1.5 MiB 目标 `1,205,322 B`。静态零外链断言通过，运行时零请求另由本机 `file://` smoke 观察。
 - [!] 全仓 lint 仍被未改的 `05-宣发/tools/make-github-shot.mjs:42`、`05-宣发/tools/render.mjs:90` 阻塞；全仓 format 仍被这两脚本与 `05-宣发/preview.html` 阻塞。A4 缺旧 A3 页面、Tabbit CLI 与 macOS `pmset`；B0 缺目标手机；C0 缺原生生命周期通道；阶段 1/2 人工手感验收未完成。原型和桌面证据不关闭这些门槛，也不调整设备预算。
 
+### 2026-11-18 · 图集解码与世界构建并行候选
+
+- [x] `?cam=third` 现在并行启动离线 atlas 解码与 world generator；构建至 atmosphere 时若图集未就绪，driver 暂停而不是空转，完成后恢复。取消/失败通过 `LandPmremAtlasGate` 统一释放或转交图集；第一人称仍不加载图集、同步构建并运行时烘焙 PMREM。
+- [x] 增加 gate 成功/失败/解码中取消及构建中取消资源测试，并覆盖 `FrameBudgetDriver` yielded-step pause 与 callback failure cleanup。全量 42 个测试文件 / 260 项通过；typecheck、分层/内容门禁、改动文件 ESLint/Prettier、站点/单文件双构建和 `verify:single` 通过。单文件 `2,779,658 B`（MD5 `d4b3ba65eb55f6f39f5042f3e459ef2c`），低于硬上限 `153,242 B`，仍超 1.5 MiB 目标 `1,206,794 B`。
+- [x] Firefox 160 / WebGL2 headed 离线 smoke：第三人称 atlas source / bake 0 / 无 GL 错误与请求；真实 W3C 东行至 `x≈132m` 时 9/9 cell、17/17 streamed PBR hook 命中。默认第一人称解码 0、运行时 bake 3；dispose 后 DOM/canvas 归零。第三人称启动早期及构建过程中触发非持久 pagehide，均清除 canvas 与 `#app` 子节点。
+- [x] 同机交错 6+6 启动样本（baseline/candidate 配对交替，high / 减动效 / dawn / seed 42 / 1280×714）：运行时 PMREM 基线首帧/build 中位 `6,635.5/6,197ms`，并行图集候选 `6,802/6,308.5ms`；候选分别慢约 `167/112ms`，两者范围重叠。候选解码 `544–620ms`（中位 `567ms`，31 次让帧）；最长步骤中位从 baseline PMREM `38ms` 降至候选非 PMREM `11ms`。相较此前串行图集样本首帧观察上有改善，但启动 A/B 有明显桌面波动，不能据此声称稳定提速；局部长步消失也不等于 A4/设备帧时通过。逐次数据 `/tmp/opencode/land-pmrem-parallel-startup-ab-20261118.json`。
+- [!] 阶段 4、A4、B0、C0、阶段 1/2 人工手感仍未关闭；并行候选仍是 `?cam=third` 原型，不扩展为发布/设备结论。全仓 lint 与 format 阻塞仍为上节未改宣传目录问题。
+
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 
 六阶段交付及 A0–A3 已完成；A4 严格性能未通过，B0 真实手机与 C0 原生生命周期条件仍阻塞。详细历史数值、步骤、验收方法保留在 [性能收敛与真机验收方案](02-方案/18-后续优化-性能收敛与真机验收.md)。**所有当前状态、下一步和新体验阶段统一以[长期工作计划](02-方案/19-长期工作计划-大世界第三人称与性能验收.md)为准**，避免在 TODO 与多个方案里并行维护互相漂移的任务队列。

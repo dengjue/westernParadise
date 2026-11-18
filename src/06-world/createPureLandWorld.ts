@@ -17,6 +17,7 @@ import { createFlowerDrift } from './land/FlowerDrift';
 import { partitionGardenSteps } from './land/SpatialGarden';
 import { createContactShadows } from './land/ContactShadows';
 import { createEastRegionCellStream } from './land/EastRegionCellStream';
+import type { LandPmremAtlasGate } from './land/LandPmremAtlasGate';
 
 type GardenResult =
   ReturnType<typeof createGardenSteps> extends Generator<void, infer T, void> ? T : never;
@@ -35,6 +36,8 @@ export interface PureLandWorldOptions {
   regionPrototype?: boolean;
   /** 第三人称可传入已分帧解码的离线环境图集；未提供时保留运行时 PMREM。 */
   prebakedEnvironment?: LandPmremAtlasHandle;
+  /** 第三人称异步图集加载 gate；构建只在 atmosphere 阶段等待它。 */
+  prebakedEnvironmentGate?: LandPmremAtlasGate;
 }
 
 export interface PureLandBuildProgress {
@@ -139,6 +142,7 @@ export function* createPureLandWorldSteps(
   let builder: LandBuilder | undefined;
   let eastCellStream: ReturnType<typeof createEastRegionCellStream> | undefined;
   let atmosphere: LandAtmosphereHandle | undefined;
+  let prebakedEnvironment = options.prebakedEnvironment;
   let atmosphereChildren: Set<(typeof scene.children)[number]> | undefined;
   let materialsReady: number;
   let architectureReady: number;
@@ -215,6 +219,10 @@ export function* createPureLandWorldSteps(
     yield;
 
     setStage('atmosphere');
+    if (options.prebakedEnvironmentGate) {
+      setStage('environment:waiting-atlas');
+      prebakedEnvironment = yield* options.prebakedEnvironmentGate.wait();
+    }
     scene.add(root);
     attached = true;
     atmosphereChildren = new Set(scene.children);
@@ -225,7 +233,7 @@ export function* createPureLandWorldSteps(
       options.time,
       options.reducedMotion,
       setStage,
-      options.prebakedEnvironment,
+      prebakedEnvironment,
     );
     atmosphere = landAtmosphere;
     yield;
@@ -250,11 +258,21 @@ export function* createPureLandWorldSteps(
       flowerDrift,
       options,
     );
+    options.prebakedEnvironmentGate?.transfer();
     completed = true;
     return world;
   } finally {
     if (!completed) {
-      options.prebakedEnvironment?.dispose();
+      try {
+        options.prebakedEnvironmentGate?.dispose();
+      } catch {
+        // Continue releasing builder and scene-owned resources if atlas cleanup fails.
+      }
+      try {
+        prebakedEnvironment?.dispose();
+      } catch {
+        // Continue releasing builder and scene-owned resources if atlas cleanup fails.
+      }
       try {
         builder?.abort();
       } catch {

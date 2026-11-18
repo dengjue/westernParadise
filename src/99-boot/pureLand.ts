@@ -28,7 +28,12 @@ import {
   RenderTelemetry,
 } from '@/04-engine';
 import type { FrameBudgetSlowStep, FrameBudgetStats } from '@/04-engine';
-import { createPureLandWorld, createPureLandWorldSteps, loadLandPmremAtlas } from '@/06-world';
+import {
+  createPureLandWorld,
+  createPureLandWorldSteps,
+  LandPmremAtlasGate,
+  loadLandPmremAtlas,
+} from '@/06-world';
 import type { PureLandWorldOptions } from '@/06-world';
 import { KeyboardMouseInput, LandAvatar, LandCamera, TouchInput } from '@/07-systems';
 import { mountPureLandUi } from '@/08-ui';
@@ -122,6 +127,7 @@ export function startPureLand(): () => void {
         : Math.min(1.5, QUALITY_PROFILES[decision.tier].pixelRatioCap),
   };
   const initialTime = raw.has('tod') ? params.tod : ('dawn' as const);
+  const atlasGate = params.cam === 'third' ? new LandPmremAtlasGate() : undefined;
   const events = new EventBus<AppEventMap>();
   const thirdPerson = params.cam === 'third';
   const ui = mountPureLandUi(root, {
@@ -157,6 +163,7 @@ export function startPureLand(): () => void {
     time: initialTime,
     reducedMotion: capabilities.reducedMotion,
     regionPrototype: thirdPerson,
+    ...(atlasGate ? { prebakedEnvironmentGate: atlasGate } : {}),
     cellOrigin: thirdPerson ? [LAND_WORLD.cellOrigin.x, LAND_WORLD.cellOrigin.z] : undefined,
     cellSize:
       (params.bench || params.debug) && raw.get('chunk') === '24'
@@ -213,6 +220,7 @@ export function startPureLand(): () => void {
       releaseAll([
         () => assetAbort.abort(),
         () => driver?.cancel(),
+        () => atlasGate?.dispose(),
         removeLoadingListeners,
         runtimeDispose,
       ]);
@@ -221,6 +229,7 @@ export function startPureLand(): () => void {
     releaseAll([
       () => assetAbort.abort(),
       () => driver?.cancel(),
+      () => atlasGate?.dispose(),
       removeLoadingListeners,
       () => {
         try {
@@ -251,6 +260,7 @@ export function startPureLand(): () => void {
       releaseAll([
         () => assetAbort.abort(),
         () => driver?.cancel(),
+        () => atlasGate?.dispose(),
         () => {
           try {
             completedWorld?.dispose();
@@ -300,24 +310,22 @@ export function startPureLand(): () => void {
     else if (!contextLost) driver?.resume();
   };
 
-  const beginBuild = (
-    prebakedEnvironment: NonNullable<PureLandWorldOptions['prebakedEnvironment']>,
-  ): void => {
+  const beginBuild = (): void => {
     if (disposed) {
-      prebakedEnvironment.dispose();
+      atlasGate?.dispose();
       return;
     }
-    const steps = createPureLandWorldSteps(
-      context.scene,
-      { ...worldOptions, prebakedEnvironment },
-      buildProgress,
-    );
+    const steps = createPureLandWorldSteps(context.scene, worldOptions, buildProgress);
     try {
       driver = new FrameBudgetDriver({
         iterator: steps,
         budgetMs: THIRD_PERSON_BUILD_BUDGET_MS,
         deferFirstFrame: true,
         getStepLabel: () => buildProgress.stage,
+        onYield() {
+          if (buildProgress.stage === 'environment:waiting-atlas' && atlasGate?.pending)
+            driver?.pause();
+        },
         slowStepLimit: import.meta.env.DEV || params.debug || params.bench ? 12 : 0,
         onComplete(world, stats) {
           if (disposed) {
@@ -354,7 +362,7 @@ export function startPureLand(): () => void {
       });
     } catch (error) {
       steps.return?.(undefined as unknown as PureLandWorld);
-      prebakedEnvironment.dispose();
+      atlasGate?.dispose();
       throw error;
     }
     if (document.hidden || contextLost) driver.pause();
@@ -366,19 +374,28 @@ export function startPureLand(): () => void {
   document.addEventListener('visibilitychange', visibility);
   context.canvas.addEventListener('webglcontextlost', onContextLost);
   context.canvas.addEventListener('webglcontextrestored', onContextRestored);
-  void loadLandPmremAtlas(assetAbort.signal, (stage) => {
-    buildProgress.stage = stage;
-  })
+  void loadLandPmremAtlas(assetAbort.signal)
     .then((environment) => {
+      if (disposed || assetAbort.signal.aborted) {
+        environment.dispose();
+        return;
+      }
       startup.assetDecodeMs = environment.stats.decodeMs;
       startup.assetDecodeFrames = environment.stats.yieldedFrames;
       startup.assetDecodeBytes = environment.stats.compressedBytes;
-      beginBuild(environment);
+      atlasGate?.resolve(environment);
+      if (!document.hidden && !contextLost) driver?.resume();
     })
     .catch((error: unknown) => {
+      atlasGate?.reject(error);
       if (disposed || assetAbort.signal.aborted) return;
       fail(error);
     });
+  try {
+    beginBuild();
+  } catch (error) {
+    fail(error);
+  }
   return dispose;
 }
 

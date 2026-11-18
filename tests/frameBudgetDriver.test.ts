@@ -179,4 +179,81 @@ describe('FrameBudgetDriver', () => {
     expect(frames.callbacks.size).toBe(0);
     expect(released).toBe(1);
   });
+
+  it('honors a pause requested after a yielded step without spinning the generator', () => {
+    const frames = new FrameQueue();
+    let stage = 'prepare',
+      steps = 0,
+      result: string | undefined;
+    function* task(): Generator<void, string, void> {
+      steps++;
+      stage = 'waiting';
+      yield;
+      steps++;
+      return 'ready';
+    }
+
+    const driver: FrameBudgetDriver<string> = new FrameBudgetDriver({
+      iterator: task(),
+      budgetMs: 100,
+      getStepLabel: () => stage,
+      onYield: () => {
+        if (stage === 'waiting') driver.pause();
+      },
+      requestFrame: frames.request,
+      cancelFrame: frames.cancel,
+      onComplete: (value) => {
+        result = value;
+      },
+      onError: (error) => {
+        throw error;
+      },
+    });
+    driver.start();
+    frames.runOne();
+
+    expect(steps).toBe(1);
+    expect(driver.stats.steps).toBe(1);
+    expect(frames.callbacks.size).toBe(0);
+
+    driver.resume();
+    frames.runOne();
+
+    expect(steps).toBe(2);
+    expect(result).toBe('ready');
+  });
+
+  it('closes the generator if the yielded-step callback fails', () => {
+    const frames = new FrameQueue();
+    let released = 0;
+    const failure = new Error('pause callback failed');
+    let reported: unknown;
+    function* task(): Generator<void, void, void> {
+      try {
+        yield;
+      } finally {
+        released++;
+      }
+    }
+
+    const driver = new FrameBudgetDriver({
+      iterator: task(),
+      budgetMs: 100,
+      onYield: () => {
+        throw failure;
+      },
+      requestFrame: frames.request,
+      cancelFrame: frames.cancel,
+      onComplete: () => {},
+      onError: (error) => {
+        reported = error;
+      },
+    });
+    driver.start();
+    frames.runOne();
+
+    expect(released).toBe(1);
+    expect(reported).toBe(failure);
+    expect(frames.callbacks.size).toBe(0);
+  });
 });

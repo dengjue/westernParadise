@@ -18,6 +18,8 @@ export interface FrameBudgetDriverOptions<T> {
   budgetMs: number;
   deferFirstFrame?: boolean;
   getStepLabel?: () => string;
+  /** Called after each yielded step; may pause the driver before it schedules more work. */
+  onYield?: () => void;
   /** Optional bounded diagnostic; keep disabled on production paths unless explicitly requested. */
   slowStepLimit?: number;
   now?: () => number;
@@ -50,6 +52,7 @@ export class FrameBudgetDriver<T> {
   private readonly onError: FrameBudgetDriverOptions<T>['onError'];
   private readonly deferFirstFrame: boolean;
   private readonly getStepLabel: (() => string) | undefined;
+  private readonly onYield: (() => void) | undefined;
   private readonly slowStepLimit: number;
   private rafId: number | null = null;
   private startedAt = 0;
@@ -71,6 +74,7 @@ export class FrameBudgetDriver<T> {
     this.onError = options.onError;
     this.deferFirstFrame = options.deferFirstFrame ?? false;
     this.getStepLabel = options.getStepLabel;
+    this.onYield = options.onYield;
     const requestedSlowStepLimit = options.slowStepLimit ?? 0;
     this.slowStepLimit = Number.isFinite(requestedSlowStepLimit)
       ? Math.min(MAX_SLOW_STEP_SAMPLES, Math.max(0, Math.floor(requestedSlowStepLimit)))
@@ -153,6 +157,13 @@ export class FrameBudgetDriver<T> {
         }
         return;
       }
+      try {
+        this.onYield?.();
+      } catch (error) {
+        this.fail(error);
+        return;
+      }
+      if (this.paused || this.cancelled) return;
     } while (this.now() < deadline);
 
     this.schedule();
@@ -162,6 +173,11 @@ export class FrameBudgetDriver<T> {
     this.finished = true;
     this.stats.elapsedMs = Math.max(0, this.now() - this.startedAt);
     this.cancelPendingFrame();
+    try {
+      this.iterator.return?.(undefined as T);
+    } catch {
+      // Keep reporting the original build error after best-effort generator cleanup.
+    }
     this.onError(error, this.stats);
   }
 
