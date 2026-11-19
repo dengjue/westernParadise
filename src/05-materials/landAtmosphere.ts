@@ -22,6 +22,14 @@ export interface LandAtmosphereUniforms {
 
 export type LandEnvironmentSampling = 'cube' | 'atlas';
 
+const LAND_ATLAS_MAX_LEVEL = Math.log2(LAND_PMREM_ATLAS.maxMipSize / LAND_PMREM_ATLAS.minMipSize);
+const LAND_ATLAS_SOURCE_LEVEL_OFFSET = Math.log2(
+  LAND_ATMOSPHERE.environment.size / LAND_PMREM_ATLAS.maxMipSize,
+);
+const LAND_ENVIRONMENT_MAX_LEVEL = Math.log2(
+  LAND_ATMOSPHERE.environment.size / LAND_PMREM_ATLAS.minMipSize,
+);
+
 const LAND_ATLAS_GLSL = `
   vec3 landFaceDirection(int face, vec2 uv) {
     if (face == 0) return vec3(1.0, -uv.y, -uv.x);
@@ -74,7 +82,7 @@ const LAND_ATLAS_GLSL = `
   }
 
   vec4 landAtlasLevel(sampler2D atlas, vec3 direction, int level) {
-    int size = ${LAND_ATMOSPHERE.environment.size} >> level;
+    int size = ${LAND_PMREM_ATLAS.maxMipSize} >> level;
     int face;
     vec2 uv;
     landAtlasCoordinates(direction, face, uv);
@@ -95,9 +103,9 @@ const LAND_ATLAS_GLSL = `
   }
 
   vec4 sampleLandAtlas(sampler2D atlas, vec3 direction, float mip) {
-    float boundedMip = clamp(mip, 0.0, ${Math.log2(LAND_ATMOSPHERE.environment.size / LAND_PMREM_ATLAS.minMipSize).toFixed(1)});
+    float boundedMip = clamp(mip - ${LAND_ATLAS_SOURCE_LEVEL_OFFSET.toFixed(1)}, 0.0, ${LAND_ATLAS_MAX_LEVEL.toFixed(1)});
     int lowerLevel = int(floor(boundedMip));
-    int upperLevel = min(lowerLevel + 1, ${Math.log2(LAND_ATMOSPHERE.environment.size / LAND_PMREM_ATLAS.minMipSize)});
+    int upperLevel = min(lowerLevel + 1, ${LAND_ATLAS_MAX_LEVEL});
     return mix(
       landAtlasLevel(atlas, direction, lowerLevel),
       landAtlasLevel(atlas, direction, upperLevel),
@@ -125,7 +133,7 @@ export function applyLandAtmosphere(
       USE_ENVMAP: '',
       ENVMAP_TYPE_PMREM: '',
       ENVMAP_SIZE: `${LAND_ATMOSPHERE.environment.size}.0`,
-      ENVMAP_MAX_LOD: `${Math.log2(LAND_ATMOSPHERE.environment.size / LAND_PMREM_ATLAS.minMipSize)}.0`,
+      ENVMAP_MAX_LOD: `${LAND_ENVIRONMENT_MAX_LEVEL}.0`,
     };
   }
   material.onBeforeCompile = (shader, renderer) => {

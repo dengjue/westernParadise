@@ -77,4 +77,37 @@ describe('光阴权重与环境反射一致性', () => {
     material.dispose();
     texture.dispose();
   });
+
+  it('atlas 环境采样将 256px 源 LOD 映射到 128px 起始 mip', () => {
+    const material = new MeshStandardMaterial();
+    const texture = new CubeTexture();
+    applyLandAtmosphere(
+      material,
+      {
+        landLightWeights: { value: new Float32Array([1, 0, 0]) },
+        landHazeColor: { value: new Color() },
+        landEnvDawn: { value: texture },
+        landEnvNoon: { value: texture },
+        landEnvDusk: { value: texture },
+      },
+      'atlas',
+    );
+    const shader = {
+      vertexShader: ShaderLib.standard.vertexShader,
+      fragmentShader: ShaderLib.standard.fragmentShader,
+      uniforms: {},
+    } as Parameters<MeshStandardMaterial['onBeforeCompile']>[0];
+
+    material.onBeforeCompile(shader, {} as WebGLRenderer);
+
+    expect(material.defines).toMatchObject({
+      ENVMAP_SIZE: '256.0',
+      ENVMAP_MAX_LOD: '5.0',
+    });
+    expect(shader.fragmentShader).toContain('int size = 128 >> level;');
+    expect(shader.fragmentShader).toContain('clamp(mip - 1.0, 0.0, 4.0)');
+    expect(shader.fragmentShader).toContain('min(lowerLevel + 1, 4)');
+    material.dispose();
+    texture.dispose();
+  });
 });

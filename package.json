@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "check:layers": "node scripts/check-layers.mjs",
     "check:content": "node scripts/check-content.mjs",
+    "build:land-pmrem": "node scripts/prepare-land-pmrem-atlas.mjs",
     "build": "vite build",
     "build:single": "vite build --mode single",
     "verify:single": "node scripts/verify-single.mjs",

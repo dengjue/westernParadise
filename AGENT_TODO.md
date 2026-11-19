@@ -221,6 +221,14 @@
 - [~] 体积目标探索：临时剔除 atlas 各时段现成的 256px 顶层 mip、复用 128→8px mips，重映射采样 LOD 后得到 `1,452,049 B` 候选单文件（低于 1.5 MiB `120,815 B`）。Firefox high 的晨/午/暮默认视点 MAE ≤`0.000150/255`；固定东区平台姿态 noon 像素一致，13/13 cell、26/26 PBR hook、无 GL/请求错误。候选在 `/tmp/opencode/land-pmrem-dynamic-matrix-20261118/land-pmrem-128-candidate.html`，尚未进入源码；需在 Node/npm 可用后加入版本化生成/测试、正式构建及四档和全路线回归。当前正式单文件仍 2,779,658 B，不能标记 1.5 MiB 达成。
 - [!] 阶段 4、A4、B0、C0、阶段 1/2 人工手感仍未关闭；并行候选仍是 `?cam=third` 原型，不扩展为发布/设备结论。全仓 lint 与 format 阻塞仍为上节未改宣传目录问题。
 
+### 2026-11-19 · PMREM 顶层 mip 截断正式实现
+
+- [x] 将完整 `v187` gzip 保留为 `scripts/assets/land-pmrem-v187-source.gz`，新增 `npm run build:land-pmrem` 可重复生成正式 `land-pmrem-v187-mip128.gz`；正式 atlas gzip `429,554 B`、decoded `2,356,992 B`，保留 128→8px 五级 mip。shader 仍以 Three r187 原始 256px 源 LOD 计算，再减一级映射到 atlas；加入资产重建、纹理布局/texel 与 shader LOD 测试。
+- [x] Node 22.14.0 下 typecheck、42 文件 / 262 测试、分层/内容门禁、改动文件 lint/format、站点/单文件构建、`verify:single` 均通过。正式单文件 `1,450,573 B`、MD5 `651a6ebe0a3d84fb79d85f8cd23dc1b4`，低于 1.5 MiB 目标 `122,291 B`；静态离线断言及 Firefox `file://` Resource Timing=0。
+- [x] 正式构建 Firefox 160 双地标路线四档 × 两地标 × 晨/午/暮 24 张，cell 稳定、PBR atlas hook 全命中，返回卸载至 0、安全落地；第三人称 atlas bake/GL/Resource Timing/JS 错误均为 0。报告与图像：`/tmp/opencode/land-pmrem-dynamic-matrix-20261118/formal-mip128-20261119/`。
+- [x] 正式文件默认第一人称仍 runtime PMREM / bake 3 / atlas decode 0；无 GL/JS/Resource Timing，dispose 后 canvas 与 `#app` 子节点清空。
+- [!] 灰盒稀疏度/构图仍待人工评审；阶段 1/2 手感、阶段 4 最终视觉、A4、B0、C0 均未关闭。当前 1.5 MiB 是单文件体积目标达成，不是设备/发布或视觉验收。
+
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 
 六阶段交付及 A0–A3 已完成；A4 严格性能未通过，B0 真实手机与 C0 原生生命周期条件仍阻塞。详细历史数值、步骤、验收方法保留在 [性能收敛与真机验收方案](02-方案/18-后续优化-性能收敛与真机验收.md)。**所有当前状态、下一步和新体验阶段统一以[长期工作计划](02-方案/19-长期工作计划-大世界第三人称与性能验收.md)为准**，避免在 TODO 与多个方案里并行维护互相漂移的任务队列。

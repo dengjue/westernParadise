@@ -7,8 +7,8 @@ import {
   RGBAFormat,
 } from 'three';
 import type { Texture } from 'three';
-import { LAND_ATMOSPHERE, LAND_PMREM_ATLAS, LAND_TIMES } from '@/01-shared';
-import compressedAsset from './land-pmrem-v187.gz?inline';
+import { LAND_PMREM_ATLAS, LAND_TIMES } from '@/01-shared';
+import compressedAsset from './land-pmrem-v187-mip128.gz?inline';
 
 interface AtlasMip {
   width: number;
@@ -135,7 +135,7 @@ async function decodeBase64InFrames(
 }
 
 function createMipPayloads(): AtlasMip[][] {
-  const size = LAND_ATMOSPHERE.environment.size;
+  const size = LAND_PMREM_ATLAS.maxMipSize;
   const mipSizes: number[] = [];
   for (let mipSize = size; mipSize >= LAND_PMREM_ATLAS.minMipSize; mipSize >>= 1)
     mipSizes.push(mipSize);
@@ -247,7 +247,7 @@ export async function loadLandPmremAtlas(
       while (chunkOffset < chunk.byteLength) {
         throwIfAborted(signal);
         if (mapIndex >= mipPayloads.length) throw new Error('离线 PMREM 解压数据超过预期记录数量');
-        const size = LAND_ATMOSPHERE.environment.size >> mipIndex;
+        const size = LAND_PMREM_ATLAS.maxMipSize >> mipIndex;
         const pixelCount = size * size;
         const recordBytes =
           pixelCount * LAND_PMREM_ATLAS.channelCount * LAND_PMREM_ATLAS.bytesPerChannel;

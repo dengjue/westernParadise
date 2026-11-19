@@ -18,12 +18,13 @@ export const LAND_ATMOSPHERE = Object.freeze({
 
 /** 第三人称离线 PMREM 图集与随包 gzip 数据的版本化布局。 */
 export const LAND_PMREM_ATLAS = Object.freeze({
+  maxMipSize: 128,
   minMipSize: 8,
   channelCount: 3,
   rgbaChannelCount: 4,
   bytesPerChannel: 2,
-  compressedBytes: 1_426_384,
-  decodedBytes: 9_434_880,
+  compressedBytes: 429_554,
+  decodedBytes: 2_356_992,
   base64CharsPerSlice: 262_144,
   bytesPerDecodeSlice: 524_288,
   rowsPerDecodeSlice: 128,
