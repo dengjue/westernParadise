@@ -224,7 +224,7 @@
 ### 2026-11-19 · PMREM 顶层 mip 截断正式实现
 
 - [x] 将完整 `v187` gzip 保留为 `scripts/assets/land-pmrem-v187-source.gz`，新增 `npm run build:land-pmrem` 可重复生成正式 `land-pmrem-v187-mip128.gz`；正式 atlas gzip `429,554 B`、decoded `2,356,992 B`，保留 128→8px 五级 mip。shader 仍以 Three r187 原始 256px 源 LOD 计算，再减一级映射到 atlas；加入资产重建、纹理布局/texel 与 shader LOD 测试。
-- [x] Node 22.14.0 下 typecheck、42 文件 / 262 测试、分层/内容门禁、改动文件 lint/format、站点/单文件构建、`verify:single` 均通过。正式单文件 `1,450,573 B`、MD5 `651a6ebe0a3d84fb79d85f8cd23dc1b4`，低于 1.5 MiB 目标 `122,291 B`；静态离线断言及 Firefox `file://` Resource Timing=0。
+- [x] Node 22.14.0 下 typecheck、42 文件 / 263 测试、分层/内容门禁、改动文件 lint/format、站点/单文件构建、`verify:single` 均通过。正式单文件 `1,450,573 B`、MD5 `651a6ebe0a3d84fb79d85f8cd23dc1b4`，低于 1.5 MiB 目标 `122,291 B`；静态离线断言及 Firefox `file://` Resource Timing=0。
 - [x] 正式构建 Firefox 160 双地标路线四档 × 两地标 × 晨/午/暮 24 张，cell 稳定、PBR atlas hook 全命中，返回卸载至 0、安全落地；第三人称 atlas bake/GL/Resource Timing/JS 错误均为 0。报告与图像：`/tmp/opencode/land-pmrem-dynamic-matrix-20261118/formal-mip128-20261119/`。
 - [x] 正式文件默认第一人称仍 runtime PMREM / bake 3 / atlas decode 0；无 GL/JS/Resource Timing，dispose 后 canvas 与 `#app` 子节点清空。
 - [!] 灰盒稀疏度/构图仍待人工评审；阶段 1/2 手感、阶段 4 最终视觉、A4、B0、C0 均未关闭。当前 1.5 MiB 是单文件体积目标达成，不是设备/发布或视觉验收。

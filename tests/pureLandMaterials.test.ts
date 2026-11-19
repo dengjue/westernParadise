@@ -1,5 +1,6 @@
-import { Material, Texture } from 'three';
+import { Material, MeshStandardMaterial, Texture } from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LAND_ATMOSPHERE, LAND_PMREM_ATLAS } from '../src/01-shared';
 import { Rng } from '../src/02-core';
 import type { CanvasFactory, PureLandMaterials } from '../src/05-materials';
 import { createPureLandMaterialsSteps } from '../src/05-materials';
@@ -53,6 +54,38 @@ function createCanvasFactory(onPutImageData?: (image: ImageData) => void): Canva
 
 describe('createPureLandMaterialsSteps cancellation', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it('keeps every bundled PBR material above the first retained atlas mip threshold', () => {
+    const steps = createPureLandMaterialsSteps(createCanvasFactory(), 789, 1);
+    let result = steps.next();
+    while (!result.done) result = steps.next();
+
+    const values = Object.values(result.value).flatMap((value) =>
+      Array.isArray(value) ? value : [value],
+    );
+    const pbrMaterials = values.filter(
+      (value): value is MeshStandardMaterial => value instanceof MeshStandardMaterial,
+    );
+    const maxSourceLod = Math.log2(LAND_ATMOSPHERE.environment.size / LAND_PMREM_ATLAS.minMipSize);
+    const firstRetainedSourceLod = Math.log2(
+      LAND_ATMOSPHERE.environment.size / LAND_PMREM_ATLAS.maxMipSize,
+    );
+    const roughnessAtFirstRetainedMip = 1 - Math.sqrt(1 - firstRetainedSourceLod / maxSourceLod);
+    const minimumRoughness = Math.min(...pbrMaterials.map((material) => material.roughness));
+
+    expect(pbrMaterials.length).toBeGreaterThan(0);
+    expect(minimumRoughness).toBeCloseTo(0.22, 6);
+    expect(minimumRoughness).toBeGreaterThan(roughnessAtFirstRetainedMip);
+
+    const textures = new Set<Texture>();
+    for (const value of values) {
+      if (!(value instanceof Material)) continue;
+      value.dispose();
+      for (const property of Object.values(value))
+        if (property instanceof Texture) textures.add(property);
+    }
+    for (const texture of textures) texture.dispose();
+  });
 
   it('writes the same seeded stone variation directly into each pixel chunk', () => {
     let firstChunk: Uint8ClampedArray | undefined;
