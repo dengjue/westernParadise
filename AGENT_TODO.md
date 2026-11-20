@@ -232,6 +232,7 @@
 ### 2026-11-20 · 正式构建 mip 截断 A/B
 
 - [x] 隔离重建完整图集正式基线（commit `3ad585d`），与 128px 截断正式产物（源码 `9f0cc31`）对照。Firefox 160 / WebGL2 / `file://` / high / 减动效 / 1280×714，进入第三人称后固定诊断姿态，在 dawn/noon/dusk 三时段均逐像素一致（MAE=0、max channel diff=0）；两边 13/13 cell、atlas bake/GL/Resource Timing/JS error 均为 0。截图与报告在 `/tmp/opencode/land-pmrem-dynamic-matrix-20261120/formal-build-ab/`。
+- [x] Chrome 157.0.8103.78 / ANGLE AMD Radeon / WebGL2 / X11 对同两份正式 `file://` high 单文件复测：dawn/noon/dusk PNG 的 SHA-256 均逐对相同（MAE=0），两边 13/13 cell、atlas bake 与 Resource Timing 为 0，运行期 JS/unhandled error 为 0。报告与截图：`/tmp/opencode/land-pmrem-dynamic-matrix-20261120/chromium-formal-build-ab/`；本轮未检查 `gl.getError()`，不扩张为 GL 错误验收。
 - [!] 姿态由 debug probe 固定，不是人工游玩或目标设备结论；灰盒稀疏度/构图与阶段 4 最终视觉仍待人工评审，A4、B0、C0、阶段 1/2 手感保持未关闭。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
