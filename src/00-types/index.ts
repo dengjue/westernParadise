@@ -17,3 +17,10 @@ export type {
   GuideEntry,
 } from './contracts';
 export type { EventHandler, AppEventMap, EventBusLike, FrameTick } from './events';
+export type {
+  MultiplayerMove,
+  MultiplayerPlayer,
+  MultiplayerPose,
+  MultiplayerSnapshot,
+  MultiplayerWelcome,
+} from './multiplayer';
