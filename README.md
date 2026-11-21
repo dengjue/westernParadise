@@ -68,6 +68,7 @@ npm run dev
 | 命令 | 用途 |
 |---|---|
 | `npm run dev` | 启动本地开发服务器 |
+| `npm run dev:multiplayer` | 启动仅监听本机的多人 WebSocket 服务（前端尚未接入） |
 | `npm run test` | 运行自动化测试 |
 | `npm run verify` | 运行完整检查与构建 |
 | `npm run build` | 构建多文件站点到 `dist/site/` |
