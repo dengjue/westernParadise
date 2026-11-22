@@ -5,7 +5,7 @@ import type {
   MultiplayerSnapshot,
   MultiplayerWelcome,
 } from '@/00-types';
-import { MULTIPLAYER, LAND_WORLD, LAND_STRUCTURE } from '@/01-shared';
+import { MULTIPLAYER, LAND_WORLD, LAND_STRUCTURE, LAND_FLIGHT } from '@/01-shared';
 import { sampleLandHeight } from './landNavigation';
 
 /** 读取未知消息并只返回协议字段；帧大小与编码由传输层先检查。 */
@@ -79,6 +79,14 @@ function parsePose(
     !inRange(yaw, -MULTIPLAYER.maxYaw, MULTIPLAYER.maxYaw)
   ) {
     return null;
+  }
+  if (value.flying !== undefined) {
+    if (!land || value.flying !== true || y < 0 || y > LAND_FLIGHT.maxAltitude) return null;
+    if (y < LAND_FLIGHT.minAltitude) {
+      const floor = sampleLandHeight(x, z, true);
+      if (floor === null || y < floor - LAND_STRUCTURE.navigation.maximumStep) return null;
+    }
+    return { x, y, z, yaw, flying: true };
   }
   if (land) {
     // 本地脚底随台阶平滑升降，不要求浮点高度逐帧等于地面采样值。

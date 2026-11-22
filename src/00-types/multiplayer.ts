@@ -1,4 +1,6 @@
 export interface MultiplayerPose {
+  /** 只在大世界空中姿态提供；缺省为地面，兼容庭院协议。 */
+  readonly flying?: true;
   readonly x: number;
   readonly y: number;
   readonly z: number;

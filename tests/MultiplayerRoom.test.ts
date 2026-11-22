@@ -24,6 +24,41 @@ function move(seq: number, overrides: Partial<MultiplayerMove> = {}): Multiplaye
 }
 
 describe('MultiplayerRoom', () => {
+  it('keeps one observed role through takeoff, cruise, and landing and rejects altitude jumps', () => {
+    let now = 0;
+    const room = new MultiplayerRoom(() => now, 2, true);
+    const a = room.join(),
+      b = room.join();
+    if (a.type !== 'welcome' || b.type !== 'welcome') throw new Error('room full');
+    const ground = room.collectSnapshots().get(a.id)!.changed[0]!;
+    let seq = 0;
+    const send = (height: number, flying: boolean, x = ground.x) => {
+      now += 100;
+      return room.move(b.id, {
+        ...ground,
+        type: 'move',
+        seq: seq++,
+        y: height,
+        x,
+        ...(flying ? { flying: true } : {}),
+      });
+    };
+    expect(send(48, true)).toBe(false);
+    expect(send(ground.y + 0.5, true)).toBe(true);
+    expect(send(ground.y + 1, true, 0.5)).toBe(false);
+    for (let y = ground.y + 1; y < 43; y += 0.5) expect(send(y, true)).toBe(true);
+    expect(send(43, true, 0.5)).toBe(true);
+    expect(send(65, true)).toBe(false);
+    expect(send(ground.y, false)).toBe(false);
+    expect(room.collectSnapshots().get(a.id)).toMatchObject({
+      changed: [{ id: b.id, y: 43, flying: true }],
+      removed: [],
+    });
+    for (let y = 42.5; y > ground.y; y -= 0.5) expect(send(y, true, 0.5)).toBe(true);
+    expect(send(ground.y, false, 0.5)).toBe(true);
+    expect(room.collectSnapshots().get(a.id)!.changed[0]).toEqual({ ...ground, x: 0.5 });
+  });
+
   it('assigns unique IDs, caps capacity, and frees a slot on leave', () => {
     const { room, join } = setup(2);
     const first = join();

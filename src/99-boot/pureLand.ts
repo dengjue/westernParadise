@@ -501,8 +501,8 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
   };
   const offRoom =
     endpoint && avatar && remotes
-      ? events.on('land:state', ({ walking }) => {
-          if (!walking) {
+      ? events.on('land:state', ({ walking, flying }) => {
+          if (!walking && !flying) {
             leaveRoom();
             return;
           }
@@ -515,10 +515,10 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
               joining = status === 'connecting';
               if (status !== 'online') remotes.clear();
               const text = {
-                connecting: '正在加入大世界地面联机…',
-                online: '已加入大世界地面联机',
+                connecting: '正在加入大世界联机…',
+                online: '已加入大世界联机',
                 offline: '联机已断开，继续独自游历',
-                'room-full': '地面房间已满，继续独自游历',
+                'room-full': '房间已满，继续独自游历',
               };
               ui.showNotice(text[status], true);
             },
@@ -558,7 +558,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     onRender: () => {
       if (peer && avatar && remotes) {
         const now = performance.now();
-        peer.update(now, avatar.root.position, avatar.yaw);
+        peer.update(now, avatar.root.position, avatar.yaw, camera.isFlying);
         remotes.update(now);
       }
       renderer.info.reset();

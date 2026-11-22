@@ -4,7 +4,7 @@ import type {
   MultiplayerSnapshot,
   MultiplayerWelcome,
 } from '@/00-types';
-import { MULTIPLAYER, LAND_JOURNEY } from '@/01-shared';
+import { MULTIPLAYER, LAND_JOURNEY, LAND_FLIGHT } from '@/01-shared';
 import { sampleLandHeight } from './landNavigation';
 import { parseMultiplayerMove } from './multiplayerProtocol';
 
@@ -15,9 +15,13 @@ interface Session {
   sampledAt: number;
   messageBudget: number;
   distanceBudget: number;
+  climbBudget: number;
 }
 
 const GRID_SIZE = MULTIPLAYER.leaveRadius;
+const CLIMB_SPEED = LAND_FLIGHT.verticalSpeed * 1.5;
+const CLIMB_BURST = (CLIMB_SPEED * MULTIPLAYER.moveBurstMs) / 1000;
+const AIR_SPEED = LAND_FLIGHT.horizontalSpeed * 1.5;
 
 /**
  * 单房间状态，不持有连接、计时器或浏览器对象。调用方绑定连接与 ID，
@@ -60,6 +64,7 @@ export class MultiplayerRoom {
       sampledAt: this.now(),
       messageBudget: MULTIPLAYER.messageBurst,
       distanceBudget: this.burstDistance,
+      climbBudget: CLIMB_BURST,
     });
     this.dirty = true;
     return { type: 'welcome', id };
@@ -85,7 +90,12 @@ export class MultiplayerRoom {
       MULTIPLAYER.messageBurst,
       session.messageBudget + dt * MULTIPLAYER.movesPerSecond,
     );
-    session.distanceBudget = Math.min(this.burstDistance, session.distanceBudget + dt * this.speed);
+    const speed = session.player.flying ? AIR_SPEED : this.speed;
+    session.distanceBudget = Math.min(
+      (speed * MULTIPLAYER.moveBurstMs) / 1000,
+      session.distanceBudget + dt * speed,
+    );
+    session.climbBudget = Math.min(CLIMB_BURST, session.climbBudget + dt * CLIMB_SPEED);
     if (session.messageBudget < 1) return false;
     session.messageBudget -= 1;
 
@@ -95,11 +105,37 @@ export class MultiplayerRoom {
     // 台基的 Y 坐标可能一步切换，水平位移查速度，高度单独查合法范围。
     const distance = Math.hypot(player.x - move.x, player.z - move.z);
     if (distance > session.distanceBudget) return false;
+    if (move.flying || player.flying) {
+      const climb = Math.abs(player.y - move.y);
+      if (climb > session.climbBudget) return false;
+      // 起降段由控制器垂直移动；允许跨越巡航下限的那一包带有水平分量。
+      if (
+        move.flying &&
+        player.flying &&
+        Math.max(move.y, player.y) < LAND_FLIGHT.minAltitude &&
+        distance > 0.001
+      )
+        return false;
+      session.climbBudget -= climb;
+    }
     session.distanceBudget -= distance;
     session.seq = move.seq;
     const { x, y, z, yaw } = move;
-    if (x !== player.x || y !== player.y || z !== player.z || yaw !== player.yaw) {
-      session.player = Object.freeze({ id, x, y, z, yaw });
+    if (
+      x !== player.x ||
+      y !== player.y ||
+      z !== player.z ||
+      yaw !== player.yaw ||
+      move.flying !== player.flying
+    ) {
+      session.player = Object.freeze({
+        id,
+        x,
+        y,
+        z,
+        yaw,
+        ...(move.flying ? { flying: true as const } : {}),
+      });
       this.dirty = true;
     }
     return true;

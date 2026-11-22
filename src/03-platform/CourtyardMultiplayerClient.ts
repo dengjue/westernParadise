@@ -53,6 +53,7 @@ export class CourtyardMultiplayerClient {
     now: number,
     position: Readonly<Pick<MultiplayerPose, 'x' | 'y' | 'z'>>,
     yaw: number,
+    flying = false,
   ): void {
     const socket = this.socket;
     if (
@@ -66,12 +67,19 @@ export class CourtyardMultiplayerClient {
     // 本地转向跨过 ±π 时可能暂时落在区间之外；协议只接受规范化角度。
     if (Math.abs(yaw) > MULTIPLAYER.maxYaw) yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     const previous = this.lastPose;
-    if (previous.x === x && previous.y === y && previous.z === z && previous.yaw === yaw) return;
+    if (
+      previous.x === x &&
+      previous.y === y &&
+      previous.z === z &&
+      previous.yaw === yaw &&
+      Boolean(previous.flying) === flying
+    )
+      return;
     if (socket.bufferedAmount > MULTIPLAYER.maxClientQueueBytes) {
       this.disconnect();
       return;
     }
-    const pose = { x, y, z, yaw };
+    const pose = { x, y, z, yaw, ...(flying ? { flying: true as const } : {}) };
     try {
       socket.send(JSON.stringify({ type: 'move', seq: this.seq++, ...pose }));
       this.lastSentAt = now;
