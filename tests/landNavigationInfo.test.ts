@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { LAND_NAVIGATION } from '@/01-shared';
-import { resolveLandNavigation } from '@/02-core';
+import { LAND_NAVIGATION, LAND_STOPS } from '@/01-shared';
+import { resolveLandNavigation, sampleLandHeight } from '@/02-core';
 
 describe('resolveLandNavigation', () => {
+  it('每个可选目的地的中心都落在可步行面', () => {
+    for (const {
+      point: [x, z],
+    } of LAND_STOPS)
+      expect(sampleLandHeight(x, z, true)).not.toBeNull();
+  });
   it('heading 以北为 0°，顺时针映射八方位并归一角度', () => {
     const north = resolveLandNavigation(0, 0, Math.PI);
     expect(north.headingDeg).toBeCloseTo(0, 8);

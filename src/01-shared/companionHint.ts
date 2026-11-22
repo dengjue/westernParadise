@@ -5,7 +5,7 @@ import { LAND_JOURNEY } from './landJourney';
 const DIRECTIONS = ['前方', '右前', '右侧', '右后', '后方', '左后', '左侧', '左前'] as const;
 type Observer = { x: number; y: number; z: number; headingDeg: number };
 
-function horizontalHint(x: number, z: number, observer: Observer) {
+export function horizontalHint(x: number, z: number, observer: Observer) {
   const dx = x - observer.x;
   const dz = z - observer.z;
   const distance = Math.hypot(dx, dz);

@@ -1,5 +1,6 @@
 import type { AppEventMap, Capabilities, EventBusLike, QualityTier, TimeOfDayId } from '@/00-types';
 import type { LandUiPreference } from '@/03-platform';
+import { mountLandDestination } from './LandDestination';
 import { companionColor, LAND_LIGHT, LAND_QUALITY, LAND_SOUND, PURE_LAND } from '@/01-shared';
 
 interface LandUiOptions {
@@ -336,6 +337,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   const navigationCoordinates = el('div', 'land-navigation-coordinates', 'X 0.0 · Y 0.0 · Z 0.0 m');
   const navigationHeading = el('div', 'land-navigation-heading', '北 · 0°');
   const navigationDestination = el('div', 'land-navigation-destination', '');
+  const guide = options.thirdPerson ? mountLandDestination() : null;
   navigationHud.append(
     navigationMode,
     navigationCoordinates,
@@ -343,6 +345,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     navigationDestination,
   );
   overlay.append(navigationHud);
+  if (guide) navigationHud.append(guide.root);
 
   function setNotice(message: string, temporary = false): void {
     clearTimeout(noticeTimer);
@@ -432,6 +435,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
       navigationCoordinates.textContent = `X ${info.x.toFixed(1)} · Y ${info.y.toFixed(1)} · Z ${info.z.toFixed(1)} m`;
       navigationHeading.textContent = `${info.direction} · ${Math.round(info.headingDeg)}°`;
       navigationDestination.textContent = `${info.area} · 最近地标 ${info.landmark} ${Math.round(info.distance)} m`;
+      guide?.navigation(info);
     }),
   );
   removes.push(
@@ -469,6 +473,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
         roster,
       );
       navigationHud.append(row, toggle, retry, details);
+      if (guide) details.append(guide.root);
       const expand = (expanded: boolean) => {
         details.hidden = !expanded;
         toggle.setAttribute('aria-expanded', String(expanded));
@@ -522,6 +527,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
             navigationDestination,
           );
           details.remove();
+          if (guide) navigationHud.append(guide.root);
           retry.removeEventListener('click', onRetry);
           retry.remove();
           nearby.remove();
