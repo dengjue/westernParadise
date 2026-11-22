@@ -1,6 +1,12 @@
 import type { AppEventMap } from '@/00-types';
 import { readLandGuideSession, writeLandGuideSession } from '@/03-platform';
-import { horizontalHint, LAND_STOPS, LAND_TOURS, landStopArrival } from '@/01-shared';
+import {
+  horizontalHint,
+  LAND_STOPS,
+  LAND_TOURS,
+  LAND_STOP_NOTES,
+  landStopArrival,
+} from '@/01-shared';
 
 /** 仅在本页导航详情内使用；个人选择与多人协议独立。 */
 export function mountLandDestination() {
@@ -15,12 +21,15 @@ export function mountLandDestination() {
   for (const stop of LAND_STOPS) selector.add(new Option(stop.name, stop.id));
   const hint = document.createElement('div');
   hint.className = 'land-stop-hint';
+  const note = document.createElement('div');
+  note.className = 'land-stop-note';
+  note.hidden = true;
   label.append(selector);
   const next = document.createElement('button');
   next.type = 'button';
   next.className = 'land-stop-next';
   next.hidden = true;
-  root.append(label, hint, next);
+  root.append(label, hint, note, next);
   const preview = document.createElement('details');
   preview.className = 'land-stop-preview';
   const summary = document.createElement('summary');
@@ -44,11 +53,15 @@ export function mountLandDestination() {
     const tour = LAND_TOURS.find((t) => t.id === selector.value);
     const stop = tour ? tour.stops[stage] : LAND_STOPS.find((s) => s.id === selector.value);
     let text = '';
+    let noteText = '';
     if (stop && latest) {
       const [x, z] = stop.point;
       const { direction, distance } = horizontalHint(x, z, latest);
       const arrival = landStopArrival(distance, latest.flying, near);
-      if (arrival === 'arrived') visited = true;
+      if (arrival === 'arrived') {
+        visited = true;
+        noteText = LAND_STOP_NOTES[stop.id];
+      }
       near = arrival !== 'away';
       text =
         arrival === 'arrived'
@@ -63,6 +76,10 @@ export function mountLandDestination() {
     const action = tour && stage === tour.stops.length - 1 ? '完成游线' : '前往下一站';
     if (next.textContent !== action) next.textContent = action;
     if (hint.textContent !== text) hint.textContent = text;
+    if (note.textContent !== noteText) {
+      note.textContent = noteText;
+      note.hidden = !noteText;
+    }
   }
   // 名单只在选择或确认站次时重建，不随每次距离更新写入。
   function refreshPreview() {

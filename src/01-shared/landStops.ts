@@ -24,6 +24,18 @@ export const LAND_STOPS = [
   { id: 'lotus-walk', name: '莲池东廊', point: [61.5, 24] },
 ] as const;
 
+/** 只在地面进入本站范围时出现；与站点 ID 一一对应。 */
+export const LAND_STOP_NOTES: Readonly<Record<(typeof LAND_STOPS)[number]['id'], string>> = {
+  entrance: '朝北看，让步道的两侧边线在远处的主殿前汇合。',
+  'south-axis': '在这里停一步，比较近处铺装与远处屋檐的尺度。',
+  'central-axis': '缓慢转向两侧，看看树冠与水面如何改变庭院的开阔感。',
+  'hall-front': '抬头沿屋檐看过去，再低头比较台基与庭院的高差。',
+  'west-turn': '转向北面，沿西廊寻找下一段树荫。',
+  'grove-walk': '面向庭院，观察近处枝叶和远处建筑叠在一起的轮廓。',
+  'east-turn': '向北沿东廊前行，把水面留在左手边。',
+  'lotus-walk': '向西望向莲池，稍稍转动视角，比较水面反光与岸边的颜色。',
+};
+
 export const LAND_TOURS = [
   {
     id: 'axis-tour',
