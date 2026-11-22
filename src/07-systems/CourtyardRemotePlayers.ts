@@ -23,6 +23,10 @@ export class CourtyardRemotePlayers {
     return this.players.size;
   }
 
+  nearbyIds(): string[] {
+    return [...this.players.keys()].sort((a, b) => Number(a) - Number(b));
+  }
+
   /** 只扫描当前兴趣范围内的角色，按水平距离选择；同距保留较小编号。 */
   nearestTo(x: number, z: number): MultiplayerPlayer | undefined {
     let nearest: MultiplayerPlayer | undefined;

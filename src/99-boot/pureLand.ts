@@ -566,6 +566,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     online = false;
     roomHud?.set('');
     roomHud?.nearest('');
+    roomHud?.roster([]);
     if (identity) avatar?.setRoomColor();
     identity = '';
     population = undefined;
@@ -598,6 +599,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
               if (online) showNeighbors();
               else {
                 roomHud?.nearest('');
+                roomHud?.roster([]);
                 roomHud?.set(text[status], status === 'offline' || status === 'room-full');
                 avatar.setRoomColor();
                 identity = '';
@@ -608,6 +610,8 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
             (snapshot) => {
               const before = remotes.count;
               remotes.apply(snapshot, performance.now());
+              if (before !== remotes.count || snapshot.removed.length)
+                roomHud?.roster(remotes.nearbyIds());
               if (snapshot.removed.length) roomHud?.nearest('');
               if (snapshot.population !== undefined) population = snapshot.population;
               if (before !== remotes.count || snapshot.population !== undefined) showNeighbors();

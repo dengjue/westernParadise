@@ -1,5 +1,5 @@
 import type { AppEventMap, Capabilities, EventBusLike, QualityTier, TimeOfDayId } from '@/00-types';
-import { LAND_LIGHT, LAND_QUALITY, LAND_SOUND, PURE_LAND } from '@/01-shared';
+import { companionColor, LAND_LIGHT, LAND_QUALITY, LAND_SOUND, PURE_LAND } from '@/01-shared';
 
 interface LandUiOptions {
   events: EventBusLike<AppEventMap>;
@@ -398,6 +398,8 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     mountRoomStatus(onRetry: () => void) {
       const row = el('div', 'land-room-status');
       const nearby = el('div', 'land-room-nearest');
+      const roster = el('div', 'land-room-roster');
+      roster.hidden = true;
       nearby.hidden = true;
       row.setAttribute('role', 'status');
       const retry = button('land-room-retry', '回入口重连');
@@ -414,6 +416,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
         navigationHeading,
         navigationDestination,
         nearby,
+        roster,
       );
       navigationHud.append(row, toggle, retry, details);
       const expand = (expanded: boolean) => {
@@ -435,6 +438,10 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
             nearby.textContent = text;
             nearby.hidden = !text;
           }
+        },
+        roster(ids: readonly string[]) {
+          roster.hidden = !ids.length;
+          roster.textContent = ids.map((id) => `${companionColor(id).name} #${id}`).join('、');
         },
         dispose() {
           toggle.removeEventListener('click', toggleDetails);
