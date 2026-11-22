@@ -26,7 +26,7 @@ export { LAND_ATMOSPHERE, LAND_LIGHT_QUALITY, LAND_PMREM_ATLAS, LAND_TIMES } fro
 export { LAND_JOURNEY } from './landJourney';
 export { LAND_AVATAR, companionColor } from './landAvatar';
 export { companionHint, rendezvousHint, horizontalHint } from './companionHint';
-export { LAND_STOPS } from './landStops';
+export { LAND_STOPS, landStopArrival } from './landStops';
 export { LAND_FLIGHT, LAND_NAVIGATION } from './landFlight';
 export { LAND_REGION_SURFACE_HEIGHT, LAND_WORLD } from './landRegions';
 export { LAND_SOUND } from './landSound';

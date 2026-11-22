@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { LAND_NAVIGATION, LAND_STOPS } from '@/01-shared';
+import { LAND_NAVIGATION, LAND_STOPS, landStopArrival } from '@/01-shared';
 import { resolveLandNavigation, sampleLandHeight } from '@/02-core';
 
 describe('resolveLandNavigation', () => {
+  it('地面抵达与空中经过分开，离开阈值不随边界抖动', () => {
+    expect(landStopArrival(4, false, false)).toBe('away');
+    expect(landStopArrival(3, true, false)).toBe('overhead');
+    expect(landStopArrival(3, false, true)).toBe('arrived');
+    expect(landStopArrival(4.9, false, true)).toBe('arrived');
+    expect(landStopArrival(5.1, false, true)).toBe('away');
+  });
   it('每个可选目的地的中心都落在可步行面', () => {
     for (const {
       point: [x, z],
