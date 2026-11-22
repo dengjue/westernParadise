@@ -26,6 +26,15 @@ function staticFiles(html: Buffer): RequestListener {
     }
     const path = request.url?.split('?')[0];
     response.setHeader('X-Content-Type-Options', 'nosniff');
+    if (path === '/phone-test' || path === '/phone-test/') {
+      response
+        .writeHead(302, {
+          Location: '/?cam=third&quality=low&crowdcheck=1',
+          'Cache-Control': 'no-store',
+        })
+        .end();
+      return;
+    }
     if (path === '/' || path === '/index.html') {
       response.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',

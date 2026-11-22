@@ -202,7 +202,11 @@ export function startPureLand(): () => void {
   }
 
   startup.syncMs = performance.now() - start;
-  ui.setLoading(true);
+  const loadingText =
+    import.meta.env.MODE === 'multiplayer' && raw.get('crowdcheck') === '1'
+      ? '单机模拟 · 正在准备场景，加载完成后自动开始'
+      : undefined;
+  ui.setLoading(true, loadingText);
   const buildProgress = {
     stage: 'waiting',
     detailed: import.meta.env.DEV || params.debug || params.bench,
@@ -305,7 +309,7 @@ export function startPureLand(): () => void {
   };
   const onContextRestored = (): void => {
     contextLost = false;
-    ui.setLoading(true);
+    ui.setLoading(true, loadingText);
     if (!document.hidden) driver?.resume();
   };
   function pageHide(event: PageTransitionEvent): void {
