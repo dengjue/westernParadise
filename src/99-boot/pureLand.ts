@@ -44,7 +44,7 @@ import {
   LandCamera,
   TouchInput,
 } from '@/07-systems';
-import { mountPureLandUi } from '@/08-ui';
+import { mountLandFrameCheck, mountPureLandUi } from '@/08-ui';
 import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics';
 
 /** 主线程让出切片，不是目标设备/A4 的性能预算或帧时保证。 */
@@ -493,10 +493,17 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       : null;
   let peer: CourtyardMultiplayerClient | undefined;
   let joining = false;
+  let online = false;
+  const frameCheck =
+    endpoint && new URLSearchParams(location.search).get('framecheck') === '1'
+      ? mountLandFrameCheck(ui.viewport, decision.tier)
+      : null;
   const leaveRoom = () => {
     peer?.dispose();
     peer = undefined;
     joining = false;
+    online = false;
+    frameCheck?.reset();
     remotes?.clear();
   };
   const offRoom =
@@ -513,6 +520,8 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
             `${endpoint}?world=land`,
             (status) => {
               joining = status === 'connecting';
+              online = status === 'online';
+              if (!online) frameCheck?.reset();
               if (status !== 'online') remotes.clear();
               const text = {
                 connecting: '正在加入大世界联机…',
@@ -566,6 +575,15 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       telemetry.begin(performance.now());
       try {
         pipeline.render();
+        if (frameCheck && online && remotes && !modal) {
+          frameCheck.frame(
+            performance.now(),
+            remotes.count,
+            camera.isFlying,
+            context.canvas.width,
+            context.canvas.height,
+          );
+        }
         if (startup.firstFrameMs === 0) startup.firstFrameMs = performance.now() - start;
       } finally {
         telemetry.end(performance.now());
@@ -599,6 +617,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
   window.addEventListener('resize', resize);
   function syncActivity(): void {
     const suspended = document.hidden || !document.hasFocus() || lost || failed;
+    if (suspended || modal) frameCheck?.reset();
     input.setEnabled(!modal && !suspended);
     events.emit('land:suspend', { suspended });
     if (suspended) loop.stop();
@@ -611,6 +630,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       return;
     }
     input.setEnabled(false);
+    frameCheck?.reset();
     events.emit('land:suspend', { suspended: true });
     loop.stop();
   };
@@ -668,6 +688,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       () => loop.stop(),
       () => offRoom?.(),
       leaveRoom,
+      () => frameCheck?.dispose(),
       () => remotes?.dispose(),
       removeTime,
       removeBudget,

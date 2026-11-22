@@ -18,6 +18,10 @@ export class CourtyardRemotePlayers {
   private readonly group = new Group();
   private readonly players = new Map<string, RemotePlayer>();
 
+  get count(): number {
+    return this.players.size;
+  }
+
   constructor(
     parent: Object3D,
     private readonly template: Group,
