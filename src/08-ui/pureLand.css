@@ -537,6 +537,13 @@
   pointer-events: auto;
   touch-action: none;
 }
+.land-touch.is-reversed {
+  flex-direction: row-reverse;
+}
+.land-touch.is-reversed .land-flight-touch {
+  left: 0;
+  right: auto;
+}
 .land-touch-pad[data-active='true'] {
   background: rgb(226 194 140 / 25%);
 }

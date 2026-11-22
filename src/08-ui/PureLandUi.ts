@@ -55,6 +55,11 @@ function lotusMark(): SVGSVGElement {
 export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   const { events, capabilities } = options;
   let currentTime = options.time;
+  let rightMove = false;
+  let walkingNow = false,
+    flyingNow = false;
+  const touchHint = (flight: boolean) =>
+    `${rightMove ? '右下移动 · 左下环顾' : '左下移动 · 右下环顾'} · ${flight ? '＋/− 升降' : '点击景点切换视角'}`;
   let noticeTimer: ReturnType<typeof setTimeout> | undefined;
   const removes: (() => void)[] = [];
   root.classList.add('land-app');
@@ -224,10 +229,10 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     'land-hint',
     options.thirdPerson
       ? capabilities.touch
-        ? '左下移动 · 右下环顾 · 飞行时使用上升/下降控件'
+        ? touchHint(false)
         : '左键环顾 · WASD 步行 · 滚轮调距 · V 起飞/降落 · H 隐藏界面'
       : capabilities.touch
-        ? PURE_LAND.copy.touchControls
+        ? touchHint(false)
         : PURE_LAND.copy.controls,
   );
   const note = el('div', 'land-note', PURE_LAND.copy.note);
@@ -290,6 +295,26 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   move.append(el('span', 'land-touch-thumb'));
   look.append(el('span', 'land-touch-thumb'));
   touch.append(move, look, flightTouch);
+  if (capabilities.touch) {
+    const layout = el('select', 'land-quality land-touch-layout');
+    const label = el('label', 'land-quality-label', '移动盘');
+    for (const [value, text] of [
+      ['left', '左手移动'],
+      ['right', '右手移动'],
+    ] as const) {
+      const option = el('option', '', text);
+      option.value = value;
+      layout.append(option);
+    }
+    layout.addEventListener('change', () => {
+      rightMove = layout.value === 'right';
+      touch.classList.toggle('is-reversed', rightMove);
+      hint.textContent = touchHint(flyingNow);
+      if (walkingNow || flyingNow) description.textContent = touchHint(flyingNow);
+    });
+    label.append(layout);
+    settings.append(label);
+  }
   touch.hidden = !capabilities.touch;
   root.append(overlay, restore, dialog, touch, notice);
 
@@ -349,6 +374,9 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   );
   removes.push(
     events.on('land:state', ({ index, walking, flying, touring: nextTouring }) => {
+      walkingNow = walking;
+      flyingNow = flying;
+      if (capabilities.touch) hint.textContent = touchHint(flying);
       touring = nextTouring;
       tourButton.textContent = touring ? 'Ⅱ　' + PURE_LAND.copy.pause : '▷　' + PURE_LAND.copy.tour;
       tourButton.setAttribute('aria-pressed', String(touring));
@@ -360,11 +388,11 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
       viewName.textContent = flying ? '高空观察' : walking ? PURE_LAND.copy.walk : view.title;
       description.textContent = flying
         ? capabilities.touch
-          ? '左侧移动 · 右侧环顾 · ＋/− 升降 · 点击降落'
+          ? touchHint(true)
           : 'WASD 平移 · E/Q 升降 · V 请求降落'
         : walking
           ? capabilities.touch
-            ? PURE_LAND.copy.touchControls
+            ? touchHint(false)
             : PURE_LAND.copy.controls
           : view.description;
       viewNumber.textContent = roaming ? (flying ? '⌃' : '↟') : String(index + 1).padStart(2, '0');
