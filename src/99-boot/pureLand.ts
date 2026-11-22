@@ -45,7 +45,12 @@ import {
   TouchInput,
 } from '@/07-systems';
 import { mountLandFrameCheck, mountPureLandUi } from '@/08-ui';
-import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics';
+import {
+  installDebugProbe,
+  installFatalTrap,
+  markFatal,
+  mountLandCrowdCheck,
+} from '@/98-diagnostics';
 
 /** 主线程让出切片，不是目标设备/A4 的性能预算或帧时保证。 */
 const THIRD_PERSON_BUILD_BUDGET_MS = 6;
@@ -470,8 +475,12 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       });
   // 默认第一人称与四景点观览不装配 avatar；第三人称原型才启用角色和遮挡回拉。
   const avatar = params.cam === 'third' ? new LandAvatar(context.scene) : undefined;
+  const crowdMode =
+    import.meta.env.MODE === 'multiplayer' &&
+    avatar !== undefined &&
+    new URLSearchParams(location.search).get('crowdcheck') === '1';
   const endpoint =
-    avatar && (import.meta.env.DEV || import.meta.env.MODE === 'multiplayer')
+    !crowdMode && avatar && (import.meta.env.DEV || import.meta.env.MODE === 'multiplayer')
       ? courtyardMultiplayerUrl(
           location.search,
           location.origin,
@@ -484,12 +493,16 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     events,
     reducedMotion: capabilities.reducedMotion,
     avatar,
-    sharedEntrance: Boolean(endpoint),
+    sharedEntrance: crowdMode || Boolean(endpoint),
     occluder: avatar ? context.scene : undefined,
   });
   const remotes =
-    endpoint && avatar
+    (endpoint || crowdMode) && avatar
       ? new CourtyardRemotePlayers(context.scene, avatar.root, capabilities.reducedMotion)
+      : null;
+  const crowdCheck =
+    crowdMode && remotes
+      ? mountLandCrowdCheck(ui.viewport, remotes, context.camera, decision.tier)
       : null;
   let peer: CourtyardMultiplayerClient | undefined;
   let joining = false;
@@ -554,7 +567,9 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     clock: new Clock(1000 / 60, 150),
     events,
     onStep: (delta) => {
-      if (!joining) camera.update(delta);
+      if (crowdCheck) {
+        if (!camera.isWalking && !camera.isFlying) camera.startWalking(true);
+      } else if (!joining) camera.update(delta);
       world.update(delta, camera.cellCameraPose);
       audioElapsed += delta;
       if (audioElapsed >= LAND_SOUND.updateMs) {
@@ -565,6 +580,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       audio.update(delta);
     },
     onRender: () => {
+      crowdCheck?.prepare(performance.now());
       if (peer && avatar && remotes) {
         const now = performance.now();
         peer.update(now, avatar.root.position, avatar.yaw, camera.isFlying);
@@ -575,6 +591,9 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       telemetry.begin(performance.now());
       try {
         pipeline.render();
+        if (crowdCheck && camera.isWalking && !modal) {
+          crowdCheck.frame(performance.now(), context.canvas.width, context.canvas.height);
+        }
         if (frameCheck && online && remotes && !modal) {
           frameCheck.frame(
             performance.now(),
@@ -617,8 +636,9 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
   window.addEventListener('resize', resize);
   function syncActivity(): void {
     const suspended = document.hidden || !document.hasFocus() || lost || failed;
+    if (suspended || modal) crowdCheck?.reset();
     if (suspended || modal) frameCheck?.reset();
-    input.setEnabled(!modal && !suspended);
+    input.setEnabled(!crowdMode && !modal && !suspended);
     events.emit('land:suspend', { suspended });
     if (suspended) loop.stop();
     else loop.start();
@@ -630,6 +650,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       return;
     }
     input.setEnabled(false);
+    crowdCheck?.reset();
     frameCheck?.reset();
     events.emit('land:suspend', { suspended: true });
     loop.stop();
@@ -688,6 +709,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       () => loop.stop(),
       () => offRoom?.(),
       leaveRoom,
+      () => crowdCheck?.dispose(),
       () => frameCheck?.dispose(),
       () => remotes?.dispose(),
       removeTime,
