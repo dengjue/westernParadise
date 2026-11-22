@@ -21,6 +21,8 @@ import {
   parseParams,
   readBrowserEnv,
   readStoredQuality,
+  readUiPreference,
+  writeUiPreference,
   resolveStorage,
   selectQuality,
   writeStoredQuality,
@@ -146,6 +148,8 @@ export function startPureLand(): () => void {
   const events = new EventBus<AppEventMap>();
   const thirdPerson = params.cam === 'third';
   const ui = mountPureLandUi(root, {
+    readPreference: (key) => readUiPreference(storage, key),
+    savePreference: (key, value) => writeUiPreference(storage, key, value),
     autoQuality: params.quality === null && storedQuality === null,
     onQualityChoice: (tier) => writeStoredQuality(storage, tier),
     events,

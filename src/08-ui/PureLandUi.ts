@@ -1,4 +1,5 @@
 import type { AppEventMap, Capabilities, EventBusLike, QualityTier, TimeOfDayId } from '@/00-types';
+import type { LandUiPreference } from '@/03-platform';
 import { companionColor, LAND_LIGHT, LAND_QUALITY, LAND_SOUND, PURE_LAND } from '@/01-shared';
 
 interface LandUiOptions {
@@ -6,6 +7,8 @@ interface LandUiOptions {
   capabilities: Capabilities;
   quality: QualityTier;
   autoQuality: boolean;
+  readPreference: (key: LandUiPreference) => boolean | null;
+  savePreference: (key: LandUiPreference, value: boolean) => void;
   onQualityChoice: (tier: QualityTier | null) => void;
   time: TimeOfDayId;
   noAudio: boolean;
@@ -55,7 +58,7 @@ function lotusMark(): SVGSVGElement {
 export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   const { events, capabilities } = options;
   let currentTime = options.time;
-  let rightMove = false;
+  let rightMove = options.readPreference('rightMove') ?? false;
   let walkingNow = false,
     flyingNow = false;
   const touchHint = (flight: boolean) =>
@@ -306,8 +309,11 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
       option.value = value;
       layout.append(option);
     }
+    layout.value = rightMove ? 'right' : 'left';
+    touch.classList.toggle('is-reversed', rightMove);
     layout.addEventListener('change', () => {
       rightMove = layout.value === 'right';
+      options.savePreference('rightMove', rightMove);
       touch.classList.toggle('is-reversed', rightMove);
       hint.textContent = touchHint(flyingNow);
       if (walkingNow || flyingNow) description.textContent = touchHint(flyingNow);
@@ -464,8 +470,15 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
         toggle.textContent = expanded ? '收起导航' : '展开导航';
         toggle.setAttribute('aria-label', toggle.textContent);
       };
-      expand(!capabilities.touch && !window.matchMedia('(max-width: 700px)').matches);
-      const toggleDetails = () => expand(Boolean(details.hidden));
+      expand(
+        options.readPreference('navigationExpanded') ??
+          (!capabilities.touch && !window.matchMedia('(max-width: 700px)').matches),
+      );
+      const toggleDetails = () => {
+        const expanded = Boolean(details.hidden);
+        options.savePreference('navigationExpanded', expanded);
+        expand(expanded);
+      };
       toggle.addEventListener('click', toggleDetails);
       return {
         set(text: string, canRetry = false) {

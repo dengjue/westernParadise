@@ -16,6 +16,32 @@ export interface KeyValueStore {
 
 const QUALITY_KEY = `${STORAGE_NAMESPACE}:quality`;
 
+export type LandUiPreference = 'rightMove' | 'navigationExpanded';
+
+export function readUiPreference(
+  store: KeyValueStore | null,
+  key: LandUiPreference,
+): boolean | null {
+  try {
+    const value = store?.getItem(`${STORAGE_NAMESPACE}:${key}`);
+    return value === '1' ? true : value === '0' ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeUiPreference(
+  store: KeyValueStore | null,
+  key: LandUiPreference,
+  value: boolean,
+): void {
+  try {
+    store?.setItem(`${STORAGE_NAMESPACE}:${key}`, value ? '1' : '0');
+  } catch {
+    // 存储不可用时，本页的布局仍可切换。
+  }
+}
+
 export function readStoredQuality(store: KeyValueStore | null): QualityTier | null {
   if (!store) {
     return null;
