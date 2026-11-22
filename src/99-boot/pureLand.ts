@@ -512,6 +512,8 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
   let peer: CourtyardMultiplayerClient | undefined;
   let joining = false;
   let online = false;
+  const roomHud = endpoint ? ui.mountRoomStatus() : null;
+  const showNeighbors = () => roomHud?.set(`已联机 · 附近 ${remotes?.count ?? 0} 人`);
   const frameCheck =
     endpoint && new URLSearchParams(location.search).get('framecheck') === '1'
       ? mountLandFrameCheck(ui.viewport, decision.tier)
@@ -521,6 +523,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     peer = undefined;
     joining = false;
     online = false;
+    roomHud?.set('');
     frameCheck?.reset();
     remotes?.clear();
   };
@@ -547,9 +550,15 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
                 offline: '联机已断开，继续独自游历',
                 'room-full': '房间已满，继续独自游历',
               };
+              if (online) showNeighbors();
+              else roomHud?.set(text[status]);
               ui.showNotice(text[status], true);
             },
-            (snapshot) => remotes.apply(snapshot, performance.now()),
+            (snapshot) => {
+              const before = remotes.count;
+              remotes.apply(snapshot, performance.now());
+              if (before !== remotes.count) showNeighbors();
+            },
             true,
             (spawn) => camera.placeAtRoomEntrance(spawn),
           );
@@ -715,6 +724,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       () => loop.stop(),
       () => offRoom?.(),
       leaveRoom,
+      () => roomHud?.dispose(),
       () => crowdCheck?.dispose(),
       () => frameCheck?.dispose(),
       () => remotes?.dispose(),

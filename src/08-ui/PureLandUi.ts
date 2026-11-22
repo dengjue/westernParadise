@@ -381,6 +381,19 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
 
   return {
     viewport,
+    mountRoomStatus() {
+      const row = el('div', 'land-room-status');
+      row.setAttribute('role', 'status');
+      navigationHud.append(row);
+      return {
+        set(text: string) {
+          if (row.textContent !== text) row.textContent = text;
+        },
+        dispose() {
+          row.remove();
+        },
+      };
+    },
     move,
     look,
     ascend,
