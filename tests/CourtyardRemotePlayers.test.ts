@@ -1,6 +1,6 @@
 import { Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
-import { MULTIPLAYER, companionHint } from '@/01-shared';
+import { MULTIPLAYER, companionHint, rendezvousHint } from '@/01-shared';
 import { CourtyardRemotePlayers } from '@/07-systems';
 
 function setup(reducedMotion = false) {
@@ -16,6 +16,12 @@ function setup(reducedMotion = false) {
 }
 
 describe('courtyard remote players', () => {
+  it('会合点方向随控制朝向改变，高空仍按水平距离提示', () => {
+    const observer = { x: 0, y: 42, z: 60, headingDeg: 0 };
+    expect(rendezvousHint(observer)).toContain('后方 25 m');
+    expect(rendezvousHint({ ...observer, headingDeg: 180 })).toContain('前方 25 m');
+    expect(rendezvousHint({ ...observer, z: 83 })).toContain('已到南侧入口附近');
+  });
   it('仅导航到已知最近伙伴，随观察方向、高差和离场更新', () => {
     const { remote, player } = setup();
     const observer = { x: 0, y: 0, z: 0, headingDeg: 0 };

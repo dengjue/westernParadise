@@ -3,6 +3,7 @@ import {
   COPY,
   companionColor,
   companionHint,
+  rendezvousHint,
   LAND_JOURNEY,
   LAND_RENDER,
   LAND_SOUND,
@@ -545,7 +546,13 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       ? events.on('land:navigation', (info) => {
           if (!online) return;
           const nearest = remotes.nearestTo(info.x, info.z);
-          roomHud.nearest(nearest ? companionHint(nearest, info) : '');
+          roomHud.nearest(
+            nearest
+              ? companionHint(nearest, info)
+              : (population ?? 0) > 1
+                ? rendezvousHint(info)
+                : '',
+          );
         })
       : undefined;
   const frameCheck =
