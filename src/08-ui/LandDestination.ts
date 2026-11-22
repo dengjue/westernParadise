@@ -5,6 +5,7 @@ import {
   LAND_STOPS,
   LAND_TOURS,
   LAND_STOP_NOTES,
+  measureTour,
   landStopArrival,
 } from '@/01-shared';
 
@@ -87,12 +88,17 @@ export function mountLandDestination() {
     preview.hidden = !tour;
     if (!tour) preview.open = false;
     list.replaceChildren();
-    tour?.stops.forEach((stop, i) => {
+    if (!tour) return;
+    const { legs, total } = measureTour(tour.stops);
+    summary.textContent = `游线站点 · 全程约 ${Math.round(total)} m`;
+    tour.stops.forEach((stop, i) => {
       const item = document.createElement('li');
       item.textContent = `${stop.name} · ${i < stage ? '已完成' : i === stage ? '当前' : '待游'}`;
+      if (i > 0) item.textContent += ` · 距上站约 ${Math.round(legs[i]!)} m`;
       if (i === stage) item.setAttribute('aria-current', 'step');
       list.append(item);
     });
+    list.setAttribute('aria-label', '各站间水平直线距离');
   }
   refreshPreview();
   selector.addEventListener('change', () => {

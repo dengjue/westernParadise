@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { LAND_NAVIGATION, LAND_STOPS, LAND_TOURS, landStopArrival } from '@/01-shared';
+import { LAND_NAVIGATION, LAND_STOPS, LAND_TOURS, landStopArrival, measureTour } from '@/01-shared';
 import { moveLandPosition, resolveLandNavigation, sampleLandHeight } from '@/02-core';
 
 describe('resolveLandNavigation', () => {
+  it('预览里程按转折逐段累加，再做展示取整', () => {
+    const tour = LAND_TOURS.find((t) => t.id === 'lotus-tour')!;
+    expect(measureTour(tour.stops)).toEqual({ legs: [0, 61.5, 61], total: 122.5 });
+  });
   it('莲池游线两段都能用步行碰撞算法走完', () => {
     const tour = LAND_TOURS.find((t) => t.id === 'lotus-tour')!;
     const [x, z] = tour.stops[0].point;

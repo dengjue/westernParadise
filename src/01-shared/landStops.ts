@@ -45,3 +45,12 @@ export const LAND_TOURS = [
   { id: 'grove-tour', name: '西侧宝林', stops: [LAND_STOPS[0], LAND_STOPS[4], LAND_STOPS[5]] },
   { id: 'lotus-tour', name: '东侧莲池', stops: [LAND_STOPS[0], LAND_STOPS[6], LAND_STOPS[7]] },
 ] as const;
+
+/** 预览使用逐段水平直线的总和，不根据角色位置推测实际步程。 */
+export function measureTour(stops: readonly { point: readonly [number, number] }[]) {
+  const legs = stops.map(({ point: [x, z] }, i) => {
+    const previous = stops[i - 1];
+    return previous ? Math.hypot(x - previous.point[0], z - previous.point[1]) : 0;
+  });
+  return { legs, total: legs.reduce((sum, d) => sum + d, 0) };
+}
