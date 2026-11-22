@@ -411,6 +411,12 @@
   display: grid;
   gap: 4px;
 }
+.land-room-target {
+  max-width: 100%;
+  min-height: 44px;
+  pointer-events: auto;
+  font: inherit;
+}
 .land-app .land-room-details-toggle {
   min-height: 44px;
   padding: 0 6px;

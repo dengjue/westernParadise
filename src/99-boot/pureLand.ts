@@ -545,10 +545,11 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     endpoint && remotes && roomHud
       ? events.on('land:navigation', (info) => {
           if (!online) return;
-          const nearest = remotes.nearestTo(info.x, info.z);
+          const selected = remotes.companion(roomHud.selectedId());
+          const nearest = selected ?? remotes.nearestTo(info.x, info.z);
           roomHud.nearest(
             nearest
-              ? companionHint(nearest, info)
+              ? companionHint(nearest, info, Boolean(selected))
               : (population ?? 0) > 1
                 ? rendezvousHint(info)
                 : '',

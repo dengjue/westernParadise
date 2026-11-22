@@ -16,6 +16,30 @@ function setup(reducedMotion = false) {
 }
 
 describe('courtyard remote players', () => {
+  it('可查询非最近的指定伙伴；同人数换人后不返回旧目标', () => {
+    const { remote, player } = setup();
+    remote.apply(
+      {
+        type: 'snapshot',
+        tick: 2,
+        removed: [],
+        changed: [
+          { ...player, id: '10' },
+          { ...player, id: '2' },
+        ],
+      },
+      0,
+    );
+    expect(remote.nearbyIds()).toEqual(['1', '2', '10']);
+    expect(remote.companion('10')?.id).toBe('10');
+    remote.apply(
+      { type: 'snapshot', tick: 3, removed: ['10'], changed: [{ ...player, id: '3' }] },
+      100,
+    );
+    expect(remote.companion('10')).toBeUndefined();
+    expect(remote.nearbyIds()).toEqual(['1', '2', '3']);
+    remote.dispose();
+  });
   it('会合点方向随控制朝向改变，高空仍按水平距离提示', () => {
     const observer = { x: 0, y: 42, z: 60, headingDeg: 0 };
     expect(rendezvousHint(observer)).toContain('后方 25 m');

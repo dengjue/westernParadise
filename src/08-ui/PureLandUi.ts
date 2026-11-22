@@ -398,7 +398,9 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     mountRoomStatus(onRetry: () => void) {
       const row = el('div', 'land-room-status');
       const nearby = el('div', 'land-room-nearest');
-      const roster = el('div', 'land-room-roster');
+      const roster = el('label', 'land-room-roster', '导航目标 ');
+      const target = el('select', 'land-room-target');
+      roster.append(target);
       roster.hidden = true;
       nearby.hidden = true;
       row.setAttribute('role', 'status');
@@ -440,8 +442,20 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
           }
         },
         roster(ids: readonly string[]) {
+          const previous = target.value;
+          const auto = el('option', '', '自动 · 最近伙伴');
+          auto.value = '';
+          target.replaceChildren(auto);
+          for (const id of ids) {
+            const option = el('option', '', `${companionColor(id).name} #${id}`);
+            option.value = id;
+            target.append(option);
+          }
+          target.value = ids.includes(previous) ? previous : '';
           roster.hidden = !ids.length;
-          roster.textContent = ids.map((id) => `${companionColor(id).name} #${id}`).join('、');
+        },
+        selectedId() {
+          return target.value;
         },
         dispose() {
           toggle.removeEventListener('click', toggleDetails);

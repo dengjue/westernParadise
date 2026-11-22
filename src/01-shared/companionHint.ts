@@ -22,10 +22,14 @@ export function rendezvousHint(observer: Observer): string {
 }
 
 /** 输入为导航 HUD 的控制朝向（北=0，东=90），不是角色转身动画的瞬时角度。 */
-export function companionHint(peer: MultiplayerPlayer, observer: Observer): string {
+export function companionHint(
+  peer: MultiplayerPlayer,
+  observer: Observer,
+  selected = false,
+): string {
   const { distance, direction } = horizontalHint(peer.x, peer.z, observer);
   const dy = peer.y - observer.y;
   const altitude =
     Math.abs(dy) >= 2 ? ` · ${dy > 0 ? '高' : '低'} ${Math.round(Math.abs(dy))} m` : '';
-  return `最近：${companionColor(peer.id).name} #${peer.id} · ${direction} ${Math.round(distance)} m${altitude}`;
+  return `${selected ? '选定' : '最近'}：${companionColor(peer.id).name} #${peer.id} · ${direction} ${Math.round(distance)} m${altitude}`;
 }
