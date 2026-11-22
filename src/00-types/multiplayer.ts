@@ -17,6 +17,7 @@ export interface MultiplayerPlayer extends MultiplayerPose {
 }
 
 export interface MultiplayerSnapshot {
+  readonly population?: number;
   readonly type: 'snapshot';
   readonly tick: number;
   readonly changed: readonly MultiplayerPlayer[];
@@ -24,5 +25,10 @@ export interface MultiplayerSnapshot {
 }
 
 export type MultiplayerWelcome =
-  | { readonly type: 'welcome'; readonly id: string; readonly spawn?: MultiplayerPose }
+  | {
+      readonly type: 'welcome';
+      readonly id: string;
+      readonly spawn?: MultiplayerPose;
+      readonly population?: number;
+    }
   | { readonly type: 'rejected'; readonly reason: 'room-full' };

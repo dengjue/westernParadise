@@ -31,12 +31,19 @@ export function parseMultiplayerServerMessage(
     return null;
   }
   if (!isObject(payload)) return null;
+  const population = payload.population;
+  if (population !== undefined && !isCounter(population, 1)) return null;
   if (payload.type === 'welcome' && isPlayerId(payload.id)) {
     if (land && payload.spawn !== undefined) {
       if (!isObject(payload.spawn)) return null;
       const spawn = parsePose(payload.spawn, true);
       if (!spawn || spawn.flying) return null;
-      return { type: 'welcome', id: payload.id, spawn };
+      return {
+        type: 'welcome',
+        id: payload.id,
+        spawn,
+        ...(population !== undefined ? { population } : {}),
+      };
     }
     return { type: 'welcome', id: payload.id };
   }
@@ -68,7 +75,13 @@ export function parseMultiplayerServerMessage(
     ids.add(id);
     removed.push(id);
   }
-  return { type: 'snapshot', tick: payload.tick, changed, removed };
+  return {
+    type: 'snapshot',
+    tick: payload.tick,
+    changed,
+    removed,
+    ...(population !== undefined ? { population } : {}),
+  };
 }
 
 function parsePose(

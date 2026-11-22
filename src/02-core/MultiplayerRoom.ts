@@ -9,6 +9,7 @@ import { sampleLandHeight } from './landNavigation';
 import { parseMultiplayerMove } from './multiplayerProtocol';
 
 interface Session {
+  population: number;
   player: MultiplayerPlayer;
   seen: Map<string, MultiplayerPlayer>;
   seq: number;
@@ -60,6 +61,7 @@ export class MultiplayerRoom {
     if (!spawn) return { type: 'rejected', reason: 'room-full' };
     const id = String(this.nextId++);
     this.sessions.set(id, {
+      population: this.sessions.size + 1,
       player: Object.freeze({ id, ...spawn }),
       seen: new Map(),
       seq: -1,
@@ -69,7 +71,9 @@ export class MultiplayerRoom {
       climbBudget: CLIMB_BURST,
     });
     this.dirty = true;
-    return this.land ? { type: 'welcome', id, spawn } : { type: 'welcome', id };
+    return this.land
+      ? { type: 'welcome', id, spawn, population: this.sessions.size }
+      : { type: 'welcome', id };
   }
 
   private findEntrance(): MultiplayerPose | undefined {
@@ -186,8 +190,16 @@ export class MultiplayerRoom {
       const nearby = findNearby(player, seen, grid);
       const changed = [...nearby.values()].filter((other) => seen.get(other.id) !== other);
       const removed = [...seen.keys()].filter((id) => !nearby.has(id));
-      if (changed.length || removed.length) {
-        snapshots.set(player.id, { type: 'snapshot', tick, changed, removed });
+      const newCount = this.land && session.population !== this.sessions.size;
+      if (changed.length || removed.length || newCount) {
+        snapshots.set(player.id, {
+          type: 'snapshot',
+          tick,
+          changed,
+          removed,
+          ...(newCount ? { population: this.sessions.size } : {}),
+        });
+        session.population = this.sessions.size;
       }
       session.seen = nearby;
     }

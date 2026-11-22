@@ -534,7 +534,11 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       })
     : null;
   let identity = '';
-  const showNeighbors = () => roomHud?.set(`已联机 · ${identity}附近 ${remotes?.count ?? 0} 人`);
+  let population: number | undefined;
+  const showNeighbors = () =>
+    roomHud?.set(
+      `已联机 · ${identity}${population === undefined ? '' : `房间 ${population} 人 · `}附近 ${remotes?.count ?? 0} 人`,
+    );
   // 复用导航的低频事件；不为 HUD 额外启动定时器或在每一帧扫描。
   const offCompanionHint =
     endpoint && remotes && roomHud
@@ -557,6 +561,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     roomHud?.nearest('');
     if (identity) avatar?.setRoomColor();
     identity = '';
+    population = undefined;
     frameCheck?.reset();
     remotes?.clear();
   };
@@ -589,6 +594,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
                 roomHud?.set(text[status], status === 'offline' || status === 'room-full');
                 avatar.setRoomColor();
                 identity = '';
+                population = undefined;
               }
               ui.showNotice(text[status], true);
             },
@@ -596,10 +602,12 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
               const before = remotes.count;
               remotes.apply(snapshot, performance.now());
               if (snapshot.removed.length) roomHud?.nearest('');
-              if (before !== remotes.count) showNeighbors();
+              if (snapshot.population !== undefined) population = snapshot.population;
+              if (before !== remotes.count || snapshot.population !== undefined) showNeighbors();
             },
             true,
-            (spawn, id) => {
+            (spawn, id, initialPopulation) => {
+              population = initialPopulation;
               camera.placeAtRoomEntrance(spawn);
               avatar.setRoomColor(id);
               identity = `${companionColor(id).name} #${id} · `;

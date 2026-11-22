@@ -24,6 +24,34 @@ function move(seq: number, overrides: Partial<MultiplayerMove> = {}): Multiplaye
 }
 
 describe('MultiplayerRoom', () => {
+  it('房间人数变化也通知远处玩家，但不向其暴露新角色或坐标', () => {
+    let now = 0;
+    const room = new MultiplayerRoom(() => now, 3, true);
+    const a = room.join();
+    if (a.type !== 'welcome' || !a.spawn) throw Error('missing spawn');
+    expect(a.population).toBe(1);
+    for (let i = 1; i <= 50; i++) {
+      now += 100;
+      expect(room.move(a.id, { ...a.spawn, type: 'move', seq: i, z: a.spawn.z - i * 0.5 })).toBe(
+        true,
+      );
+    }
+    const b = room.join();
+    if (b.type !== 'welcome') throw Error('room full');
+    expect(b.population).toBe(2);
+    expect(room.collectSnapshots().get(a.id)).toMatchObject({
+      changed: [],
+      removed: [],
+      population: 2,
+    });
+    expect(room.collectSnapshots().size).toBe(0);
+    room.leave(b.id);
+    expect(room.collectSnapshots().get(a.id)).toMatchObject({
+      changed: [],
+      removed: [],
+      population: 1,
+    });
+  });
   it('分配 30 个不同的地面入口点，释放后可复用', () => {
     const room = new MultiplayerRoom(() => 0, 30, true);
     const seats = new Set<string>();
