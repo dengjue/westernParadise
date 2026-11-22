@@ -1,4 +1,5 @@
 import type { AppEventMap } from '@/00-types';
+import { readLandGuideSession, writeLandGuideSession } from '@/03-platform';
 import { horizontalHint, LAND_STOPS, LAND_TOURS, landStopArrival } from '@/01-shared';
 
 /** 仅在本页导航详情内使用；个人选择与多人协议独立。 */
@@ -24,6 +25,13 @@ export function mountLandDestination() {
   let near = false;
   let stage = 0,
     visited = false;
+  const saved = readLandGuideSession();
+  if (saved) {
+    selector.value = saved.choice;
+    stage = saved.stage;
+  }
+  const save = () =>
+    writeLandGuideSession(selector.value ? { choice: selector.value, stage } : null);
   function update() {
     const tour = LAND_TOURS.find((t) => t.id === selector.value);
     const stop = tour ? tour.stops[stage] : LAND_STOPS.find((s) => s.id === selector.value);
@@ -52,12 +60,14 @@ export function mountLandDestination() {
     near = false;
     stage = 0;
     visited = false;
+    save();
     update();
   });
   next.addEventListener('click', () => {
     const tour = LAND_TOURS.find((t) => t.id === selector.value);
     if (!tour || !visited || stage >= tour.stops.length) return;
     stage++;
+    save();
     near = visited = false;
     update();
   });

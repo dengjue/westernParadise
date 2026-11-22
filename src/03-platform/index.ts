@@ -11,3 +11,8 @@ export { AmbientAudio } from './AmbientAudio';
 export type { AmbientAudioOptions } from './AmbientAudio';
 export { CourtyardMultiplayerClient, courtyardMultiplayerUrl } from './CourtyardMultiplayerClient';
 export type { CourtyardMultiplayerStatus } from './CourtyardMultiplayerClient';
+export {
+  readLandGuideSession,
+  writeLandGuideSession,
+  decodeLandGuideProgress,
+} from './landGuideSession';
