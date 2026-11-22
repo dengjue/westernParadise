@@ -33,7 +33,7 @@ export class CourtyardMultiplayerClient {
     private readonly onStatus: (status: CourtyardMultiplayerStatus) => void,
     private readonly onSnapshot: (snapshot: MultiplayerSnapshot) => void,
     private readonly land = false,
-    private readonly onSpawn?: (pose: MultiplayerPose) => void,
+    private readonly onSpawn?: (pose: MultiplayerPose, id: string) => void,
   ) {
     onStatus('connecting');
     try {
@@ -109,7 +109,7 @@ export class CourtyardMultiplayerClient {
       this.id = message.id;
       if (message.spawn) {
         this.lastPose = message.spawn;
-        this.onSpawn?.(message.spawn);
+        this.onSpawn?.(message.spawn, message.id);
       }
       clearTimeout(this.timer);
       this.onStatus('online');

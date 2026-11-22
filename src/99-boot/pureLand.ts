@@ -1,6 +1,7 @@
 import type { AppEventMap } from '@/00-types';
 import {
   COPY,
+  companionColor,
   LAND_JOURNEY,
   LAND_RENDER,
   LAND_SOUND,
@@ -493,7 +494,12 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       : null;
   const remotes =
     (endpoint || crowdMode) && avatar
-      ? new CourtyardRemotePlayers(context.scene, avatar.root, capabilities.reducedMotion)
+      ? new CourtyardRemotePlayers(
+          context.scene,
+          avatar.root,
+          capabilities.reducedMotion,
+          Boolean(endpoint),
+        )
       : null;
   const camera = new LandCamera({
     camera: context.camera,
@@ -513,7 +519,8 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
   let joining = false;
   let online = false;
   const roomHud = endpoint ? ui.mountRoomStatus() : null;
-  const showNeighbors = () => roomHud?.set(`已联机 · 附近 ${remotes?.count ?? 0} 人`);
+  let identity = '';
+  const showNeighbors = () => roomHud?.set(`已联机 · ${identity}附近 ${remotes?.count ?? 0} 人`);
   const frameCheck =
     endpoint && new URLSearchParams(location.search).get('framecheck') === '1'
       ? mountLandFrameCheck(ui.viewport, decision.tier)
@@ -524,6 +531,8 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     joining = false;
     online = false;
     roomHud?.set('');
+    if (identity) avatar?.setRoomColor();
+    identity = '';
     frameCheck?.reset();
     remotes?.clear();
   };
@@ -551,7 +560,11 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
                 'room-full': '房间已满，继续独自游历',
               };
               if (online) showNeighbors();
-              else roomHud?.set(text[status]);
+              else {
+                roomHud?.set(text[status]);
+                avatar.setRoomColor();
+                identity = '';
+              }
               ui.showNotice(text[status], true);
             },
             (snapshot) => {
@@ -560,7 +573,11 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
               if (before !== remotes.count) showNeighbors();
             },
             true,
-            (spawn) => camera.placeAtRoomEntrance(spawn),
+            (spawn, id) => {
+              camera.placeAtRoomEntrance(spawn);
+              avatar.setRoomColor(id);
+              identity = `${companionColor(id).name} #${id} · `;
+            },
           );
         })
       : undefined;

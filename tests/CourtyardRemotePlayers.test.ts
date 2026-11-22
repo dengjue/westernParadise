@@ -1,4 +1,4 @@
-import { Group, Mesh, SphereGeometry } from 'three';
+import { Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
 import { MULTIPLAYER } from '@/01-shared';
 import { CourtyardRemotePlayers } from '@/07-systems';
@@ -16,6 +16,39 @@ function setup(reducedMotion = false) {
 }
 
 describe('courtyard remote players', () => {
+  it('联机角色按编号配色；相同色号共享材质，不修改本地身体', () => {
+    const scene = new Group(),
+      template = new Group();
+    const body = new Mesh(new SphereGeometry(), new MeshStandardMaterial());
+    body.name = 'player-body';
+    template.add(body);
+    const remote = new CourtyardRemotePlayers(scene, template, false, true);
+    remote.apply(
+      {
+        type: 'snapshot',
+        tick: 1,
+        removed: [],
+        changed: ['1', '2', '7'].map((id) => ({ id, ...MULTIPLAYER.spawn })),
+      },
+      0,
+    );
+    const coat = (id: string) =>
+      (
+        scene.getObjectByName(`remote-player-${id}`)!.getObjectByName('player-body') as Mesh<
+          typeof body.geometry,
+          MeshStandardMaterial
+        >
+      ).material;
+    expect(coat('1')).toBe(coat('7'));
+    expect(coat('1').color.getHex()).not.toBe(coat('2').color.getHex());
+    expect(body.material.color.getHex()).toBe(0xffffff);
+    let disposed = 0;
+    coat('1').addEventListener('dispose', () => disposed++);
+    remote.dispose();
+    expect(disposed).toBe(1);
+    body.geometry.dispose();
+    body.material.dispose();
+  });
   it('步行扫掠阻止迎面穿过，允许侧移、退出重叠、从空中角色下方通过', () => {
     const { remote, player } = setup();
     const { x, y, z } = player;

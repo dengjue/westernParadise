@@ -45,3 +45,17 @@ export const LAND_AVATAR = Object.freeze({
 } as const);
 
 export type LandAvatarConfig = typeof LAND_AVATAR;
+
+// 临时编号在当前房间内唯一，颜色循环用于辨认同伴，不作为身份标识。
+const COMPANION_COLORS = [
+  { name: '松青', hex: 0x477d71 },
+  { name: '赭红', hex: 0xb16655 },
+  { name: '靛蓝', hex: 0x557da7 },
+  { name: '秋金', hex: 0xb19450 },
+  { name: '藤紫', hex: 0x93799e },
+  { name: '竹绿', hex: 0x839055 },
+] as const;
+
+export function companionColor(id: string) {
+  return COMPANION_COLORS[(Number(id) - 1) % COMPANION_COLORS.length]!;
+}

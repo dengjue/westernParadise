@@ -1,6 +1,6 @@
 import { CapsuleGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
 import type { Object3D, Vector3 } from 'three';
-import { LAND_AVATAR } from '@/01-shared';
+import { LAND_AVATAR, companionColor } from '@/01-shared';
 import { shortestAngle } from './turn';
 
 const FULL_TURN = Math.PI * 2;
@@ -40,6 +40,12 @@ export class LandAvatar {
 
   setVisible(visible: boolean): void {
     this.root.visible = visible;
+  }
+
+  setRoomColor(id?: string): void {
+    const body = this.root.getObjectByName('player-body');
+    if (body instanceof Mesh && body.material instanceof MeshStandardMaterial)
+      body.material.color.setHex(id ? companionColor(id).hex : LAND_AVATAR.bodyColor);
   }
 
   /** 从场景移除并释放此角色独占的几何与材质；重复调用安全。 */

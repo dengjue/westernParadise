@@ -1,7 +1,7 @@
-import { Group } from 'three';
+import { Group, Mesh, MeshStandardMaterial } from 'three';
 import type { Object3D, Vector3 } from 'three';
 import type { MultiplayerPlayer, MultiplayerSnapshot } from '@/00-types';
-import { LAND_PEERS, MULTIPLAYER } from '@/01-shared';
+import { LAND_PEERS, MULTIPLAYER, companionColor } from '@/01-shared';
 import { shortestAngle } from './turn';
 
 interface RemotePlayer {
@@ -17,6 +17,7 @@ interface RemotePlayer {
 export class CourtyardRemotePlayers {
   private readonly group = new Group();
   private readonly players = new Map<string, RemotePlayer>();
+  private readonly coats = new Map<number, MeshStandardMaterial>();
 
   get count(): number {
     return this.players.size;
@@ -48,6 +49,7 @@ export class CourtyardRemotePlayers {
     parent: Object3D,
     private readonly template: Group,
     private readonly reducedMotion: boolean,
+    private readonly roomColors = false,
   ) {
     this.group.name = 'courtyard-remote-players';
     parent.add(this.group);
@@ -71,6 +73,17 @@ export class CourtyardRemotePlayers {
         continue;
       }
       const model = this.template.clone();
+      const body = this.roomColors ? model.getObjectByName('player-body') : null;
+      if (body instanceof Mesh && body.material instanceof MeshStandardMaterial) {
+        const { hex } = companionColor(target.id);
+        let coat = this.coats.get(hex);
+        if (!coat) {
+          coat = body.material.clone() as MeshStandardMaterial;
+          coat.color.setHex(hex);
+          this.coats.set(hex, coat);
+        }
+        body.material = coat;
+      }
       model.visible = true;
       model.name = `remote-player-${target.id}`;
       model.traverse((node) => {
@@ -118,6 +131,8 @@ export class CourtyardRemotePlayers {
 
   dispose(): void {
     this.clear();
+    for (const coat of this.coats.values()) coat.dispose();
+    this.coats.clear();
     this.group.removeFromParent();
   }
 }
