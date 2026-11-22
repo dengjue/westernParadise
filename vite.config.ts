@@ -16,9 +16,15 @@ const SINGLE_INLINE_LIMIT_BYTES = 100 * 1024 * 1024;
 
 export default defineConfig(({ mode }) => {
   const single = mode === 'single';
+  const multiplayer = mode === 'multiplayer';
+  const lanOrigin = process.env.COURTYARD_DEPLOY_ORIGIN;
+  if (multiplayer && !lanOrigin) throw new Error('COURTYARD_DEPLOY_ORIGIN is required');
 
   return {
     base: './',
+    define: multiplayer
+      ? { 'import.meta.env.COURTYARD_LAN_ORIGIN': JSON.stringify(lanOrigin) }
+      : {},
     assetsInclude: ['**/*.gz', '**/*.gz?inline'],
     resolve: {
       alias: {
@@ -26,11 +32,11 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      outDir: single ? 'dist/single' : 'dist/site',
+      outDir: multiplayer ? 'dist/multiplayer' : single ? 'dist/single' : 'dist/site',
       emptyOutDir: true,
       target: 'es2022',
       // 单文件产物不带 source map：既是体积考虑，也避免生成额外 .map 文件形成外链。
-      sourcemap: !single,
+      sourcemap: !single && !multiplayer,
       cssCodeSplit: !single,
       assetsInlineLimit: single ? SINGLE_INLINE_LIMIT_BYTES : 4096,
       // three 单独分包约 534 kB，是有意设计（便于浏览器长期缓存），

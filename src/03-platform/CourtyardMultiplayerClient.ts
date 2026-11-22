@@ -4,10 +4,17 @@ import { parseMultiplayerServerMessage } from '@/02-core';
 
 export type CourtyardMultiplayerStatus = 'connecting' | 'online' | 'room-full' | 'offline';
 
-/** 固定连接本机开发端点，禁止由 URL 参数指定第三方服务器。 */
-export function courtyardMultiplayerUrl(search: string, origin: string): string | null {
-  if (!MULTIPLAYER_ENDPOINT.allowedOrigins.some((value) => value === origin)) return null;
+/** 局域网模式走页面同源代理，普通开发模式仍走固定回环端点。 */
+export function courtyardMultiplayerUrl(
+  search: string,
+  origin: string,
+  lanOrigin?: string,
+): string | null {
   if (new URLSearchParams(search).get('multiplayer') !== '1') return null;
+  if (lanOrigin && origin === lanOrigin && origin.startsWith('http://')) {
+    return `ws://${new URL(origin).host}${MULTIPLAYER_ENDPOINT.path}`;
+  }
+  if (!MULTIPLAYER_ENDPOINT.allowedOrigins.some((value) => value === origin)) return null;
   const { host, port, path } = MULTIPLAYER_ENDPOINT;
   return `ws://${host}:${port}${path}`;
 }

@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import type { RequestListener } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { MULTIPLAYER, MULTIPLAYER_ENDPOINT } from '@/01-shared';
 import { MultiplayerRoom } from '@/02-core';
@@ -15,20 +16,32 @@ interface Connection {
   alive: boolean;
 }
 
-/** 独立的本机开发服务；不会进入 Vite 客户端或离线产物。 */
-export function createMultiplayerServer(options: { capacity?: number } = {}) {
+/** 默认独立监听回环；静态测试站可显式在同一个私网 HTTP 端口接收联机。 */
+export function createMultiplayerServer(
+  options: {
+    capacity?: number;
+    lanOrigin?: string;
+    site?: { host: string; request: RequestListener };
+  } = {},
+) {
   const room = new MultiplayerRoom(() => performance.now(), options.capacity);
   const connections = new Map<string, Connection>();
-  const server = createServer((_request, response) => {
-    response.writeHead(404).end();
-  });
+  const server = createServer(
+    options.site?.request ??
+      ((_request, response) => {
+        response.writeHead(404).end();
+      }),
+  );
   const wss = new WebSocketServer({
     server,
     path: MULTIPLAYER_LOCAL.path,
     maxPayload: MULTIPLAYER_LOCAL.maxMessageBytes,
     perMessageDeflate: false,
     verifyClient: ({ origin }: { origin?: string }) =>
-      MULTIPLAYER_LOCAL.allowedOrigins.some((value) => value === origin),
+      options.site
+        ? origin !== undefined && origin === options.lanOrigin
+        : MULTIPLAYER_LOCAL.allowedOrigins.some((value) => value === origin) ||
+          (options.lanOrigin !== undefined && origin === options.lanOrigin),
   });
 
   const release = (id: string): void => {
@@ -103,11 +116,10 @@ export function createMultiplayerServer(options: { capacity?: number } = {}) {
   heartbeat.unref();
 
   return {
-    // 不接收 host 参数，防止把开发服务意外暴露到局域网或公网。
     listen(port: number = MULTIPLAYER_LOCAL.port): Promise<number> {
       return new Promise((resolve, reject) => {
         server.once('error', reject);
-        server.listen(port, MULTIPLAYER_LOCAL.host, () => {
+        server.listen(port, options.site?.host ?? MULTIPLAYER_LOCAL.host, () => {
           server.off('error', reject);
           const address = server.address();
           if (address && typeof address !== 'string') resolve(address.port);

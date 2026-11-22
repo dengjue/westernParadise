@@ -3,6 +3,7 @@ import { WORLD } from './world';
 export const MULTIPLAYER_ENDPOINT = /* @__PURE__ */ Object.freeze({
   host: '127.0.0.1',
   port: 8787,
+  webPort: 5173,
   path: '/multiplayer',
   allowedOrigins: /* @__PURE__ */ Object.freeze(['http://127.0.0.1:5173', 'http://localhost:5173']),
 });

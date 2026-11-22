@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "vite",
     "dev:multiplayer": "tsx src/99-boot/multiplayerLocal.ts",
+    "dev:multiplayer:lan": "tsx src/99-boot/multiplayerLan.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -22,6 +23,7 @@
     "check:content": "node scripts/check-content.mjs",
     "build:land-pmrem": "node scripts/prepare-land-pmrem-atlas.mjs",
     "build": "vite build",
+    "build:multiplayer": "vite build --mode multiplayer && esbuild src/99-boot/multiplayerSite.ts --bundle --platform=node --target=node22 --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=dist/multiplayer/server.mjs",
     "build:single": "vite build --mode single",
     "verify:single": "node scripts/verify-single.mjs",
     "verify": "npm run typecheck && npm run check:layers && npm run check:content && npm run lint && npm run format:check && npm run test && npm run build && npm run build:single && npm run verify:single"
@@ -34,6 +36,7 @@
     "@types/node": "^26.6.6",
     "@types/three": "^0.187.0",
     "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.14.0",

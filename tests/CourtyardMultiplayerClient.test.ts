@@ -55,6 +55,16 @@ describe('courtyard multiplayer client', () => {
     expect(courtyardMultiplayerUrl('?multiplayer=1', 'http://localhost:4173')).toBeNull();
   });
 
+  it('uses the same host and port only for the configured LAN origin', () => {
+    const origin = 'http://192.168.100.27:5173';
+    expect(courtyardMultiplayerUrl('?multiplayer=1', origin, origin)).toBe(
+      'ws://192.168.100.27:5173/multiplayer',
+    );
+    expect(courtyardMultiplayerUrl('?multiplayer=1', origin)).toBeNull();
+    expect(courtyardMultiplayerUrl('?multiplayer=1', `${origin}0`, origin)).toBeNull();
+    expect(courtyardMultiplayerUrl('?server=example.test', origin, origin)).toBeNull();
+  });
+
   it('waits for welcome and sends changed poses no faster than the network tick', () => {
     const { client, status, socket } = connect();
     const fromSpawn = { ...MULTIPLAYER.spawn, x: 0.2 };

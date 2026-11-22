@@ -69,6 +69,7 @@ npm run dev
 |---|---|
 | `npm run dev` | 启动本地开发服务器 |
 | `npm run dev:multiplayer` | 启动仅监听本机的多人 WebSocket 服务 |
+| `npm run dev:multiplayer:lan -- <私网 IPv4>` | 启动局域网联机测试入口 |
 | `npm run test` | 运行自动化测试 |
 | `npm run verify` | 运行完整检查与构建 |
 | `npm run build` | 构建多文件站点到 `dist/site/` |
@@ -79,6 +80,18 @@ npm run dev
 ### 本机双人庭院
 
 分别在两个终端运行 `npm run dev:multiplayer` 和 `npm run dev -- --host 127.0.0.1 --port 5173 --strictPort`，然后用两个标签页打开 [联机庭院](http://127.0.0.1:5173/?scene=courtyard&multiplayer=1)。一边用 WASD 走出几步，切到另一边即可看到远端角色。两个角色初始在同一个出生点；关闭一个页面会让对应角色消失。该入口仅用于本机开发，默认站点和离线单文件不会联机。
+
+### 局域网联机
+
+在服务器上运行 `npm run dev:multiplayer:lan -- <服务器的私网 IPv4>`（不要输入尖括号），再用同一局域网的设备打开终端打印的地址。只需开放指定网卡的 TCP `5173` 给可信局域网，不需要开放房间服务端口或做公网端口映射。此入口未加密、无身份认证，测试结束后按 Ctrl+C 关闭。
+
+### 独立局域网测试服（qu3）
+
+开发机运行 `bash scripts/deploy-multiplayer.sh`，自动检查、构建、经 SSH 上传到 `qu3`、切换版本并检查 HTTP 和联机握手。首次部署会安装用户目录内的已校验 Node.js 运行时；部署失败会恢复上一版。有在线玩家时，重启会让他们断开。
+
+**主体验**：[精修极乐世界](http://192.168.100.25:5173/) · [第三人称大世界](http://192.168.100.25:5173/?cam=third)。这两个入口目前为单机。另有[早期小庭院联机原型](http://192.168.100.25:5173/?scene=courtyard&multiplayer=1)，仅用于验证同步，不代表主场景画质。
+
+服务器只在这个私网地址运行静态站点和房间服务，不运行 Vite。问题排查：`ssh qu3 'journalctl --user -u western-paradise-test.service -n 30 --no-pager'`。服务随 `dj` 的用户服务管理器启动；若主机重启后没有用户登录且未开启 linger，不会无人值守启动。本脚本不修改该系统设置。
 
 ## 从哪里了解更多
 

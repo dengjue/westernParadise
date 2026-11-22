@@ -221,9 +221,14 @@ function start(): () => void {
 
   const statusText = `画质 ${decision.tier} · ${decision.reason}${params.bench ? ' · 基准模式' : ''}`;
   ui.setStatus(statusText);
-  // 构建产物完全移除联机入口；开发时也要求明确开启且来源是本机默认开发端口。
-  const multiplayerUrl = import.meta.env.DEV
-    ? courtyardMultiplayerUrl(window.location.search, window.location.origin)
+  // 普通站点与离线单文件不启用联机；开发或独立测试站仍须显式开启并匹配配置来源。
+  const multiplayerEnabled = import.meta.env.DEV || import.meta.env.MODE === 'multiplayer';
+  const multiplayerUrl = multiplayerEnabled
+    ? courtyardMultiplayerUrl(
+        window.location.search,
+        window.location.origin,
+        import.meta.env.COURTYARD_LAN_ORIGIN,
+      )
     : null;
   let multiplayerStatus: CourtyardMultiplayerStatus | undefined;
   const remotePlayers = multiplayerUrl
@@ -248,7 +253,7 @@ function start(): () => void {
     onStep: (deltaMs) => {
       followCamera.updateControls();
       // 握手完毕前保持在共用出生点，以免第一条位置被房间的速度预算拒绝。
-      if (!import.meta.env.DEV || multiplayerStatus !== 'connecting') {
+      if (!multiplayerEnabled || multiplayerStatus !== 'connecting') {
         character.update(deltaMs, input, followCamera.yaw);
       }
       followCamera.updateFollow(deltaMs, character.position);
@@ -258,7 +263,7 @@ function start(): () => void {
       }
     },
     onRender: () => {
-      if (import.meta.env.DEV && multiplayerStatus === 'online') {
+      if (multiplayerEnabled && multiplayerStatus === 'online') {
         const now = performance.now();
         multiplayer?.update(now, character.position, character.yaw);
         remotePlayers?.update(now);
