@@ -5,6 +5,7 @@ interface LandUiOptions {
   events: EventBusLike<AppEventMap>;
   capabilities: Capabilities;
   quality: QualityTier;
+  onQualityChoice: (tier: QualityTier) => void;
   time: TimeOfDayId;
   noAudio: boolean;
   thirdPerson: boolean;
@@ -143,8 +144,12 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     quality.append(option);
   }
   quality.addEventListener('change', () => {
+    const chosen = quality.value as QualityTier;
+    if (!Object.hasOwn(LAND_QUALITY, chosen)) return;
+    options.onQualityChoice(chosen);
     const url = new URL(window.location.href);
-    url.searchParams.set('q', quality.value);
+    url.searchParams.delete('q');
+    url.searchParams.set('quality', chosen);
     url.searchParams.set('tod', currentTime);
     window.location.href = url.href;
   });

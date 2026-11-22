@@ -22,7 +22,6 @@ import {
   readStoredQuality,
   resolveStorage,
   selectQuality,
-  writeStoredQuality,
 } from '@/03-platform';
 import type { CourtyardMultiplayerStatus } from '@/03-platform';
 import { createSceneContext, Loop } from '@/04-engine';
@@ -104,7 +103,6 @@ function start(): () => void {
   const storage = resolveStorage();
   const decision = selectQuality(params, capabilities, readStoredQuality(storage));
   const profile = QUALITY_PROFILES[decision.tier];
-  writeStoredQuality(storage, decision.tier);
 
   // ── 2. 基础设施 ───────────────────────────────────────────────────
   const logger = new Logger(params.debug ? 'debug' : 'info', 'boot');

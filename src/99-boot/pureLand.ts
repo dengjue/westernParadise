@@ -133,7 +133,6 @@ export function startPureLand(): () => void {
   const storage = resolveStorage();
   const storedQuality = readStoredQuality(storage);
   const decision = selectQuality(params, capabilities, storedQuality);
-  if (params.quality !== null) writeStoredQuality(storage, decision.tier);
   const adaptive = new AdaptiveRenderBudget(params.quality !== null || storedQuality !== null);
   const profile = {
     ...QUALITY_PROFILES[decision.tier],
@@ -147,6 +146,7 @@ export function startPureLand(): () => void {
   const events = new EventBus<AppEventMap>();
   const thirdPerson = params.cam === 'third';
   const ui = mountPureLandUi(root, {
+    onQualityChoice: (tier) => writeStoredQuality(storage, tier),
     events,
     capabilities,
     quality: decision.tier,
