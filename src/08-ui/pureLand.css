@@ -353,6 +353,10 @@
 .land-app .land-flight-toggle:hover {
   background: rgb(16 45 38 / 72%);
 }
+/* 自测页固定机位，不显示坐标卡，避免竖屏时挡住结果。 */
+.land-app:has(.land-crowd-check) .land-navigation-hud {
+  display: none;
+}
 .land-navigation-hud {
   position: fixed;
   z-index: 11;
