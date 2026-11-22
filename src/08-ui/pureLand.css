@@ -411,7 +411,9 @@
   display: grid;
   gap: 4px;
 }
-.land-room-target {
+.land-room-target,
+.land-stop-target,
+.land-app .land-stop-next {
   max-width: 100%;
   min-height: 44px;
   pointer-events: auto;
