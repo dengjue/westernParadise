@@ -23,6 +23,20 @@ export class CourtyardRemotePlayers {
     return this.players.size;
   }
 
+  /** 只扫描当前兴趣范围内的角色，按水平距离选择；同距保留较小编号。 */
+  nearestTo(x: number, z: number): MultiplayerPlayer | undefined {
+    let nearest: MultiplayerPlayer | undefined;
+    let best = Infinity;
+    for (const { target } of this.players.values()) {
+      const d = (target.x - x) ** 2 + (target.z - z) ** 2;
+      if (d < best || (nearest && d === best && Number(target.id) < Number(nearest.id))) {
+        best = d;
+        nearest = target;
+      }
+    }
+    return nearest;
+  }
+
   /** 对本地分轴小步做扫掠检查，允许从重叠处退出；不改写他人位置。 */
   readonly allowsGroundStep = (
     x: number,

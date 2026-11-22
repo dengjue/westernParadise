@@ -392,19 +392,28 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     viewport,
     mountRoomStatus(onRetry: () => void) {
       const row = el('div', 'land-room-status');
+      const nearby = el('div', 'land-room-nearest');
+      nearby.hidden = true;
       row.setAttribute('role', 'status');
       const retry = button('land-room-retry', '回入口重连');
       retry.hidden = true;
       retry.addEventListener('click', onRetry);
-      navigationHud.append(row, retry);
+      navigationHud.append(row, nearby, retry);
       return {
         set(text: string, canRetry = false) {
           if (row.textContent !== text) row.textContent = text;
           retry.hidden = !canRetry;
         },
+        nearest(text: string) {
+          if (nearby.textContent !== text) {
+            nearby.textContent = text;
+            nearby.hidden = !text;
+          }
+        },
         dispose() {
           retry.removeEventListener('click', onRetry);
           retry.remove();
+          nearby.remove();
           row.remove();
         },
       };

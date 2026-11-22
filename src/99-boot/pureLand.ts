@@ -2,6 +2,7 @@ import type { AppEventMap } from '@/00-types';
 import {
   COPY,
   companionColor,
+  companionHint,
   LAND_JOURNEY,
   LAND_RENDER,
   LAND_SOUND,
@@ -534,6 +535,15 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     : null;
   let identity = '';
   const showNeighbors = () => roomHud?.set(`已联机 · ${identity}附近 ${remotes?.count ?? 0} 人`);
+  // 复用导航的低频事件；不为 HUD 额外启动定时器或在每一帧扫描。
+  const offCompanionHint =
+    endpoint && remotes && roomHud
+      ? events.on('land:navigation', (info) => {
+          if (!online) return;
+          const nearest = remotes.nearestTo(info.x, info.z);
+          roomHud.nearest(nearest ? companionHint(nearest, info) : '');
+        })
+      : undefined;
   const frameCheck =
     endpoint && new URLSearchParams(location.search).get('framecheck') === '1'
       ? mountLandFrameCheck(ui.viewport, decision.tier)
@@ -544,6 +554,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     joining = false;
     online = false;
     roomHud?.set('');
+    roomHud?.nearest('');
     if (identity) avatar?.setRoomColor();
     identity = '';
     frameCheck?.reset();
@@ -574,6 +585,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
               };
               if (online) showNeighbors();
               else {
+                roomHud?.nearest('');
                 roomHud?.set(text[status], status === 'offline' || status === 'room-full');
                 avatar.setRoomColor();
                 identity = '';
@@ -583,6 +595,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
             (snapshot) => {
               const before = remotes.count;
               remotes.apply(snapshot, performance.now());
+              if (snapshot.removed.length) roomHud?.nearest('');
               if (before !== remotes.count) showNeighbors();
             },
             true,
@@ -753,6 +766,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     releaseAll([
       () => loop.stop(),
       () => offRoom?.(),
+      () => offCompanionHint?.(),
       leaveRoom,
       () => roomHud?.dispose(),
       () => crowdCheck?.dispose(),

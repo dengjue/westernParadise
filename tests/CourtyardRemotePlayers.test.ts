@@ -1,6 +1,6 @@
 import { Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
-import { MULTIPLAYER } from '@/01-shared';
+import { MULTIPLAYER, companionHint } from '@/01-shared';
 import { CourtyardRemotePlayers } from '@/07-systems';
 
 function setup(reducedMotion = false) {
@@ -16,6 +16,19 @@ function setup(reducedMotion = false) {
 }
 
 describe('courtyard remote players', () => {
+  it('仅导航到已知最近伙伴，随观察方向、高差和离场更新', () => {
+    const { remote, player } = setup();
+    const observer = { x: 0, y: 0, z: 0, headingDeg: 0 };
+    const east = { ...player, id: '2', x: 3, y: 42, z: 0 };
+    remote.apply({ type: 'snapshot', tick: 2, removed: [], changed: [east] }, 0);
+    expect(remote.nearestTo(0, 0)).toEqual(east);
+    expect(companionHint(east, observer)).toContain('右侧 3 m · 高 42 m');
+    expect(companionHint(east, { ...observer, headingDeg: 90 })).toContain('前方 3 m');
+    expect(companionHint(east, { ...observer, x: 3, y: 50 })).toContain('近旁 0 m · 低 8 m');
+    remote.apply({ type: 'snapshot', tick: 3, removed: ['1', '2'], changed: [] }, 0);
+    expect(remote.nearestTo(0, 0)).toBeUndefined();
+    remote.dispose();
+  });
   it('联机角色按编号配色；相同色号共享材质，不修改本地身体', () => {
     const scene = new Group(),
       template = new Group();

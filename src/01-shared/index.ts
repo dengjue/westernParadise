@@ -25,6 +25,7 @@ export { LAND_RENDER, LAND_RENDER_QUALITY } from './landRender';
 export { LAND_ATMOSPHERE, LAND_LIGHT_QUALITY, LAND_PMREM_ATLAS, LAND_TIMES } from './landLighting';
 export { LAND_JOURNEY } from './landJourney';
 export { LAND_AVATAR, companionColor } from './landAvatar';
+export { companionHint } from './companionHint';
 export { LAND_FLIGHT, LAND_NAVIGATION } from './landFlight';
 export { LAND_REGION_SURFACE_HEIGHT, LAND_WORLD } from './landRegions';
 export { LAND_SOUND } from './landSound';
