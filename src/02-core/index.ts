@@ -43,6 +43,7 @@ export type { LandCellResourceScopeSnapshot } from './landCellResourceScope';
 export type { LandRegion } from './landRegions';
 export type { LandNavigationInfo } from './landNavigationInfo';
 export { MultiplayerRoom } from './MultiplayerRoom';
+export { parseMultiplayerServerMessage } from './multiplayerProtocol';
 export type {
   GardenPoint,
   GardenTree,

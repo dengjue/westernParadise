@@ -24,6 +24,13 @@ const GUIDE_COPY = Object.freeze({
   }),
 } as const);
 
+export const COURTYARD_MULTIPLAYER_COPY = /* @__PURE__ */ Object.freeze({
+  connecting: '正在加入联机…',
+  online: '庭院联机已连接',
+  'room-full': '房间已满，继续单人漫游',
+  offline: '联机不可用，继续单人漫游',
+});
+
 export const COPY = Object.freeze({
   loading: '正在准备空间…',
   noWebgl: '当前浏览器不支持 WebGL，无法运行 3D 场景。请更换浏览器或开启硬件加速。',

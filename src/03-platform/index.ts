@@ -7,3 +7,5 @@ export { readStoredQuality, writeStoredQuality, resolveStorage } from './storage
 export type { KeyValueStore } from './storage';
 export { AmbientAudio } from './AmbientAudio';
 export type { AmbientAudioOptions } from './AmbientAudio';
+export { CourtyardMultiplayerClient, courtyardMultiplayerUrl } from './CourtyardMultiplayerClient';
+export type { CourtyardMultiplayerStatus } from './CourtyardMultiplayerClient';

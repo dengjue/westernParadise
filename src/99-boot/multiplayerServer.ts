@@ -1,13 +1,10 @@
 import { createServer } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { MULTIPLAYER } from '@/01-shared';
+import { MULTIPLAYER, MULTIPLAYER_ENDPOINT } from '@/01-shared';
 import { MultiplayerRoom } from '@/02-core';
 
 export const MULTIPLAYER_LOCAL = Object.freeze({
-  host: '127.0.0.1',
-  port: 8787,
-  path: '/multiplayer',
-  allowedOrigins: Object.freeze(['http://127.0.0.1:5173', 'http://localhost:5173']),
+  ...MULTIPLAYER_ENDPOINT,
   maxMessageBytes: 512,
   maxQueuedBytes: 32 * 1024,
   heartbeatMs: 15_000,

@@ -25,3 +25,4 @@ export type {
 export { LandCamera, sampleLandHeight } from './LandCamera';
 export type { LandCameraOptions } from './LandCamera';
 export { LandAvatar } from './LandAvatar';
+export { CourtyardRemotePlayers } from './CourtyardRemotePlayers';

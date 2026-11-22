@@ -9,7 +9,7 @@ export {
   SINGLE_FILE_HARD_LIMIT_BYTES,
 } from './config';
 export { AUDIO } from './audio';
-export { COPY } from './copy';
+export { COPY, COURTYARD_MULTIPLAYER_COPY } from './copy';
 export { MATERIALS } from './materials';
 export { WORLD } from './world';
 export { DEFAULT_TIME_OF_DAY_ID, TIME_OF_DAY_PRESETS } from './timeOfDay';
@@ -36,4 +36,4 @@ export {
   LAND_RAILINGS,
 } from './landLayout';
 export type { LandBuilding } from './landLayout';
-export { MULTIPLAYER } from './multiplayer';
+export { MULTIPLAYER, MULTIPLAYER_ENDPOINT } from './multiplayer';

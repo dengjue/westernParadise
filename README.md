@@ -68,13 +68,17 @@ npm run dev
 | 命令 | 用途 |
 |---|---|
 | `npm run dev` | 启动本地开发服务器 |
-| `npm run dev:multiplayer` | 启动仅监听本机的多人 WebSocket 服务（前端尚未接入） |
+| `npm run dev:multiplayer` | 启动仅监听本机的多人 WebSocket 服务 |
 | `npm run test` | 运行自动化测试 |
 | `npm run verify` | 运行完整检查与构建 |
 | `npm run build` | 构建多文件站点到 `dist/site/` |
 | `npm run build:single` | 构建离线单文件到 `dist/single/index.html` |
 
 项目使用 TypeScript、Three.js、Vite 与 Vitest。源码在 `src/`，测试在 `tests/`；编号目录体现单向依赖层级。`dist/`、`reports/` 和 `node_modules/` 是本地产物，不提交到仓库。
+
+### 本机双人庭院
+
+分别在两个终端运行 `npm run dev:multiplayer` 和 `npm run dev -- --host 127.0.0.1 --port 5173 --strictPort`，然后用两个标签页打开 [联机庭院](http://127.0.0.1:5173/?scene=courtyard&multiplayer=1)。一边用 WASD 走出几步，切到另一边即可看到远端角色。两个角色初始在同一个出生点；关闭一个页面会让对应角色消失。该入口仅用于本机开发，默认站点和离线单文件不会联机。
 
 ## 从哪里了解更多
 

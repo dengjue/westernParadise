@@ -1,13 +1,20 @@
 import { WORLD } from './world';
 
-export const MULTIPLAYER = Object.freeze({
+export const MULTIPLAYER_ENDPOINT = /* @__PURE__ */ Object.freeze({
+  host: '127.0.0.1',
+  port: 8787,
+  path: '/multiplayer',
+  allowedOrigins: /* @__PURE__ */ Object.freeze(['http://127.0.0.1:5173', 'http://localhost:5173']),
+});
+
+export const MULTIPLAYER = /* @__PURE__ */ Object.freeze({
   capacity: 30,
   tickMs: 100,
   enterRadius: 18,
   leaveRadius: 22,
   maxNeighbors: 15,
   bounds: WORLD.bounds,
-  spawn: Object.freeze({
+  spawn: /* @__PURE__ */ Object.freeze({
     x: WORLD.spawn.x,
     y: 0,
     z: WORLD.spawn.z,
@@ -21,4 +28,7 @@ export const MULTIPLAYER = Object.freeze({
   moveBurstMs: 350,
   movesPerSecond: 15,
   messageBurst: 3,
+  connectTimeoutMs: 3000,
+  maxSnapshotChars: 8192,
+  maxClientQueueBytes: 512,
 });

@@ -2,6 +2,7 @@ import type { AppEventMap } from '@/00-types';
 import {
   APP,
   COPY,
+  COURTYARD_MULTIPLAYER_COPY,
   GUIDE_ENTRIES,
   QUALITY_PROFILES,
   RENDER,
@@ -14,6 +15,8 @@ import { Clock, EventBus, Logger, Rng, toError } from '@/02-core';
 import {
   detectCapabilities,
   AmbientAudio,
+  CourtyardMultiplayerClient,
+  courtyardMultiplayerUrl,
   parseParams,
   readBrowserEnv,
   readStoredQuality,
@@ -21,10 +24,12 @@ import {
   selectQuality,
   writeStoredQuality,
 } from '@/03-platform';
+import type { CourtyardMultiplayerStatus } from '@/03-platform';
 import { createSceneContext, Loop } from '@/04-engine';
 import { createCourtyardWorld, LightingRig, SkyDome } from '@/06-world';
 import {
   Character,
+  CourtyardRemotePlayers,
   FollowCamera,
   GuideTriggers,
   KeyboardMouseInput,
@@ -214,19 +219,52 @@ function start(): () => void {
   registry.register('lighting', { lightingRig, skyDome });
   registry.freeze();
 
+  const statusText = `画质 ${decision.tier} · ${decision.reason}${params.bench ? ' · 基准模式' : ''}`;
+  ui.setStatus(statusText);
+  // 构建产物完全移除联机入口；开发时也要求明确开启且来源是本机默认开发端口。
+  const multiplayerUrl = import.meta.env.DEV
+    ? courtyardMultiplayerUrl(window.location.search, window.location.origin)
+    : null;
+  let multiplayerStatus: CourtyardMultiplayerStatus | undefined;
+  const remotePlayers = multiplayerUrl
+    ? new CourtyardRemotePlayers(context.scene, character.root, capabilities.reducedMotion)
+    : null;
+  const multiplayer =
+    multiplayerUrl && remotePlayers
+      ? new CourtyardMultiplayerClient(
+          multiplayerUrl,
+          (status) => {
+            multiplayerStatus = status;
+            if (status !== 'online') remotePlayers.clear();
+            ui.setStatus(`${statusText} · ${COURTYARD_MULTIPLAYER_COPY[status]}`);
+          },
+          (snapshot) => remotePlayers.apply(snapshot, performance.now()),
+        )
+      : null;
+
   loop = new Loop({
     clock,
     events,
     onStep: (deltaMs) => {
       followCamera.updateControls();
-      character.update(deltaMs, input, followCamera.yaw);
+      // 握手完毕前保持在共用出生点，以免第一条位置被房间的速度预算拒绝。
+      if (!import.meta.env.DEV || multiplayerStatus !== 'connecting') {
+        character.update(deltaMs, input, followCamera.yaw);
+      }
       followCamera.updateFollow(deltaMs, character.position);
       ambientAudio.update(deltaMs);
       if (!capabilities.reducedMotion) {
         world.update(deltaMs);
       }
     },
-    onRender: () => context.render(),
+    onRender: () => {
+      if (import.meta.env.DEV && multiplayerStatus === 'online') {
+        const now = performance.now();
+        multiplayer?.update(now, character.position, character.yaw);
+        remotePlayers?.update(now);
+      }
+      context.render();
+    },
   });
   const activeLoop = loop;
 
@@ -279,7 +317,6 @@ function start(): () => void {
   });
 
   // ── 6. 用户可见提示 ───────────────────────────────────────────────
-  ui.setStatus(`画质 ${decision.tier} · ${decision.reason}${params.bench ? ' · 基准模式' : ''}`);
   if (capabilities.reducedMotion) {
     ui.showNotice(COPY.reducedMotion);
   } else if (decision.tier === 'low' && params.quality === null) {
@@ -305,6 +342,8 @@ function start(): () => void {
     removeTimeRequest();
     removeWeatherRequest();
     removeBoundsNotice();
+    multiplayer?.dispose();
+    remotePlayers?.dispose();
     guideTriggers.dispose();
     ambientAudio.dispose();
     input.dispose();
