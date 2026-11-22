@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { LAND_NAVIGATION, LAND_STOPS, LAND_TOURS, landStopArrival } from '@/01-shared';
-import { resolveLandNavigation, sampleLandHeight } from '@/02-core';
+import { moveLandPosition, resolveLandNavigation, sampleLandHeight } from '@/02-core';
 
 describe('resolveLandNavigation', () => {
+  it('莲池游线两段都能用步行碰撞算法走完', () => {
+    const tour = LAND_TOURS.find((t) => t.id === 'lotus-tour')!;
+    const [x, z] = tour.stops[0].point;
+    const pos = { x: Number(x), z: Number(z) };
+    for (const {
+      point: [tx, tz],
+    } of tour.stops.slice(1)) {
+      const dx = tx - pos.x,
+        dz = tz - pos.z;
+      const steps = Math.ceil(Math.hypot(dx, dz) / 0.1);
+      for (let i = 0; i < steps; i++) moveLandPosition(pos, dx / steps, dz / steps, true);
+      expect(pos.x).toBeCloseTo(tx, 3);
+      expect(pos.z).toBeCloseTo(tz, 3);
+    }
+  });
   it('西廊转弯前后两段的中间点均在步道上', () => {
     const stops = LAND_TOURS[1].stops;
     for (let i = 1; i < stops.length; i++) {

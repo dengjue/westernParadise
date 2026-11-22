@@ -19,6 +19,9 @@ export const LAND_STOPS = [
   // 转折点靠步道内侧，避开从入口直走时遇到的亭柱。
   { id: 'west-turn', name: '西廊南口', point: [-60, 85] },
   { id: 'grove-walk', name: '宝林西廊', point: LAND_JOURNEY.entries[4] },
+  // 取东廊近池一侧的可通行线，避开中线亭柱。
+  { id: 'east-turn', name: '东廊南口', point: [61.5, 85] },
+  { id: 'lotus-walk', name: '莲池东廊', point: [61.5, 24] },
 ] as const;
 
 export const LAND_TOURS = [
@@ -28,4 +31,5 @@ export const LAND_TOURS = [
     stops: [LAND_STOPS[0], LAND_STOPS[1], LAND_STOPS[2], LAND_STOPS[3]],
   },
   { id: 'grove-tour', name: '西侧宝林', stops: [LAND_STOPS[0], LAND_STOPS[4], LAND_STOPS[5]] },
+  { id: 'lotus-tour', name: '东侧莲池', stops: [LAND_STOPS[0], LAND_STOPS[6], LAND_STOPS[7]] },
 ] as const;
