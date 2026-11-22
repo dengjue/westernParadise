@@ -151,6 +151,12 @@ export function startPureLand(): () => void {
     time: initialTime,
     noAudio: params.noAudio,
     thirdPerson,
+    roomEntry:
+      import.meta.env.MODE === 'multiplayer' && !raw.has('crowdcheck')
+        ? thirdPerson && raw.get('multiplayer') === '1'
+          ? 'join'
+          : 'link'
+        : undefined,
   });
   document.title = '西方极乐世界 · 数字园境共创';
   if (capabilities.webgl === 'none') throw new Error(COPY.noWebgl);

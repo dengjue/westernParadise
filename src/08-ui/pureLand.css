@@ -222,6 +222,16 @@
 .land-enter:hover {
   background: rgb(226 194 140 / 24%);
 }
+.land-room-entry {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-inline-start: 12px;
+  color: var(--land-cream);
+  font-size: 13px;
+  pointer-events: auto;
+  text-underline-offset: 4px;
+}
 .land-settings {
   position: absolute;
   right: 3.6%;

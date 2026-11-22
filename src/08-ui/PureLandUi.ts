@@ -8,6 +8,7 @@ interface LandUiOptions {
   time: TimeOfDayId;
   noAudio: boolean;
   thirdPerson: boolean;
+  roomEntry?: 'link' | 'join';
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -107,9 +108,17 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   const titleEn = el('div', 'land-title-en', PURE_LAND.english);
   const line = el('div', 'land-title-rule');
   const subtitle = el('p', 'land-subtitle', PURE_LAND.subtitle);
-  const enter = button('land-enter', PURE_LAND.copy.enter + '　↗');
+  const enter = button(
+    'land-enter',
+    options.roomEntry === 'join' ? '加入联机游历 ↗' : PURE_LAND.copy.enter + '　↗',
+  );
   enter.addEventListener('click', () => events.emit('land:walk', {}));
   title.append(titleEyebrow, heading, titleEn, line, subtitle, enter);
+  if (options.roomEntry === 'link') {
+    const link = el('a', 'land-room-entry', '与伙伴同游 →');
+    link.href = '/play';
+    title.append(link);
+  }
 
   const settings = el('aside', 'land-settings');
   settings.id = 'land-settings';
