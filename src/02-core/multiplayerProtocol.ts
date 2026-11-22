@@ -5,21 +5,23 @@ import type {
   MultiplayerSnapshot,
   MultiplayerWelcome,
 } from '@/00-types';
-import { MULTIPLAYER } from '@/01-shared';
+import { MULTIPLAYER, LAND_WORLD, LAND_STRUCTURE } from '@/01-shared';
+import { sampleLandHeight } from './landNavigation';
 
 /** 读取未知消息并只返回协议字段；帧大小与编码由传输层先检查。 */
-export function parseMultiplayerMove(value: unknown): MultiplayerMove | null {
+export function parseMultiplayerMove(value: unknown, land = false): MultiplayerMove | null {
   if (!value || typeof value !== 'object') return null;
   const move = value as Partial<Record<keyof MultiplayerMove, unknown>>;
   const { type, seq } = move;
   if (type !== 'move' || !isCounter(seq, 0)) return null;
-  const pose = parsePose(move);
+  const pose = parsePose(move, land);
   return pose ? { type, seq, ...pose } : null;
 }
 
 /** 下行消息先完整验证再应用，避免坏增量污染远端场景。 */
 export function parseMultiplayerServerMessage(
   value: unknown,
+  land = false,
 ): MultiplayerWelcome | MultiplayerSnapshot | null {
   if (typeof value !== 'string' || value.length > MULTIPLAYER.maxSnapshotChars) return null;
   let payload: unknown;
@@ -50,7 +52,7 @@ export function parseMultiplayerServerMessage(
   const removed: string[] = [];
   for (const item of payload.changed as unknown[]) {
     if (!isObject(item) || !isPlayerId(item.id) || ids.has(item.id)) return null;
-    const pose = parsePose(item);
+    const pose = parsePose(item, land);
     if (!pose) return null;
     ids.add(item.id);
     changed.push({ id: item.id, ...pose });
@@ -63,16 +65,27 @@ export function parseMultiplayerServerMessage(
   return { type: 'snapshot', tick: payload.tick, changed, removed };
 }
 
-function parsePose(value: Partial<Record<keyof MultiplayerPose, unknown>>): MultiplayerPose | null {
+function parsePose(
+  value: Partial<Record<keyof MultiplayerPose, unknown>>,
+  land: boolean,
+): MultiplayerPose | null {
   const { x, y, z, yaw } = value;
+  const bounds = land ? LAND_WORLD.prototype.bounds : MULTIPLAYER.bounds;
   if (
-    !inRange(x, MULTIPLAYER.bounds.minX, MULTIPLAYER.bounds.maxX) ||
-    !inRange(y, MULTIPLAYER.minY, MULTIPLAYER.maxY) ||
-    !inRange(z, MULTIPLAYER.bounds.minZ, MULTIPLAYER.bounds.maxZ) ||
+    !inRange(x, bounds.minX, bounds.maxX) ||
+    typeof y !== 'number' ||
+    !Number.isFinite(y) ||
+    !inRange(z, bounds.minZ, bounds.maxZ) ||
     !inRange(yaw, -MULTIPLAYER.maxYaw, MULTIPLAYER.maxYaw)
   ) {
     return null;
   }
+  if (land) {
+    // 本地脚底随台阶平滑升降，不要求浮点高度逐帧等于地面采样值。
+    const floor = sampleLandHeight(x, z, true);
+    if (floor === null || Math.abs(y - floor) > LAND_STRUCTURE.navigation.maximumStep * 2)
+      return null;
+  } else if (!inRange(y, MULTIPLAYER.minY, MULTIPLAYER.maxY)) return null;
   return { x, y, z, yaw };
 }
 

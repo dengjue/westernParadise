@@ -15,11 +15,14 @@ export interface LandCameraOptions {
   readonly reducedMotion: boolean;
   /** 第三人称角色；不传则保持第一人称步行（默认体验，行为与历史版本一致）。 */
   readonly avatar?: LandAvatar;
+  /** 地面联机每次从观览进入游历时使用同一入口。 */
+  readonly sharedEntrance?: boolean;
   /** 遮挡回拉射线检测的对象（通常为场景根）；仅在传入 avatar 时生效。 */
   readonly occluder?: Object3D;
 }
 
 export class LandCamera {
+  private readonly sharedEntrance: boolean;
   private readonly camera: PerspectiveCamera;
   private readonly input: InputSource;
   private readonly events: EventBusLike<AppEventMap>;
@@ -82,6 +85,7 @@ export class LandCamera {
   private readonly clearanceTargets: Object3D[] = [];
 
   constructor(options: LandCameraOptions) {
+    this.sharedEntrance = options.sharedEntrance ?? false;
     this.camera = options.camera;
     this.input = options.input;
     this.events = options.events;
@@ -174,7 +178,7 @@ export class LandCamera {
     this.camera.getWorldDirection(this.offset);
     this.yaw = Math.atan2(this.offset.x, this.offset.z);
     this.pitch = Math.max(-J.pitchLimit, Math.min(J.pitchLimit, Math.asin(this.offset.y)));
-    if (entrance) {
+    if (entrance || this.sharedEntrance) {
       this.position.x = J.entries[0][0];
       this.position.z = J.entries[0][1];
       this.yaw = Math.PI;

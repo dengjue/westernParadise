@@ -24,8 +24,10 @@ export function createMultiplayerServer(
     site?: { host: string; request: RequestListener };
   } = {},
 ) {
-  const room = new MultiplayerRoom(() => performance.now(), options.capacity);
-  const connections = new Map<string, Connection>();
+  const channels = [false, true].map((land) => ({
+    room: new MultiplayerRoom(() => performance.now(), options.capacity, land),
+    connections: new Map<string, Connection>(),
+  }));
   const server = createServer(
     options.site?.request ??
       ((_request, response) => {
@@ -44,12 +46,14 @@ export function createMultiplayerServer(
           (options.lanOrigin !== undefined && origin === options.lanOrigin),
   });
 
-  const release = (id: string): void => {
+  const release = ({ connections, room }: (typeof channels)[number], id: string): void => {
     connections.delete(id);
     room.leave(id);
   };
 
-  wss.on('connection', (socket) => {
+  wss.on('connection', (socket, request) => {
+    const channel = channels[request.url === `${MULTIPLAYER_LOCAL.path}?world=land` ? 1 : 0]!;
+    const { room, connections } = channel;
     // 格式错误、超大报文或网络故障可能先发 error 再发 close，均释放房间席位。
     const admission = room.join();
     if (admission.type === 'rejected') {
@@ -61,15 +65,15 @@ export function createMultiplayerServer(
     const { id } = admission;
     const connection = { socket, alive: true };
     connections.set(id, connection);
-    socket.on('close', () => release(id));
-    socket.on('error', () => release(id));
+    socket.on('close', () => release(channel, id));
+    socket.on('error', () => release(channel, id));
     socket.on('pong', () => {
       connection.alive = true;
     });
     socket.on('message', (data, isBinary) => {
       if (socket.readyState !== WebSocket.OPEN) return;
       if (isBinary) {
-        release(id);
+        release(channel, id);
         socket.close(1003, 'text required');
         return;
       }
@@ -77,7 +81,7 @@ export function createMultiplayerServer(
       try {
         message = JSON.parse(data.toString());
       } catch {
-        release(id);
+        release(channel, id);
         socket.close(1007, 'invalid JSON');
         return;
       }
@@ -87,28 +91,34 @@ export function createMultiplayerServer(
   });
 
   const sync = setInterval(() => {
-    for (const [id, snapshot] of room.collectSnapshots()) {
-      const connection = connections.get(id);
-      if (!connection || connection.socket.readyState !== WebSocket.OPEN) continue;
-      const message = JSON.stringify(snapshot);
-      const { socket } = connection;
-      // 快照是增量，不能丢一帧后继续发送。断开慢连接可避免无限积压，并强制重新入场。
-      if (socket.bufferedAmount + Buffer.byteLength(message) > MULTIPLAYER_LOCAL.maxQueuedBytes) {
-        release(id);
-        socket.terminate();
-        continue;
+    for (const channel of channels) {
+      const { room, connections } = channel;
+      for (const [id, snapshot] of room.collectSnapshots()) {
+        const connection = connections.get(id);
+        if (!connection || connection.socket.readyState !== WebSocket.OPEN) continue;
+        const message = JSON.stringify(snapshot);
+        const { socket } = connection;
+        // 快照是增量，不能丢一帧后继续发送。断开慢连接可避免无限积压，并强制重新入场。
+        if (socket.bufferedAmount + Buffer.byteLength(message) > MULTIPLAYER_LOCAL.maxQueuedBytes) {
+          release(channel, id);
+          socket.terminate();
+          continue;
+        }
+        socket.send(message);
       }
-      socket.send(message);
     }
   }, MULTIPLAYER.tickMs);
   const heartbeat = setInterval(() => {
-    for (const [id, connection] of connections) {
-      if (!connection.alive) {
-        release(id);
-        connection.socket.terminate();
-      } else if (connection.socket.readyState === WebSocket.OPEN) {
-        connection.alive = false;
-        connection.socket.ping();
+    for (const channel of channels) {
+      const { connections } = channel;
+      for (const [id, connection] of connections) {
+        if (!connection.alive) {
+          release(channel, id);
+          connection.socket.terminate();
+        } else if (connection.socket.readyState === WebSocket.OPEN) {
+          connection.alive = false;
+          connection.socket.ping();
+        }
       }
     }
   }, MULTIPLAYER_LOCAL.heartbeatMs);

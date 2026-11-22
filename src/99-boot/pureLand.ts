@@ -12,6 +12,8 @@ import {
 import { AdaptiveRenderBudget, Clock, EventBus } from '@/02-core';
 import {
   AmbientAudio,
+  CourtyardMultiplayerClient,
+  courtyardMultiplayerUrl,
   detectCapabilities,
   parseParams,
   readBrowserEnv,
@@ -35,7 +37,13 @@ import {
   loadLandPmremAtlas,
 } from '@/06-world';
 import type { PureLandWorldOptions } from '@/06-world';
-import { KeyboardMouseInput, LandAvatar, LandCamera, TouchInput } from '@/07-systems';
+import {
+  CourtyardRemotePlayers,
+  KeyboardMouseInput,
+  LandAvatar,
+  LandCamera,
+  TouchInput,
+} from '@/07-systems';
 import { mountPureLandUi } from '@/08-ui';
 import { installDebugProbe, installFatalTrap, markFatal } from '@/98-diagnostics';
 
@@ -462,14 +470,63 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       });
   // 默认第一人称与四景点观览不装配 avatar；第三人称原型才启用角色和遮挡回拉。
   const avatar = params.cam === 'third' ? new LandAvatar(context.scene) : undefined;
+  const endpoint =
+    avatar && (import.meta.env.DEV || import.meta.env.MODE === 'multiplayer')
+      ? courtyardMultiplayerUrl(
+          location.search,
+          location.origin,
+          import.meta.env.COURTYARD_LAN_ORIGIN,
+        )
+      : null;
   const camera = new LandCamera({
     camera: context.camera,
     input,
     events,
     reducedMotion: capabilities.reducedMotion,
     avatar,
+    sharedEntrance: Boolean(endpoint),
     occluder: avatar ? context.scene : undefined,
   });
+  const remotes =
+    endpoint && avatar
+      ? new CourtyardRemotePlayers(context.scene, avatar.root, capabilities.reducedMotion)
+      : null;
+  let peer: CourtyardMultiplayerClient | undefined;
+  let joining = false;
+  const leaveRoom = () => {
+    peer?.dispose();
+    peer = undefined;
+    joining = false;
+    remotes?.clear();
+  };
+  const offRoom =
+    endpoint && avatar && remotes
+      ? events.on('land:state', ({ walking }) => {
+          if (!walking) {
+            leaveRoom();
+            return;
+          }
+          // 降落在其他地点时不从异地冒充出生点；重新进入游历即可加入。
+          const [x, z] = LAND_JOURNEY.entries[0];
+          if (peer || avatar.root.position.x !== x || avatar.root.position.z !== z) return;
+          peer = new CourtyardMultiplayerClient(
+            `${endpoint}?world=land`,
+            (status) => {
+              joining = status === 'connecting';
+              if (status !== 'online') remotes.clear();
+              const text = {
+                connecting: '正在加入大世界地面联机…',
+                online: '已加入大世界地面联机',
+                offline: '联机已断开，继续独自游历',
+                'room-full': '地面房间已满，继续独自游历',
+              };
+              ui.showNotice(text[status], true);
+            },
+            (snapshot) => remotes.apply(snapshot, performance.now()),
+            true,
+          );
+        })
+      : undefined;
   const audio = new AmbientAudio({
     eventTarget: window,
     events,
@@ -488,7 +545,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     clock: new Clock(1000 / 60, 150),
     events,
     onStep: (delta) => {
-      camera.update(delta);
+      if (!joining) camera.update(delta);
       world.update(delta, camera.cellCameraPose);
       audioElapsed += delta;
       if (audioElapsed >= LAND_SOUND.updateMs) {
@@ -499,6 +556,11 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
       audio.update(delta);
     },
     onRender: () => {
+      if (peer && avatar && remotes) {
+        const now = performance.now();
+        peer.update(now, avatar.root.position, avatar.yaw);
+        remotes.update(now);
+      }
       renderer.info.reset();
       world.reflection.beginFrame(elapsedMs);
       telemetry.begin(performance.now());
@@ -604,6 +666,9 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     disposed = true;
     releaseAll([
       () => loop.stop(),
+      () => offRoom?.(),
+      leaveRoom,
+      () => remotes?.dispose(),
       removeTime,
       removeBudget,
       removeTrap,

@@ -4,7 +4,8 @@ import type {
   MultiplayerSnapshot,
   MultiplayerWelcome,
 } from '@/00-types';
-import { MULTIPLAYER } from '@/01-shared';
+import { MULTIPLAYER, LAND_JOURNEY } from '@/01-shared';
+import { sampleLandHeight } from './landNavigation';
 import { parseMultiplayerMove } from './multiplayerProtocol';
 
 interface Session {
@@ -16,7 +17,6 @@ interface Session {
   distanceBudget: number;
 }
 
-const MAX_DISTANCE = (MULTIPLAYER.maxSpeed * MULTIPLAYER.moveBurstMs) / 1000;
 const GRID_SIZE = MULTIPLAYER.leaveRadius;
 
 /**
@@ -28,11 +28,21 @@ export class MultiplayerRoom {
   private nextId = 1;
   private tick = 0;
   private dirty = false;
+  private readonly speed: number;
+  private readonly burstDistance: number;
+  private readonly spawn: MultiplayerPose;
 
   constructor(
     private readonly now: () => number,
     private readonly capacity: number = MULTIPLAYER.capacity,
+    private readonly land = false,
   ) {
+    this.speed = land ? LAND_JOURNEY.walkSpeed * 1.5 : MULTIPLAYER.maxSpeed;
+    this.burstDistance = (this.speed * MULTIPLAYER.moveBurstMs) / 1000;
+    const [x, z] = LAND_JOURNEY.entries[0];
+    this.spawn = land
+      ? { x, z, y: sampleLandHeight(x, z, true)!, yaw: Math.PI }
+      : MULTIPLAYER.spawn;
     if (!Number.isSafeInteger(capacity) || capacity < 1) {
       throw new RangeError('Invalid multiplayer room capacity');
     }
@@ -44,12 +54,12 @@ export class MultiplayerRoom {
     }
     const id = String(this.nextId++);
     this.sessions.set(id, {
-      player: Object.freeze({ id, ...MULTIPLAYER.spawn }),
+      player: Object.freeze({ id, ...this.spawn }),
       seen: new Map(),
       seq: -1,
       sampledAt: this.now(),
       messageBudget: MULTIPLAYER.messageBurst,
-      distanceBudget: MAX_DISTANCE,
+      distanceBudget: this.burstDistance,
     });
     this.dirty = true;
     return { type: 'welcome', id };
@@ -75,14 +85,11 @@ export class MultiplayerRoom {
       MULTIPLAYER.messageBurst,
       session.messageBudget + dt * MULTIPLAYER.movesPerSecond,
     );
-    session.distanceBudget = Math.min(
-      MAX_DISTANCE,
-      session.distanceBudget + dt * MULTIPLAYER.maxSpeed,
-    );
+    session.distanceBudget = Math.min(this.burstDistance, session.distanceBudget + dt * this.speed);
     if (session.messageBudget < 1) return false;
     session.messageBudget -= 1;
 
-    const move = parseMultiplayerMove(payload);
+    const move = parseMultiplayerMove(payload, this.land);
     if (!move || move.seq <= session.seq) return false;
     const player = session.player;
     // 台基的 Y 坐标可能一步切换，水平位移查速度，高度单独查合法范围。

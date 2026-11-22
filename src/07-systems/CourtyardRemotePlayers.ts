@@ -45,9 +45,12 @@ export class CourtyardRemotePlayers {
         continue;
       }
       const model = this.template.clone();
+      model.visible = true;
       model.name = `remote-player-${target.id}`;
       model.traverse((node) => {
         node.castShadow = false;
+        // 其他玩家是视觉节点，不能触发镜头避墙或阻止起飞。
+        node.raycast = ignoreRaycast;
       });
       setPose(model, target);
       this.players.set(target.id, {
@@ -92,6 +95,8 @@ export class CourtyardRemotePlayers {
     this.group.removeFromParent();
   }
 }
+
+function ignoreRaycast(): void {}
 
 function setPose(model: Group, { x, y, z, yaw }: MultiplayerPlayer): void {
   model.position.set(x, y, z);

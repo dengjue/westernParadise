@@ -32,6 +32,7 @@ export class CourtyardMultiplayerClient {
     url: string,
     private readonly onStatus: (status: CourtyardMultiplayerStatus) => void,
     private readonly onSnapshot: (snapshot: MultiplayerSnapshot) => void,
+    private readonly land = false,
   ) {
     onStatus('connecting');
     try {
@@ -92,7 +93,7 @@ export class CourtyardMultiplayerClient {
   }
 
   private readonly receive = (event: MessageEvent<unknown>): void => {
-    const message = parseMultiplayerServerMessage(event.data);
+    const message = parseMultiplayerServerMessage(event.data, this.land);
     if (!message) {
       this.disconnect();
     } else if (message.type === 'welcome' && !this.id) {

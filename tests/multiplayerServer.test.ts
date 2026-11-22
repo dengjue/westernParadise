@@ -33,6 +33,26 @@ function connect(url: string) {
 }
 
 describe('local multiplayer WebSocket', () => {
+  it('keeps land and courtyard seats separate and validates ground-world movement', async () => {
+    const url = await startServer(2);
+    const old = connect(url);
+    expect(await old.next()).toMatchObject({ type: 'welcome' });
+    const a = connect(`${url}?world=land`);
+    const b = connect(`${url}?world=land`);
+    expect(await a.next()).toMatchObject({ type: 'welcome' });
+    expect(await b.next()).toMatchObject({ type: 'welcome' });
+    const first = await a.next();
+    if (first.type !== 'snapshot') throw new Error('Missing land neighbor');
+    const player = first.changed[0]!;
+    expect(first.changed).toHaveLength(1);
+    expect(player.z).toBe(85);
+    b.socket.send(JSON.stringify({ ...player, type: 'move', seq: 1, y: 50 }));
+    b.socket.send(JSON.stringify({ ...player, type: 'move', seq: 1, z: 84.75 }));
+    expect(await a.next()).toMatchObject({ changed: [{ id: player.id, z: 84.75, y: player.y }] });
+    b.socket.close();
+    expect(await a.next()).toMatchObject({ removed: [player.id] });
+  });
+
   it('syncs movement across two sockets, rejects a third, and frees disconnected seats', async () => {
     const url = await startServer(2);
     const a = connect(url);

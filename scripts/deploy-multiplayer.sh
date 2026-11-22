@@ -106,6 +106,7 @@ if systemctl --user restart "$unit"; then
   for attempt in {1..10}; do
     if healthy && systemctl --user enable "$unit"; then
       echo "主体验（单机）：$origin/"
+      echo "精修大世界地面联机：$origin/?cam=third&multiplayer=1"
       echo "早期小庭院联机原型：$origin/?scene=courtyard&multiplayer=1"
       exit 0
     fi
