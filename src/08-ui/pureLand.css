@@ -411,6 +411,19 @@
   display: grid;
   gap: 4px;
 }
+.land-stop-preview summary {
+  min-height: 44px;
+  line-height: 44px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.land-stop-preview ol {
+  margin: 0;
+  padding-inline-start: 2em;
+}
+.land-stop-preview [aria-current='step'] {
+  color: var(--land-gold);
+}
 .land-room-target,
 .land-stop-target,
 .land-app .land-stop-next {

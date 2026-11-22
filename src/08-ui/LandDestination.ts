@@ -21,6 +21,14 @@ export function mountLandDestination() {
   next.className = 'land-stop-next';
   next.hidden = true;
   root.append(label, hint, next);
+  const preview = document.createElement('details');
+  preview.className = 'land-stop-preview';
+  const summary = document.createElement('summary');
+  summary.textContent = '游线站点';
+  const list = document.createElement('ol');
+  preview.append(summary, list);
+  root.append(preview);
+  preview.hidden = true;
   let latest: AppEventMap['land:navigation'] | undefined;
   let near = false;
   let stage = 0,
@@ -56,11 +64,26 @@ export function mountLandDestination() {
     if (next.textContent !== action) next.textContent = action;
     if (hint.textContent !== text) hint.textContent = text;
   }
+  // 名单只在选择或确认站次时重建，不随每次距离更新写入。
+  function refreshPreview() {
+    const tour = LAND_TOURS.find((t) => t.id === selector.value);
+    preview.hidden = !tour;
+    if (!tour) preview.open = false;
+    list.replaceChildren();
+    tour?.stops.forEach((stop, i) => {
+      const item = document.createElement('li');
+      item.textContent = `${stop.name} · ${i < stage ? '已完成' : i === stage ? '当前' : '待游'}`;
+      if (i === stage) item.setAttribute('aria-current', 'step');
+      list.append(item);
+    });
+  }
+  refreshPreview();
   selector.addEventListener('change', () => {
     near = false;
     stage = 0;
     visited = false;
     save();
+    refreshPreview();
     update();
   });
   next.addEventListener('click', () => {
@@ -68,6 +91,7 @@ export function mountLandDestination() {
     if (!tour || !visited || stage >= tour.stops.length) return;
     stage++;
     save();
+    refreshPreview();
     near = visited = false;
     update();
   });
