@@ -187,13 +187,13 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   const closeSettings = (): void => {
     settings.classList.remove('is-open');
     settingsButton.setAttribute('aria-expanded', 'false');
-    touch.hidden = !capabilities.touch || dialog.open;
+    touch.hidden = !capabilities.touch || overlay.hidden || dialog.open;
     events.emit('land:modal', { open: dialog.open });
   };
   settingsButton.addEventListener('click', () => {
     const open = settings.classList.toggle('is-open');
     settingsButton.setAttribute('aria-expanded', String(open));
-    touch.hidden = open || !capabilities.touch;
+    touch.hidden = open || overlay.hidden || !capabilities.touch;
     events.emit('land:modal', { open });
     notice.hidden = true;
   });
@@ -221,6 +221,10 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
     overlay.hidden = hidden;
     restore.hidden = !hidden;
     closeSettings();
+    if (hidden) {
+      clearTimeout(noticeTimer);
+      notice.hidden = true;
+    }
     (hidden ? restore : hideButton).focus({ preventScroll: true });
   }
   hideButton.addEventListener('click', () => hideUi(true));
@@ -270,7 +274,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   });
   dialog.addEventListener('close', () => {
     events.emit('land:modal', { open: false });
-    touch.hidden = !capabilities.touch;
+    touch.hidden = overlay.hidden || !capabilities.touch;
     sourceButton.focus({ preventScroll: true });
   });
   dialog.addEventListener('click', (event) => {
@@ -342,6 +346,7 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
 
   function setNotice(message: string, temporary = false): void {
     clearTimeout(noticeTimer);
+    if (temporary && overlay.hidden) return;
     notice.textContent = message;
     notice.hidden = false;
     if (temporary)
