@@ -5,7 +5,8 @@ interface LandUiOptions {
   events: EventBusLike<AppEventMap>;
   capabilities: Capabilities;
   quality: QualityTier;
-  onQualityChoice: (tier: QualityTier) => void;
+  autoQuality: boolean;
+  onQualityChoice: (tier: QualityTier | null) => void;
   time: TimeOfDayId;
   noAudio: boolean;
   thirdPerson: boolean;
@@ -137,19 +138,27 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
   qualityLabel.append(el('span', '', '画质'));
   const quality = el('select', 'land-quality');
   quality.setAttribute('aria-label', '画质');
+  const autoQuality = el(
+    'option',
+    '',
+    options.autoQuality ? `自动 · ${LAND_QUALITY[options.quality]}` : '自动',
+  );
+  autoQuality.value = 'auto';
+  quality.append(autoQuality);
   for (const tier of Object.keys(LAND_QUALITY) as QualityTier[]) {
     const option = el('option', '', LAND_QUALITY[tier]);
     option.value = tier;
-    option.selected = tier === options.quality;
+    option.selected = !options.autoQuality && tier === options.quality;
     quality.append(option);
   }
   quality.addEventListener('change', () => {
-    const chosen = quality.value as QualityTier;
-    if (!Object.hasOwn(LAND_QUALITY, chosen)) return;
+    const chosen = quality.value === 'auto' ? null : (quality.value as QualityTier);
+    if (chosen !== null && !Object.hasOwn(LAND_QUALITY, chosen)) return;
     options.onQualityChoice(chosen);
     const url = new URL(window.location.href);
     url.searchParams.delete('q');
-    url.searchParams.set('quality', chosen);
+    if (chosen === null) url.searchParams.delete('quality');
+    else url.searchParams.set('quality', chosen);
     url.searchParams.set('tod', currentTime);
     window.location.href = url.href;
   });

@@ -28,12 +28,13 @@ export function readStoredQuality(store: KeyValueStore | null): QualityTier | nu
   }
 }
 
-export function writeStoredQuality(store: KeyValueStore | null, tier: QualityTier): void {
+export function writeStoredQuality(store: KeyValueStore | null, tier: QualityTier | null): void {
   if (!store) {
     return;
   }
   try {
-    store.setItem(QUALITY_KEY, tier);
+    if (tier === null) store.removeItem(QUALITY_KEY);
+    else store.setItem(QUALITY_KEY, tier);
   } catch {
     // 配额满 / 隐私模式：设置不持久化不应影响本次运行。
   }

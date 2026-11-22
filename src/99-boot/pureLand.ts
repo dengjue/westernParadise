@@ -146,6 +146,7 @@ export function startPureLand(): () => void {
   const events = new EventBus<AppEventMap>();
   const thirdPerson = params.cam === 'third';
   const ui = mountPureLandUi(root, {
+    autoQuality: params.quality === null && storedQuality === null,
     onQualityChoice: (tier) => writeStoredQuality(storage, tier),
     events,
     capabilities,
