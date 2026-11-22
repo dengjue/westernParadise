@@ -1,6 +1,6 @@
 import { Raycaster, Vector3 } from 'three';
 import type { Object3D, PerspectiveCamera } from 'three';
-import type { AppEventMap, EventBusLike } from '@/00-types';
+import type { AppEventMap, EventBusLike, MultiplayerPose } from '@/00-types';
 import { LAND_AVATAR, LAND_FLIGHT, LAND_JOURNEY as J, LAND_WORLD, PURE_LAND } from '@/01-shared';
 import { moveLandPosition, resolveLandNavigation, sampleLandHeight } from '@/02-core';
 import type { LandCellCameraPose } from '@/02-core';
@@ -17,12 +17,14 @@ export interface LandCameraOptions {
   readonly avatar?: LandAvatar;
   /** 地面联机每次从观览进入游历时使用同一入口。 */
   readonly sharedEntrance?: boolean;
+  readonly allowsGroundStep?: Parameters<typeof moveLandPosition>[4];
   /** 遮挡回拉射线检测的对象（通常为场景根）；仅在传入 avatar 时生效。 */
   readonly occluder?: Object3D;
 }
 
 export class LandCamera {
   private readonly sharedEntrance: boolean;
+  private readonly allowsGroundStep: LandCameraOptions['allowsGroundStep'];
   private readonly camera: PerspectiveCamera;
   private readonly input: InputSource;
   private readonly events: EventBusLike<AppEventMap>;
@@ -86,6 +88,7 @@ export class LandCamera {
 
   constructor(options: LandCameraOptions) {
     this.sharedEntrance = options.sharedEntrance ?? false;
+    this.allowsGroundStep = options.allowsGroundStep;
     this.camera = options.camera;
     this.input = options.input;
     this.events = options.events;
@@ -217,6 +220,15 @@ export class LandCamera {
     this.emitState();
   }
 
+  /** 握手期间输入尚未放开；同时对齐相机与角色，避免首帧镜头追赶。 */
+  placeAtRoomEntrance(pose: MultiplayerPose): void {
+    if (!this.sharedEntrance || !this.walking || !this.avatar) return;
+    this.position.set(pose.x, pose.y, pose.z);
+    this.yaw = pose.yaw;
+    this.avatar.place(this.position, this.yaw);
+    this.updateThirdPersonArm(0, true);
+  }
+
   update(deltaMs: number): void {
     const dt = Math.min(deltaMs / 1000, J.maxDeltaSeconds);
     const controls = this.input.consumeLookDelta();
@@ -247,7 +259,7 @@ export class LandCamera {
       const dz = (forwardZ * axis.z + forwardX * axis.x) * PURE_LAND.walkSpeed * dt;
       const oldX = this.position.x,
         oldZ = this.position.z;
-      moveLandPosition(this.position, dx, dz, this.avatar !== undefined);
+      moveLandPosition(this.position, dx, dz, this.avatar !== undefined, this.allowsGroundStep);
       const movedX = this.position.x - oldX;
       const movedZ = this.position.z - oldZ;
       this.steps += Math.hypot(movedX, movedZ);

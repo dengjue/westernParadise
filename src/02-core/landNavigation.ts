@@ -76,6 +76,7 @@ export function moveLandPosition(
   dx: number,
   dz: number,
   eastPrototype = false,
+  allowsStep?: (x: number, y: number, z: number, dx: number, dz: number) => boolean,
 ): void {
   const nav = LAND_STRUCTURE.navigation;
   const count = Math.max(1, Math.ceil(Math.hypot(dx, dz) / nav.sweepStep));
@@ -85,11 +86,20 @@ export function moveLandPosition(
     let floor = sampleLandHeight(position.x, position.z, eastPrototype);
     if (floor === null) return;
     const xFloor = sampleLandHeight(position.x + stepX, position.z, eastPrototype);
-    if (xFloor !== null && Math.abs(xFloor - floor) <= nav.maximumStep) {
+    if (
+      xFloor !== null &&
+      Math.abs(xFloor - floor) <= nav.maximumStep &&
+      (!allowsStep || allowsStep(position.x, floor, position.z, stepX, 0))
+    ) {
       position.x += stepX;
       floor = xFloor;
     }
     const zFloor = sampleLandHeight(position.x, position.z + stepZ, eastPrototype);
-    if (zFloor !== null && Math.abs(zFloor - floor) <= nav.maximumStep) position.z += stepZ;
+    if (
+      zFloor !== null &&
+      Math.abs(zFloor - floor) <= nav.maximumStep &&
+      (!allowsStep || allowsStep(position.x, floor, position.z, 0, stepZ))
+    )
+      position.z += stepZ;
   }
 }

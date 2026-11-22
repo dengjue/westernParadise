@@ -32,6 +32,12 @@ export function parseMultiplayerServerMessage(
   }
   if (!isObject(payload)) return null;
   if (payload.type === 'welcome' && isPlayerId(payload.id)) {
+    if (land && payload.spawn !== undefined) {
+      if (!isObject(payload.spawn)) return null;
+      const spawn = parsePose(payload.spawn, true);
+      if (!spawn || spawn.flying) return null;
+      return { type: 'welcome', id: payload.id, spawn };
+    }
     return { type: 'welcome', id: payload.id };
   }
   if (payload.type === 'rejected' && payload.reason === 'room-full') {

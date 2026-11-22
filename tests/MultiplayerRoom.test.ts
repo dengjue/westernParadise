@@ -24,6 +24,19 @@ function move(seq: number, overrides: Partial<MultiplayerMove> = {}): Multiplaye
 }
 
 describe('MultiplayerRoom', () => {
+  it('分配 30 个不同的地面入口点，释放后可复用', () => {
+    const room = new MultiplayerRoom(() => 0, 30, true);
+    const seats = new Set<string>();
+    for (let i = 0; i < 30; i++) {
+      const entry = room.join();
+      if (entry.type !== 'welcome' || !entry.spawn) throw Error('缺少入口位置');
+      seats.add(`${entry.spawn.x},${entry.spawn.z}`);
+    }
+    expect(seats.size).toBe(30);
+    room.leave('1');
+    expect(room.join()).toMatchObject({ type: 'welcome', spawn: { x: 0, z: 85 } });
+  });
+
   it('keeps one observed role through takeoff, cruise, and landing and rejects altitude jumps', () => {
     let now = 0;
     const room = new MultiplayerRoom(() => now, 2, true);

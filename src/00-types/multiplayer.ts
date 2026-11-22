@@ -24,5 +24,5 @@ export interface MultiplayerSnapshot {
 }
 
 export type MultiplayerWelcome =
-  | { readonly type: 'welcome'; readonly id: string }
+  | { readonly type: 'welcome'; readonly id: string; readonly spawn?: MultiplayerPose }
   | { readonly type: 'rejected'; readonly reason: 'room-full' };

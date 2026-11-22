@@ -1,7 +1,7 @@
 import { Group } from 'three';
 import type { Object3D, Vector3 } from 'three';
 import type { MultiplayerPlayer, MultiplayerSnapshot } from '@/00-types';
-import { MULTIPLAYER } from '@/01-shared';
+import { LAND_PEERS, MULTIPLAYER } from '@/01-shared';
 import { shortestAngle } from './turn';
 
 interface RemotePlayer {
@@ -21,6 +21,28 @@ export class CourtyardRemotePlayers {
   get count(): number {
     return this.players.size;
   }
+
+  /** 对本地分轴小步做扫掠检查，允许从重叠处退出；不改写他人位置。 */
+  readonly allowsGroundStep = (
+    x: number,
+    y: number,
+    z: number,
+    dx: number,
+    dz: number,
+  ): boolean => {
+    const length2 = dx * dx + dz * dz;
+    if (!length2) return true;
+    for (const { target, model } of this.players.values()) {
+      if (target.flying || Math.abs(target.y - y) >= LAND_PEERS.height) continue;
+      // 同时保护网络目标和屏幕当前显示的位置，插值期间也不会主动穿入伙伴。
+      if (
+        towardsContact(x - target.x, z - target.z, dx, dz, length2) ||
+        towardsContact(x - model.position.x, z - model.position.z, dx, dz, length2)
+      )
+        return false;
+    }
+    return true;
+  };
 
   constructor(
     parent: Object3D,
@@ -101,6 +123,13 @@ export class CourtyardRemotePlayers {
 }
 
 function ignoreRaycast(): void {}
+
+function towardsContact(rx: number, rz: number, dx: number, dz: number, length2: number): boolean {
+  const dot = rx * dx + rz * dz;
+  if (dot >= 0) return false;
+  const t = Math.min(1, -dot / length2);
+  return (rx + t * dx) ** 2 + (rz + t * dz) ** 2 < LAND_PEERS.distance ** 2;
+}
 
 function setPose(model: Group, { x, y, z, yaw }: MultiplayerPlayer): void {
   model.position.set(x, y, z);

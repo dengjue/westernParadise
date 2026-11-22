@@ -36,4 +36,4 @@ export {
   LAND_RAILINGS,
 } from './landLayout';
 export type { LandBuilding } from './landLayout';
-export { MULTIPLAYER, MULTIPLAYER_ENDPOINT } from './multiplayer';
+export { LAND_PEERS, MULTIPLAYER, MULTIPLAYER_ENDPOINT } from './multiplayer';

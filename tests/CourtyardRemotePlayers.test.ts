@@ -16,6 +16,22 @@ function setup(reducedMotion = false) {
 }
 
 describe('courtyard remote players', () => {
+  it('步行扫掠阻止迎面穿过，允许侧移、退出重叠、从空中角色下方通过', () => {
+    const { remote, player } = setup();
+    const { x, y, z } = player;
+    expect(remote.allowsGroundStep(x, y, z + 1.1, 0, -0.2)).toBe(false);
+    expect(remote.allowsGroundStep(x, y, z + 1.1, 0.15, 0)).toBe(true);
+    expect(remote.allowsGroundStep(x, y, z + 0.2, 0, 0.15)).toBe(true);
+    expect(remote.allowsGroundStep(x, y, z + 2, 0, -4)).toBe(false);
+    remote.apply(
+      { type: 'snapshot', tick: 2, changed: [{ ...player, flying: true, y: 42 }], removed: [] },
+      100,
+    );
+    expect(remote.allowsGroundStep(x, y, z + 1.1, 0, -0.2)).toBe(true);
+    remote.clear();
+    expect(remote.allowsGroundStep(x, y, z + 1.1, 0, -0.2)).toBe(true);
+  });
+
   it('shares render resources, interpolates across the yaw seam and removes departed roles', () => {
     const { scene, mesh, remote, player, model } = setup();
     expect((model.children[0] as Mesh).geometry).toBe(mesh.geometry);

@@ -47,23 +47,26 @@ async function run(count, spread) {
         player.last = now;
         player.snapshots++;
       });
-      await once(ws, 'message');
+      const [welcome] = await once(ws, 'message');
+      player.spawn = JSON.parse(welcome).spawn;
     }
-    const update = (p, x) => {
-      const z = 85;
+    const update = (p, x, z = 85) => {
       const y = sampleLandHeight(x, z, true);
       assert.notEqual(y, null);
       p.ws.send(JSON.stringify({ type: 'move', seq: p.seq++, x, y, z, yaw: 0 }));
     };
     // 分成左右两个相隔 70m 的人群；每人实际走到目标，避免绕开速度校验。
-    if (spread)
-      for (let i = 1; i <= 70; i++) {
+    {
+      const steps = spread ? 70 : 24;
+      for (let i = 1; i <= steps; i++) {
         for (const [index, p] of players.entries()) {
-          p.x = ((index % 2 ? -1 : 1) * i) / 2;
-          update(p, p.x);
+          const dest = spread ? (index % 2 ? -35 : 35) : 0;
+          p.x = p.spawn.x + ((dest - p.spawn.x) * i) / steps;
+          update(p, p.x, p.spawn.z + ((85 - p.spawn.z) * i) / steps);
         }
         await delay(100);
       }
+    }
     const bytes = () =>
       players.reduce(
         ([up, down], p) => [up + p.ws._socket.bytesWritten, down + p.ws._socket.bytesRead],

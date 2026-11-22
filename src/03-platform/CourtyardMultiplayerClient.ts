@@ -33,6 +33,7 @@ export class CourtyardMultiplayerClient {
     private readonly onStatus: (status: CourtyardMultiplayerStatus) => void,
     private readonly onSnapshot: (snapshot: MultiplayerSnapshot) => void,
     private readonly land = false,
+    private readonly onSpawn?: (pose: MultiplayerPose) => void,
   ) {
     onStatus('connecting');
     try {
@@ -106,6 +107,10 @@ export class CourtyardMultiplayerClient {
       this.disconnect();
     } else if (message.type === 'welcome' && !this.id) {
       this.id = message.id;
+      if (message.spawn) {
+        this.lastPose = message.spawn;
+        this.onSpawn?.(message.spawn);
+      }
       clearTimeout(this.timer);
       this.onStatus('online');
     } else if (message.type === 'rejected' && !this.id) {

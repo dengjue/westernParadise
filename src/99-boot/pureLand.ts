@@ -491,6 +491,10 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
           import.meta.env.COURTYARD_LAN_ORIGIN,
         )
       : null;
+  const remotes =
+    (endpoint || crowdMode) && avatar
+      ? new CourtyardRemotePlayers(context.scene, avatar.root, capabilities.reducedMotion)
+      : null;
   const camera = new LandCamera({
     camera: context.camera,
     input,
@@ -498,12 +502,9 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
     reducedMotion: capabilities.reducedMotion,
     avatar,
     sharedEntrance: crowdMode || Boolean(endpoint),
+    allowsGroundStep: endpoint ? remotes?.allowsGroundStep : undefined,
     occluder: avatar ? context.scene : undefined,
   });
-  const remotes =
-    (endpoint || crowdMode) && avatar
-      ? new CourtyardRemotePlayers(context.scene, avatar.root, capabilities.reducedMotion)
-      : null;
   const crowdCheck =
     crowdMode && remotes
       ? mountLandCrowdCheck(ui.viewport, remotes, context.camera, decision.tier)
@@ -550,6 +551,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
             },
             (snapshot) => remotes.apply(snapshot, performance.now()),
             true,
+            (spawn) => camera.placeAtRoomEntrance(spawn),
           );
         })
       : undefined;

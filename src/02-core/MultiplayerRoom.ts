@@ -4,7 +4,7 @@ import type {
   MultiplayerSnapshot,
   MultiplayerWelcome,
 } from '@/00-types';
-import { MULTIPLAYER, LAND_JOURNEY, LAND_FLIGHT } from '@/01-shared';
+import { MULTIPLAYER, LAND_JOURNEY, LAND_FLIGHT, LAND_PEERS } from '@/01-shared';
 import { sampleLandHeight } from './landNavigation';
 import { parseMultiplayerMove } from './multiplayerProtocol';
 
@@ -56,9 +56,11 @@ export class MultiplayerRoom {
     if (this.sessions.size >= this.capacity) {
       return { type: 'rejected', reason: 'room-full' };
     }
+    const spawn = this.land ? this.findEntrance() : this.spawn;
+    if (!spawn) return { type: 'rejected', reason: 'room-full' };
     const id = String(this.nextId++);
     this.sessions.set(id, {
-      player: Object.freeze({ id, ...this.spawn }),
+      player: Object.freeze({ id, ...spawn }),
       seen: new Map(),
       seq: -1,
       sampledAt: this.now(),
@@ -67,7 +69,30 @@ export class MultiplayerRoom {
       climbBudget: CLIMB_BURST,
     });
     this.dirty = true;
-    return { type: 'welcome', id };
+    return this.land ? { type: 'welcome', id, spawn } : { type: 'welcome', id };
+  }
+
+  private findEntrance(): MultiplayerPose | undefined {
+    // 从中心向两侧展开，再向中轴内侧换行；按现有位置选位而非永久占用出生点。
+    for (let i = 0; i < Math.max(this.capacity, MULTIPLAYER.capacity) * 2; i++) {
+      const col = i % LAND_PEERS.spawnColumns;
+      const x = this.spawn.x + Math.ceil(col / 2) * (col % 2 ? 1 : -1) * LAND_PEERS.spawnSpacing;
+      const z = this.spawn.z - Math.floor(i / LAND_PEERS.spawnColumns) * LAND_PEERS.spawnSpacing;
+      const y = sampleLandHeight(x, z, true);
+      if (y === null) continue;
+      let free = true;
+      for (const { player } of this.sessions.values()) {
+        if (
+          Math.abs(player.y - y) < LAND_PEERS.height &&
+          Math.hypot(x - player.x, z - player.z) < LAND_PEERS.distance
+        ) {
+          free = false;
+          break;
+        }
+      }
+      if (free) return { x, y, z, yaw: this.spawn.yaw };
+    }
+    return undefined;
   }
 
   leave(id: string): boolean {

@@ -1,4 +1,13 @@
 import { WORLD } from './world';
+import { LAND_AVATAR } from './landAvatar';
+
+/** 地面伙伴留出少量同步余量；入口点按足够间隔排开。 */
+export const LAND_PEERS = /* @__PURE__ */ Object.freeze({
+  distance: 2 * LAND_AVATAR.bodyRadius + 0.4,
+  height: LAND_AVATAR.headHeight + LAND_AVATAR.headRadius,
+  spawnSpacing: 2,
+  spawnColumns: 5,
+});
 
 export const MULTIPLAYER_ENDPOINT = /* @__PURE__ */ Object.freeze({
   host: '127.0.0.1',
