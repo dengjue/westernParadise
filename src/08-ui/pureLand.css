@@ -399,6 +399,24 @@
   color: var(--land-gold);
   pointer-events: auto;
 }
+.land-navigation-hud:has(.land-room-status) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.land-room-details,
+.land-app .land-room-retry {
+  grid-column: 1 / -1;
+}
+.land-room-details {
+  display: grid;
+  gap: 4px;
+}
+.land-app .land-room-details-toggle {
+  min-height: 44px;
+  padding: 0 6px;
+  color: var(--land-gold);
+  pointer-events: auto;
+}
 .land-navigation-coordinates,
 .land-navigation-destination {
   opacity: 0.82;

@@ -398,7 +398,28 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
       const retry = button('land-room-retry', '回入口重连');
       retry.hidden = true;
       retry.addEventListener('click', onRetry);
-      navigationHud.append(row, nearby, retry);
+      const toggle = button('land-room-details-toggle', '');
+      const details = el('div', 'land-room-details');
+      details.id = 'land-room-details';
+      toggle.setAttribute('aria-controls', details.id);
+      // 只在联机卡内重排既有导航节点，保留坐标和地标事件的原引用。
+      details.append(
+        navigationMode,
+        navigationCoordinates,
+        navigationHeading,
+        navigationDestination,
+        nearby,
+      );
+      navigationHud.append(row, toggle, retry, details);
+      const expand = (expanded: boolean) => {
+        details.hidden = !expanded;
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.textContent = expanded ? '收起导航' : '展开导航';
+        toggle.setAttribute('aria-label', toggle.textContent);
+      };
+      expand(!capabilities.touch && !window.matchMedia('(max-width: 700px)').matches);
+      const toggleDetails = () => expand(Boolean(details.hidden));
+      toggle.addEventListener('click', toggleDetails);
       return {
         set(text: string, canRetry = false) {
           if (row.textContent !== text) row.textContent = text;
@@ -411,6 +432,15 @@ export function mountPureLandUi(root: HTMLElement, options: LandUiOptions) {
           }
         },
         dispose() {
+          toggle.removeEventListener('click', toggleDetails);
+          toggle.remove();
+          navigationHud.append(
+            navigationMode,
+            navigationCoordinates,
+            navigationHeading,
+            navigationDestination,
+          );
+          details.remove();
           retry.removeEventListener('click', onRetry);
           retry.remove();
           nearby.remove();
