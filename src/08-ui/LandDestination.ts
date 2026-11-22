@@ -1,5 +1,5 @@
 import type { AppEventMap } from '@/00-types';
-import { horizontalHint, LAND_STOPS, landStopArrival } from '@/01-shared';
+import { horizontalHint, LAND_STOPS, LAND_TOURS, landStopArrival } from '@/01-shared';
 
 /** 仅在本页导航详情内使用；个人选择与多人协议独立。 */
 export function mountLandDestination() {
@@ -10,7 +10,7 @@ export function mountLandDestination() {
   const selector = document.createElement('select');
   selector.className = 'land-stop-target';
   selector.add(new Option('自由游历', ''));
-  selector.add(new Option('中轴漫步 · 逐站导览', 'axis-tour'));
+  for (const tour of LAND_TOURS) selector.add(new Option(`${tour.name} · 逐站导览`, tour.id));
   for (const stop of LAND_STOPS) selector.add(new Option(stop.name, stop.id));
   const hint = document.createElement('div');
   hint.className = 'land-stop-hint';
@@ -25,8 +25,8 @@ export function mountLandDestination() {
   let stage = 0,
     visited = false;
   function update() {
-    const tour = selector.value === 'axis-tour';
-    const stop = tour ? LAND_STOPS[stage] : LAND_STOPS.find((s) => s.id === selector.value);
+    const tour = LAND_TOURS.find((t) => t.id === selector.value);
+    const stop = tour ? tour.stops[stage] : LAND_STOPS.find((s) => s.id === selector.value);
     let text = '';
     if (stop && latest) {
       const [x, z] = stop.point;
@@ -40,11 +40,11 @@ export function mountLandDestination() {
           : arrival === 'overhead'
             ? `${stop.name} · 正在上空经过`
             : `${stop.name} · ${direction} ${Math.round(distance)} m（水平直线）`;
-      if (tour) text = `第 ${stage + 1}/${LAND_STOPS.length} 站 · ${text}`;
+      if (tour) text = `第 ${stage + 1}/${tour.stops.length} 站 · ${text}`;
     }
-    if (tour && !stop) text = '中轴漫步已完成 · 可改选自由游历或其他目的地';
+    if (tour && !stop) text = `${tour.name}已完成 · 可改选自由游历或其他目的地`;
     next.hidden = !tour || !stop || !visited;
-    const action = stage === LAND_STOPS.length - 1 ? '完成游线' : '前往下一站';
+    const action = tour && stage === tour.stops.length - 1 ? '完成游线' : '前往下一站';
     if (next.textContent !== action) next.textContent = action;
     if (hint.textContent !== text) hint.textContent = text;
   }
@@ -55,7 +55,8 @@ export function mountLandDestination() {
     update();
   });
   next.addEventListener('click', () => {
-    if (selector.value !== 'axis-tour' || !visited || stage >= LAND_STOPS.length) return;
+    const tour = LAND_TOURS.find((t) => t.id === selector.value);
+    if (!tour || !visited || stage >= tour.stops.length) return;
     stage++;
     near = visited = false;
     update();

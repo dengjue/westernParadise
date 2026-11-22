@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { LAND_NAVIGATION, LAND_STOPS, landStopArrival } from '@/01-shared';
+import { LAND_NAVIGATION, LAND_STOPS, LAND_TOURS, landStopArrival } from '@/01-shared';
 import { resolveLandNavigation, sampleLandHeight } from '@/02-core';
 
 describe('resolveLandNavigation', () => {
+  it('西廊转弯前后两段的中间点均在步道上', () => {
+    const stops = LAND_TOURS[1].stops;
+    for (let i = 1; i < stops.length; i++) {
+      const [x, z] = stops[i - 1]!.point,
+        [tx, tz] = stops[i]!.point;
+      const steps = Math.ceil(Math.hypot(tx - x, tz - z) * 2);
+      for (let k = 0; k <= steps; k++)
+        expect(
+          sampleLandHeight(x + ((tx - x) * k) / steps, z + ((tz - z) * k) / steps, true),
+        ).not.toBeNull();
+    }
+  });
   it('地面抵达与空中经过分开，离开阈值不随边界抖动', () => {
     expect(landStopArrival(4, false, false)).toBe('away');
     expect(landStopArrival(3, true, false)).toBe('overhead');
