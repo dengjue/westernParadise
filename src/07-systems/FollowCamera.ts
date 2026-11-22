@@ -78,7 +78,10 @@ export class FollowCamera {
    * 更新相机跟随位置。阻尼系数按「60fps 时为 WORLD.camera.lerp」换算，避免帧率影响手感。
    */
   updateFollow(stepMs: number, targetPosition: Vector3): void {
+    // 先带走上一帧相对角色的镜头偏移，角色平移不参与转向/缩放的阻尼。
+    this.camera.position.sub(this.lookAtPosition);
     this.calculateDesiredPosition(targetPosition);
+    this.camera.position.add(this.lookAtPosition);
     const exponent = Math.max(stepMs, 0) / FRAME_BASE_MS;
     const damping = 1 - Math.pow(1 - WORLD.camera.lerp, exponent);
     this.camera.position.lerp(this.desiredPosition, clamp(damping, 0, 1));

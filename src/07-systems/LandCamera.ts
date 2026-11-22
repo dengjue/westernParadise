@@ -577,7 +577,14 @@ export class LandCamera {
       this.occlusionTimer = 0;
       this.raycaster.set(this.armAnchor, this.armDirection);
       this.raycaster.far = this.armTarget;
-      const hit = this.raycaster.intersectObject(this.occluder, true)[0];
+      const avatarRoot = this.avatar?.root;
+      const hit = this.raycaster.intersectObject(this.occluder, true).find(({ object }) => {
+        // 场景根也包含角色；角色自身不能触发避墙缩臂。
+        for (let node: Object3D | null = object; node; node = node.parent) {
+          if (node === avatarRoot) return false;
+        }
+        return true;
+      });
       this.occludedDistance = hit ? Math.max(0.6, hit.distance - occlusion.margin) : null;
     }
     if (this.occludedDistance !== null) {
@@ -594,8 +601,10 @@ export class LandCamera {
     // 帧率无关阻尼：LAND_AVATAR.camera.ease 是 60fps 下的单帧趋近量，按实际帧长换算。
     const damping =
       snap || this.reducedMotion ? 1 : 1 - Math.pow(1 - cfg.ease, Math.max(dtSeconds, 0) * 60);
-    this.camera.position.lerp(this.desired, damping);
-    this.look.lerp(this.armAnchor, damping);
+    // 角色的平移直接带动镜头；仅对相对角色的镜头偏移施加阻尼。
+    // 在世界坐标里追赶角色，会让前进和后退分别拉远、推近主体。
+    this.camera.position.sub(this.look).add(this.armAnchor).lerp(this.desired, damping);
+    this.look.copy(this.armAnchor);
     this.camera.lookAt(this.look);
   }
 

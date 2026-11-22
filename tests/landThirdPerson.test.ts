@@ -199,6 +199,33 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     f.control.dispose();
   });
 
+  it('开阔地前进、倒退、急停时人物的屏幕高度保持不变', () => {
+    const f = fixture();
+    f.control.startWalking(true);
+    const height = () => {
+      f.camera.updateMatrixWorld();
+      const feet = f.avatar.root.position.clone();
+      return (
+        feet
+          .clone()
+          .setY(feet.y + LAND_AVATAR.headHeight)
+          .project(f.camera).y - feet.project(f.camera).y
+      );
+    };
+    const initial = height();
+    const startZ = f.avatar.root.position.z;
+    for (const direction of [1, -1, 0]) {
+      f.input.moveAxis.z = direction;
+      for (let i = 0; i < 24; i++) {
+        f.parent.updateMatrixWorld(true);
+        f.control.update(1000 / 60);
+        expect(height()).toBeCloseTo(initial, 6);
+      }
+      if (direction === 1) expect(f.avatar.root.position.z).not.toBe(startZ);
+    }
+    f.control.dispose();
+  });
+
   it('释放第三人称角色时移除场景节点并只释放独占资源一次', () => {
     const parent = new Group();
     const avatar = new LandAvatar(parent);
