@@ -518,7 +518,14 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
   let peer: CourtyardMultiplayerClient | undefined;
   let joining = false;
   let online = false;
-  const roomHud = endpoint ? ui.mountRoomStatus() : null;
+  const roomHud = endpoint
+    ? ui.mountRoomStatus(() => {
+        if (joining || online) return;
+        // 复用离开游历、从入口入场的状态转换；释放旧连接且不重建整张地图。
+        camera.selectView(0, true);
+        camera.startWalking(true);
+      })
+    : null;
   let identity = '';
   const showNeighbors = () => roomHud?.set(`已联机 · ${identity}附近 ${remotes?.count ?? 0} 人`);
   const frameCheck =
@@ -561,7 +568,7 @@ function startPureLandRuntime(options: PureLandRuntimeOptions): () => void {
               };
               if (online) showNeighbors();
               else {
-                roomHud?.set(text[status]);
+                roomHud?.set(text[status], status === 'offline' || status === 'room-full');
                 avatar.setRoomColor();
                 identity = '';
               }

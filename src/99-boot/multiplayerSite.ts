@@ -26,10 +26,17 @@ function staticFiles(html: Buffer): RequestListener {
     }
     const path = request.url?.split('?')[0];
     response.setHeader('X-Content-Type-Options', 'nosniff');
-    if (path === '/phone-test' || path === '/phone-test/') {
+    if (
+      path === '/phone-test' ||
+      path === '/phone-test/' ||
+      path === '/play' ||
+      path === '/play/'
+    ) {
       response
         .writeHead(302, {
-          Location: '/?cam=third&quality=low&crowdcheck=1',
+          Location: path.startsWith('/play')
+            ? '/?cam=third&multiplayer=1'
+            : '/?cam=third&quality=low&crowdcheck=1',
           'Cache-Control': 'no-store',
         })
         .end();
