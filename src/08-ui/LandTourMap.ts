@@ -33,6 +33,16 @@ function svg<K extends keyof SVGElementTagNameMap>(
 }
 
 export function mountLandTourMap() {
+  let project: ReturnType<typeof tourProjection> | undefined;
+  const arrow = svg('path', {
+    class: 'land-tour-self',
+    d: 'M0 -7 L4 4 L0 2 L-4 4 Z',
+    fill: '#6dd7ff',
+    stroke: '#133849',
+    'stroke-width': 1,
+  });
+  const caption = document.createElement('small');
+  caption.className = 'land-tour-map-caption';
   const root = svg('svg', {
     class: 'land-tour-map',
     viewBox: `0 0 ${WIDTH} ${HEIGHT}`,
@@ -41,9 +51,25 @@ export function mountLandTourMap() {
   });
   return {
     root,
+    caption,
+    position(x: number, z: number, headingDeg: number) {
+      if (!project) return;
+      const pos = project(x, z);
+      const inside = pos.x >= 0 && pos.x <= WIDTH && pos.y >= 0 && pos.y <= HEIGHT;
+      const text = inside ? '蓝色箭头：自己与朝向' : '当前位置在图外 · 请参考目的地方向';
+      if (caption.textContent !== text) caption.textContent = text;
+      if (!inside) {
+        arrow.setAttribute('visibility', 'hidden');
+        return;
+      }
+      arrow.removeAttribute('visibility');
+      const transform = `translate(${pos.x.toFixed(1)} ${pos.y.toFixed(1)}) rotate(${Math.round(headingDeg)})`;
+      if (arrow.getAttribute('transform') !== transform) arrow.setAttribute('transform', transform);
+    },
     route(stops: readonly Stop[], stage: number) {
-      const project = tourProjection(stops);
-      const points = stops.map(({ point: [x, z] }) => project(x, z));
+      const projection = tourProjection(stops);
+      project = projection;
+      const points = stops.map(({ point: [x, z] }) => projection(x, z));
       const line = svg('polyline', {
         points: points.map((p) => `${p.x},${p.y}`).join(' '),
         fill: 'none',
@@ -70,6 +96,8 @@ export function mountLandTourMap() {
         num.textContent = String(i + 1);
         root.append(dot, num);
       });
+      arrow.setAttribute('visibility', 'hidden');
+      root.append(arrow);
     },
   };
 }

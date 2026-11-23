@@ -38,7 +38,7 @@ export function mountLandDestination() {
   summary.textContent = '游线站点';
   const list = document.createElement('ol');
   const map = mountLandTourMap();
-  preview.append(summary, map.root, list);
+  preview.append(summary, map.root, map.caption, list);
   root.append(preview);
   preview.hidden = true;
   let latest: AppEventMap['land:navigation'] | undefined;
@@ -104,6 +104,11 @@ export function mountLandDestination() {
     list.setAttribute('aria-label', '各站间水平直线距离');
   }
   refreshPreview();
+  function updateMap() {
+    if (preview.open && !preview.hidden && latest)
+      map.position(latest.x, latest.z, latest.headingDeg);
+  }
+  preview.addEventListener('toggle', updateMap);
   selector.addEventListener('change', () => {
     near = false;
     stage = 0;
@@ -111,6 +116,7 @@ export function mountLandDestination() {
     save();
     refreshPreview();
     update();
+    updateMap();
   });
   next.addEventListener('click', () => {
     const tour = LAND_TOURS.find((t) => t.id === selector.value);
@@ -120,12 +126,14 @@ export function mountLandDestination() {
     refreshPreview();
     near = visited = false;
     update();
+    updateMap();
   });
   return {
     root,
     navigation(info: AppEventMap['land:navigation']) {
       latest = info;
       update();
+      updateMap();
     },
   };
 }
