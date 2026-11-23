@@ -36,7 +36,11 @@ export function mountLandDestination() {
   restart.className = 'land-stop-next land-stop-restart';
   restart.textContent = '重新游览此线';
   restart.hidden = true;
-  root.append(label, hint, note, next, restart);
+  const pause = document.createElement('button');
+  pause.type = 'button';
+  pause.className = 'land-stop-next land-stop-pause';
+  pause.hidden = true;
+  root.append(label, hint, note, next, restart, pause);
   const preview = document.createElement('details');
   preview.className = 'land-stop-preview';
   const summary = document.createElement('summary');
@@ -50,21 +54,23 @@ export function mountLandDestination() {
   preview.hidden = true;
   let latest: AppEventMap['land:navigation'] | undefined;
   let near = false;
+  let paused = false;
   let stage = 0,
     visited = false;
   const saved = readLandGuideSession();
   if (saved) {
     selector.value = saved.choice;
     stage = saved.stage;
+    paused = saved.paused ?? false;
   }
   const save = () =>
-    writeLandGuideSession(selector.value ? { choice: selector.value, stage } : null);
+    writeLandGuideSession(selector.value ? { choice: selector.value, stage, paused } : null);
   function update() {
     const tour = LAND_TOURS.find((t) => t.id === selector.value);
     const stop = tour ? tour.stops[stage] : LAND_STOPS.find((s) => s.id === selector.value);
     let text = '';
     let noteText = '';
-    if (stop && latest) {
+    if (stop && latest && !paused) {
       const [x, z] = stop.point;
       const { direction, distance } = horizontalHint(x, z, latest);
       const arrival = landStopArrival(distance, latest.flying, near);
@@ -82,7 +88,11 @@ export function mountLandDestination() {
       if (tour) text = `第 ${stage + 1}/${tour.stops.length} 站 · ${text}`;
     }
     if (tour && !stop) text = `${tour.name}已完成 · 可改选自由游历或其他目的地`;
-    next.hidden = !tour || !stop || !visited;
+    if (tour && stop && paused) text = `${tour.name}已暂停 · 保留第 ${stage + 1} 站`;
+    pause.hidden = !tour || !stop;
+    pause.textContent = paused ? '继续导览' : '暂停导览';
+    pause.setAttribute('aria-pressed', String(paused));
+    next.hidden = !tour || !stop || !visited || paused;
     restart.hidden = !tour || stage === 0;
     const action = tour && stage === tour.stops.length - 1 ? '完成游线' : '前往下一站';
     if (next.textContent !== action) next.textContent = action;
@@ -123,6 +133,7 @@ export function mountLandDestination() {
   }
   preview.addEventListener('toggle', updateMap);
   function resetTour() {
+    paused = false;
     near = false;
     stage = 0;
     visited = false;
@@ -132,6 +143,13 @@ export function mountLandDestination() {
     updateMap();
   }
   selector.addEventListener('change', resetTour);
+  pause.addEventListener('click', () => {
+    paused = !paused;
+    // 暂停不保留未确认的到站资格，继续时重新按当前位置判断。
+    near = visited = false;
+    save();
+    update();
+  });
   restart.addEventListener('click', () => {
     resetTour();
     // 重置后按钮隐藏，将键盘焦点交回仍可操作的目的地选择器。
@@ -139,7 +157,7 @@ export function mountLandDestination() {
   });
   next.addEventListener('click', () => {
     const tour = LAND_TOURS.find((t) => t.id === selector.value);
-    if (!tour || !visited || stage >= tour.stops.length) return;
+    if (!tour || !visited || paused || stage >= tour.stops.length) return;
     stage++;
     save();
     refreshPreview();

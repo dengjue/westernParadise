@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { decodeLandGuideProgress as decode } from '@/03-platform';
 
 describe('游线续游记录', () => {
+  it('兼容旧记录并严格校验暂停标记', () => {
+    for (const paused of [true, false]) {
+      const progress = { choice: 'lotus-tour', stage: 1, paused };
+      expect(decode(JSON.stringify(progress))).toEqual(progress);
+    }
+    expect(decode(JSON.stringify({ choice: 'lotus-tour', stage: 1, paused: 'false' }))).toBeNull();
+  });
   it('区分单点、进行中和已完成的支线', () => {
     for (const [choice, stage] of [
       ['entrance', 0],

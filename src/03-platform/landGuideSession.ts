@@ -3,6 +3,7 @@ import { LAND_STOPS, LAND_TOURS, STORAGE_NAMESPACE } from '@/01-shared';
 export interface LandGuideProgress {
   choice: string;
   stage: number;
+  paused?: boolean;
 }
 
 const KEY = `${STORAGE_NAMESPACE}:guide:v1`;
@@ -29,7 +30,8 @@ export function decodeLandGuideProgress(raw: string | null): LandGuideProgress |
         : stage !== 0 || !LAND_STOPS.some((stop) => stop.id === choice)
     )
       return null;
-    return { choice, stage };
+    if ('paused' in value && typeof value.paused !== 'boolean') return null;
+    return { choice, stage, ...('paused' in value ? { paused: value.paused as boolean } : {}) };
   } catch {
     return null;
   }
