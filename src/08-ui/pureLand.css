@@ -433,6 +433,14 @@
 .land-tour-map-caption {
   display: block;
 }
+.land-stop-description summary {
+  line-height: 1.5;
+  padding-block: 10px;
+  box-sizing: border-box;
+}
+.land-stop-description p {
+  margin: 0 0 8px;
+}
 /* 联机详情单独滚动，状态行和收起按钮不随图滚走。
  * 单人导航没有详情容器，只限制个人导览这一块。 */
 @media (max-width: 700px), (max-height: 520px) {

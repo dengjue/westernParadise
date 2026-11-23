@@ -119,8 +119,15 @@ export function mountLandDestination() {
     summary.textContent = `游线站点 · 全程约 ${Math.round(total)} m`;
     tour.stops.forEach((stop, i) => {
       const item = document.createElement('li');
-      item.textContent = `${stop.name} · ${i < stage ? '已完成' : i === stage ? '当前' : '待游'}`;
-      if (i > 0) item.textContent += ` · 距上站约 ${Math.round(legs[i]!)} m`;
+      const detail = document.createElement('details');
+      detail.className = 'land-stop-description';
+      const title = document.createElement('summary');
+      title.textContent = `${stop.name} · ${i < stage ? '已完成' : i === stage ? '当前' : '待游'}`;
+      if (i > 0) title.textContent += ` · 距上站约 ${Math.round(legs[i]!)} m`;
+      const description = document.createElement('p');
+      description.textContent = LAND_STOP_NOTES[stop.id];
+      detail.append(title, description);
+      item.append(detail);
       if (i === stage) item.setAttribute('aria-current', 'step');
       list.append(item);
     });
