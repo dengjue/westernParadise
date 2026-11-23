@@ -42,8 +42,10 @@ export function mountLandDestination() {
   const summary = document.createElement('summary');
   summary.textContent = '游线站点';
   const list = document.createElement('ol');
+  const progress = document.createElement('div');
+  progress.className = 'land-tour-progress';
   const map = mountLandTourMap();
-  preview.append(summary, map.root, map.caption, list);
+  preview.append(summary, progress, map.root, map.caption, list);
   root.append(preview);
   preview.hidden = true;
   let latest: AppEventMap['land:navigation'] | undefined;
@@ -99,6 +101,11 @@ export function mountLandDestination() {
     if (!tour) return;
     map.route(tour.stops, stage);
     const { legs, total } = measureTour(tour.stops);
+    // stage 是已手动确认的站数；排除通向当前站的路段，避免误作实时剩余路程。
+    const following = legs.slice(stage + 1).reduce((sum, distance) => sum + distance, 0);
+    progress.textContent = `已确认 ${stage}/${tour.stops.length} 站`;
+    if (stage < tour.stops.length)
+      progress.textContent += ` · 当前站之后约 ${Math.round(following)} m（不含前往当前站）`;
     summary.textContent = `游线站点 · 全程约 ${Math.round(total)} m`;
     tour.stops.forEach((stop, i) => {
       const item = document.createElement('li');
