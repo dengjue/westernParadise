@@ -429,6 +429,10 @@
   background: #203832;
   border-radius: 4px;
 }
+.land-tour-map-legend,
+.land-tour-map-caption {
+  display: block;
+}
 /* 联机详情单独滚动，状态行和收起按钮不随图滚走。
  * 单人导航没有详情容器，只限制个人导览这一块。 */
 @media (max-width: 700px), (max-height: 520px) {

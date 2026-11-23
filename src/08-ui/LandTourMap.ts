@@ -43,6 +43,9 @@ export function mountLandTourMap() {
   });
   const caption = document.createElement('small');
   caption.className = 'land-tour-map-caption';
+  const legend = document.createElement('small');
+  legend.className = 'land-tour-map-legend';
+  legend.textContent = '金色：当前站 · 绿色：已完成 · 灰色：待游';
   const root = svg('svg', {
     class: 'land-tour-map',
     viewBox: `0 0 ${WIDTH} ${HEIGHT}`,
@@ -52,11 +55,13 @@ export function mountLandTourMap() {
   return {
     root,
     caption,
-    position(x: number, z: number, headingDeg: number) {
+    legend,
+    position(x: number, z: number, headingDeg: number, flying: boolean) {
       if (!project) return;
       const pos = project(x, z);
       const inside = pos.x >= 0 && pos.x <= WIDTH && pos.y >= 0 && pos.y <= HEIGHT;
-      const text = inside ? '蓝色箭头：自己与朝向' : '当前位置在图外 · 请参考目的地方向';
+      const location = inside ? '蓝色箭头：自己与朝向' : '当前位置在图外 · 请参考目的地方向';
+      const text = `${location} · ${flying ? '飞行中（仅水平位置）' : '地面游历'}`;
       if (caption.textContent !== text) caption.textContent = text;
       if (!inside) {
         arrow.setAttribute('visibility', 'hidden');
@@ -67,6 +72,11 @@ export function mountLandTourMap() {
       if (arrow.getAttribute('transform') !== transform) arrow.setAttribute('transform', transform);
     },
     route(stops: readonly Stop[], stage: number) {
+      const current = stops[stage];
+      root.setAttribute(
+        'aria-label',
+        `游线示意图，北向上，编号对应站点清单；${current ? `当前第 ${stage + 1} 站：${current.name}` : '全部站点已完成'}`,
+      );
       const projection = tourProjection(stops);
       project = projection;
       const points = stops.map(({ point: [x, z] }) => projection(x, z));
