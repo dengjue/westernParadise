@@ -31,7 +31,12 @@ export function mountLandDestination() {
   next.type = 'button';
   next.className = 'land-stop-next';
   next.hidden = true;
-  root.append(label, hint, note, next);
+  const restart = document.createElement('button');
+  restart.type = 'button';
+  restart.className = 'land-stop-next land-stop-restart';
+  restart.textContent = '重新游览此线';
+  restart.hidden = true;
+  root.append(label, hint, note, next, restart);
   const preview = document.createElement('details');
   preview.className = 'land-stop-preview';
   const summary = document.createElement('summary');
@@ -76,6 +81,7 @@ export function mountLandDestination() {
     }
     if (tour && !stop) text = `${tour.name}已完成 · 可改选自由游历或其他目的地`;
     next.hidden = !tour || !stop || !visited;
+    restart.hidden = !tour || stage === 0;
     const action = tour && stage === tour.stops.length - 1 ? '完成游线' : '前往下一站';
     if (next.textContent !== action) next.textContent = action;
     if (hint.textContent !== text) hint.textContent = text;
@@ -109,7 +115,7 @@ export function mountLandDestination() {
       map.position(latest.x, latest.z, latest.headingDeg);
   }
   preview.addEventListener('toggle', updateMap);
-  selector.addEventListener('change', () => {
+  function resetTour() {
     near = false;
     stage = 0;
     visited = false;
@@ -117,6 +123,12 @@ export function mountLandDestination() {
     refreshPreview();
     update();
     updateMap();
+  }
+  selector.addEventListener('change', resetTour);
+  restart.addEventListener('click', () => {
+    resetTour();
+    // 重置后按钮隐藏，将键盘焦点交回仍可操作的目的地选择器。
+    selector.focus();
   });
   next.addEventListener('click', () => {
     const tour = LAND_TOURS.find((t) => t.id === selector.value);
