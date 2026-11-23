@@ -1,4 +1,5 @@
 import type { AppEventMap } from '@/00-types';
+import { mountLandTourMap } from './LandTourMap';
 import { readLandGuideSession, writeLandGuideSession } from '@/03-platform';
 import {
   horizontalHint,
@@ -36,7 +37,8 @@ export function mountLandDestination() {
   const summary = document.createElement('summary');
   summary.textContent = '游线站点';
   const list = document.createElement('ol');
-  preview.append(summary, list);
+  const map = mountLandTourMap();
+  preview.append(summary, map.root, list);
   root.append(preview);
   preview.hidden = true;
   let latest: AppEventMap['land:navigation'] | undefined;
@@ -89,6 +91,7 @@ export function mountLandDestination() {
     if (!tour) preview.open = false;
     list.replaceChildren();
     if (!tour) return;
+    map.route(tour.stops, stage);
     const { legs, total } = measureTour(tour.stops);
     summary.textContent = `游线站点 · 全程约 ${Math.round(total)} m`;
     tour.stops.forEach((stop, i) => {

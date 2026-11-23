@@ -421,6 +421,14 @@
   margin: 0;
   padding-inline-start: 2em;
 }
+.land-tour-map {
+  display: block;
+  width: 180px;
+  max-width: 100%;
+  margin: 4px auto;
+  background: #203832;
+  border-radius: 4px;
+}
 .land-stop-preview [aria-current='step'] {
   color: var(--land-gold);
 }
