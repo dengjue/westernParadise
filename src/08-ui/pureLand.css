@@ -429,6 +429,25 @@
   background: #203832;
   border-radius: 4px;
 }
+/* 联机详情单独滚动，状态行和收起按钮不随图滚走。
+ * 单人导航没有详情容器，只限制个人导览这一块。 */
+@media (max-width: 700px), (max-height: 520px) {
+  .land-room-details,
+  .land-navigation-hud > .land-personal-guide {
+    max-height: clamp(76px, 27dvh, 216px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    pointer-events: auto;
+  }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .land-app .land-navigation-hud:has(.land-personal-guide) {
+    right: 50%;
+    transform: translateX(50%);
+    max-width: 48vw;
+  }
+}
 .land-stop-preview [aria-current='step'] {
   color: var(--land-gold);
 }
