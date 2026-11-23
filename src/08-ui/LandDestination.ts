@@ -23,6 +23,11 @@ export function mountLandDestination() {
   for (const stop of LAND_STOPS) selector.add(new Option(stop.name, stop.id));
   const hint = document.createElement('div');
   hint.className = 'land-stop-hint';
+  const announcement = document.createElement('div');
+  announcement.className = 'land-guide-announcement';
+  announcement.setAttribute('role', 'status');
+  announcement.setAttribute('aria-live', 'polite');
+  announcement.setAttribute('aria-atomic', 'true');
   const note = document.createElement('div');
   note.className = 'land-stop-note';
   note.hidden = true;
@@ -40,7 +45,7 @@ export function mountLandDestination() {
   pause.type = 'button';
   pause.className = 'land-stop-next land-stop-pause';
   pause.hidden = true;
-  root.append(label, hint, note, next, restart, pause);
+  root.append(label, hint, note, next, restart, pause, announcement);
   const preview = document.createElement('details');
   preview.className = 'land-stop-preview';
   const summary = document.createElement('summary');
@@ -101,6 +106,16 @@ export function mountLandDestination() {
       note.textContent = noteText;
       note.hidden = !noteText;
     }
+    // 只播报站次/资格等离散变化，不让每次方位和距离更新打断读屏。
+    const message =
+      paused && tour && stop
+        ? text
+        : tour && !stop
+          ? text
+          : stop
+            ? `${stop.name} · ${visited ? '已抵达' : '正在前往'}`
+            : '';
+    if (announcement.textContent !== message) announcement.textContent = message;
   }
   // 名单只在选择或确认站次时重建，不随每次距离更新写入。
   function refreshPreview() {
@@ -171,6 +186,8 @@ export function mountLandDestination() {
     near = visited = false;
     update();
     updateMap();
+    // 确认后“下一站”通常消失；将焦点移至仍可见的操作，避免落到页面背景。
+    if (next.hidden) (pause.hidden ? restart : pause).focus();
   });
   return {
     root,
