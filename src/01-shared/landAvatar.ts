@@ -45,6 +45,8 @@ export const LAND_AVATAR = Object.freeze({
       glideArmSpread: 0.78,
       /** 起飞初始姿势停留时间；之后即使仍在爬升也平滑过渡到悬停姿势。 */
       takeoffPoseSeconds: 0.75,
+      /** 远端用插值高度变化识别起降的垂直速度门槛（米/秒）。 */
+      remotePhaseVerticalSpeed: 0.8,
       takeoffArmSpread: 0.52,
       landingArmSpread: 0.2,
       glideArmPitch: -0.1,

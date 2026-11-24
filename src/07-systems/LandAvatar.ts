@@ -30,11 +30,13 @@ export class LandAvatar {
   private upperBody!: Group;
   private readonly armPivots: Group[] = [];
   private readonly legPivots: Group[] = [];
+  private readonly ownsVisual: boolean;
   private yawRad = 0;
   private idlePhase = 0;
   private walkPhase = 0;
   private walkBlend = 0;
   private flightBlend = 0;
+  private flightCruiseBlend = 0;
   private takeoffBlend = 0;
   private takeoffElapsedSeconds = 0;
   private previousFlightMode: 'ground' | 'takeoff' | 'glide' | 'landing' = 'ground';
@@ -42,11 +44,31 @@ export class LandAvatar {
   private flightLowering = 0;
   private disposed = false;
 
-  constructor(parent: Object3D) {
-    this.root = this.createVisual();
+  constructor(parent: Object3D, sharedRoot?: Group) {
+    this.ownsVisual = sharedRoot === undefined;
+    this.root = sharedRoot ?? this.createVisual();
     this.root.name = 'land-avatar';
-    this.root.visible = false;
+    if (sharedRoot) {
+      this.bindMotionParts(sharedRoot);
+      this.resetFlightMotion();
+      this.resetGroundMotion();
+    } else {
+      this.root.visible = false;
+    }
     parent.add(this.root);
+  }
+
+  /** 为共享几何的远端克隆绑定独立动作状态；非访客角色模板保持原样、不参与动作。 */
+  static fromClone(parent: Object3D, root: Group): LandAvatar | undefined {
+    if (
+      !(root.getObjectByName('player-upper-body') instanceof Group) ||
+      !(root.getObjectByName('player-arm-pivot--1') instanceof Group) ||
+      !(root.getObjectByName('player-arm-pivot-1') instanceof Group) ||
+      !(root.getObjectByName('player-leg-pivot--1') instanceof Group) ||
+      !(root.getObjectByName('player-leg-pivot-1') instanceof Group)
+    )
+      return undefined;
+    return new LandAvatar(parent, root);
   }
 
   get yaw(): number {
@@ -77,6 +99,10 @@ export class LandAvatar {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    if (!this.ownsVisual) {
+      this.root.removeFromParent();
+      return;
+    }
     const geometries = new Set<Mesh['geometry']>();
     const materials = new Set<Material>();
     this.root.traverse((node) => {
@@ -160,14 +186,17 @@ export class LandAvatar {
     const flight = motion.flight;
     const dt = Math.max(0, deltaSeconds);
     if (mode === 'takeoff') {
-      if (this.previousFlightMode !== 'takeoff') this.takeoffElapsedSeconds = 0;
+      if (this.previousFlightMode === 'ground' || this.previousFlightMode === 'landing')
+        this.takeoffElapsedSeconds = 0;
       this.takeoffElapsedSeconds += dt;
-    } else {
+    } else if (mode === 'ground' || mode === 'landing') {
       this.takeoffElapsedSeconds = 0;
     }
     if (dt > 0) {
       const ease = 1 - Math.exp(-motion.blendRate * dt);
       this.flightBlend += ((mode === 'ground' ? 0 : 1) - this.flightBlend) * ease;
+      const targetCruise = Math.min(1, Math.max(0, horizontalSpeed / LAND_FLIGHT.horizontalSpeed));
+      this.flightCruiseBlend += (targetCruise - this.flightCruiseBlend) * ease;
       const takeoffPose =
         mode === 'takeoff' && this.takeoffElapsedSeconds < flight.takeoffPoseSeconds ? 1 : 0;
       this.takeoffBlend += (takeoffPose - this.takeoffBlend) * ease;
@@ -176,9 +205,9 @@ export class LandAvatar {
     this.previousFlightMode = mode;
     // 起飞和着陆占用飞行混合权重的独立部分，剩余权重自然过渡到悬停/滑翔。
     const glideBlend = Math.max(0, this.flightBlend - this.takeoffBlend - this.landingBlend);
-    const cruise = Math.min(1, Math.max(0, horizontalSpeed / LAND_FLIGHT.horizontalSpeed));
     const glideSpread =
-      flight.hoverArmSpread + (flight.glideArmSpread - flight.hoverArmSpread) * cruise;
+      flight.hoverArmSpread +
+      (flight.glideArmSpread - flight.hoverArmSpread) * this.flightCruiseBlend;
     const armSpread =
       this.takeoffBlend * flight.takeoffArmSpread +
       glideBlend * glideSpread +
@@ -189,7 +218,9 @@ export class LandAvatar {
       this.landingBlend * flight.landingArmPitch;
     const legPitch =
       this.takeoffBlend * flight.takeoffLegPitch +
-      glideBlend * (flight.hoverLegPitch + (flight.glideLegPitch - flight.hoverLegPitch) * cruise) +
+      glideBlend *
+        (flight.hoverLegPitch +
+          (flight.glideLegPitch - flight.hoverLegPitch) * this.flightCruiseBlend) +
       this.landingBlend * flight.landingLegPitch;
     const verticalLean =
       (Math.min(1, Math.max(-1, verticalSpeed / LAND_FLIGHT.verticalSpeed)) *
@@ -223,6 +254,7 @@ export class LandAvatar {
 
   private resetFlightMotion(): void {
     this.flightBlend = 0;
+    this.flightCruiseBlend = 0;
     this.takeoffBlend = 0;
     this.takeoffElapsedSeconds = 0;
     this.previousFlightMode = 'ground';
@@ -350,5 +382,13 @@ export class LandAvatar {
 
     // 服装局部与关节统一关闭阴影，既保持轻量，也避免多人角色放大阴影成本。
     return group;
+  }
+
+  private bindMotionParts(root: Group): void {
+    this.upperBody = root.getObjectByName('player-upper-body') as Group;
+    for (const side of [-1, 1]) {
+      this.armPivots.push(root.getObjectByName(`player-arm-pivot-${side}`) as Group);
+      this.legPivots.push(root.getObjectByName(`player-leg-pivot-${side}`) as Group);
+    }
   }
 }

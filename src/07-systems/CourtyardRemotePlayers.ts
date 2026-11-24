@@ -1,16 +1,20 @@
 import { Group, Mesh, MeshStandardMaterial } from 'three';
 import type { Object3D, Vector3 } from 'three';
 import type { MultiplayerPlayer, MultiplayerSnapshot } from '@/00-types';
-import { LAND_PEERS, MULTIPLAYER, companionColor } from '@/01-shared';
+import { LAND_AVATAR, LAND_FLIGHT, LAND_PEERS, MULTIPLAYER, companionColor } from '@/01-shared';
+import { LandAvatar } from './LandAvatar';
 import { shortestAngle } from './turn';
 
 interface RemotePlayer {
   readonly model: Group;
+  readonly avatar: LandAvatar | undefined;
   readonly origin: Vector3;
+  readonly previousPosition: Vector3;
   startYaw: number;
   yawDelta: number;
   target: MultiplayerPlayer;
   startedAt: number | null;
+  lastUpdatedAt: number;
 }
 
 /** 只管远端渲染。克隆节点复用本地角色几何与材质，不在离场时释放共享资源。 */
@@ -79,7 +83,9 @@ export class CourtyardRemotePlayers {
 
   apply(snapshot: MultiplayerSnapshot, now: number): void {
     for (const id of snapshot.removed) {
-      this.players.get(id)?.model.removeFromParent();
+      const remote = this.players.get(id);
+      remote?.avatar?.dispose();
+      remote?.model.removeFromParent();
       this.players.delete(id);
     }
     for (const target of snapshot.changed) {
@@ -95,6 +101,7 @@ export class CourtyardRemotePlayers {
         continue;
       }
       const model = this.template.clone();
+      const avatar = LandAvatar.fromClone(this.group, model);
       const body = this.roomColors ? model.getObjectByName('player-body') : null;
       if (body instanceof Mesh && body.material instanceof MeshStandardMaterial) {
         const { hex } = companionColor(target.id);
@@ -114,15 +121,18 @@ export class CourtyardRemotePlayers {
         node.raycast = ignoreRaycast;
       });
       setPose(model, target);
+      if (!avatar) this.group.add(model);
       this.players.set(target.id, {
         model,
+        avatar,
         origin: model.position.clone(),
+        previousPosition: model.position.clone(),
         startYaw: target.yaw,
         yawDelta: 0,
         target,
         startedAt: null,
+        lastUpdatedAt: now,
       });
-      this.group.add(model);
     }
   }
 
@@ -130,23 +140,59 @@ export class CourtyardRemotePlayers {
     if (this.reducedMotion) return;
     for (const remote of this.players.values()) {
       const { target, origin, model, startedAt } = remote;
-      if (startedAt === null) continue;
-      const t = Math.min(1, Math.max(0, (now - startedAt) / MULTIPLAYER.tickMs));
-      if (t === 1) {
-        setPose(model, target);
-        remote.startedAt = null;
-      } else {
-        model.position.set(
-          origin.x + (target.x - origin.x) * t,
-          origin.y + (target.y - origin.y) * t,
-          origin.z + (target.z - origin.z) * t,
-        );
-        model.rotation.y = remote.startYaw + remote.yawDelta * t;
+      if (startedAt === null && !remote.avatar) continue;
+      const deltaSeconds = Math.max(0, (now - remote.lastUpdatedAt) / 1000);
+      remote.lastUpdatedAt = now;
+      if (startedAt !== null) {
+        const t = Math.min(1, Math.max(0, (now - startedAt) / MULTIPLAYER.tickMs));
+        if (t === 1) {
+          setPose(model, target);
+          remote.startedAt = null;
+        } else {
+          model.position.set(
+            origin.x + (target.x - origin.x) * t,
+            origin.y + (target.y - origin.y) * t,
+            origin.z + (target.z - origin.z) * t,
+          );
+          model.rotation.y = remote.startYaw + remote.yawDelta * t;
+        }
       }
+
+      if (remote.avatar) {
+        const deltaX = model.position.x - remote.previousPosition.x;
+        const deltaY = model.position.y - remote.previousPosition.y;
+        const deltaZ = model.position.z - remote.previousPosition.z;
+        const traveledDistance = Math.hypot(deltaX, deltaZ);
+        if (target.flying) {
+          // 协议只有 flying 标记；空中姿态由插值位移估算，不为伙伴增加速度消息。
+          const verticalSpeed = deltaSeconds > 0 ? deltaY / deltaSeconds : 0;
+          const flight = LAND_AVATAR.motion.flight;
+          const mode =
+            verticalSpeed <= -flight.remotePhaseVerticalSpeed
+              ? 'landing'
+              : model.position.y < LAND_FLIGHT.minAltitude &&
+                  verticalSpeed >= flight.remotePhaseVerticalSpeed
+                ? 'takeoff'
+                : 'glide';
+          remote.avatar.updateGroundMotion(deltaSeconds, 0, false);
+          remote.avatar.updateFlightMotion(
+            deltaSeconds,
+            mode,
+            deltaSeconds > 0 ? traveledDistance / deltaSeconds : 0,
+            verticalSpeed,
+            true,
+          );
+        } else {
+          remote.avatar.updateFlightMotion(deltaSeconds, 'ground', 0, 0, true);
+          remote.avatar.updateGroundMotion(deltaSeconds, traveledDistance, true);
+        }
+      }
+      remote.previousPosition.copy(model.position);
     }
   }
 
   clear(): void {
+    for (const remote of this.players.values()) remote.avatar?.dispose();
     this.players.clear();
     this.group.clear();
   }

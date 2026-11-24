@@ -1,7 +1,7 @@
 import { Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
-import { MULTIPLAYER, companionHint, rendezvousHint } from '@/01-shared';
-import { CourtyardRemotePlayers } from '@/07-systems';
+import { LAND_AVATAR, LAND_FLIGHT, MULTIPLAYER, companionHint, rendezvousHint } from '@/01-shared';
+import { CourtyardRemotePlayers, LandAvatar } from '@/07-systems';
 
 function setup(reducedMotion = false) {
   const scene = new Group();
@@ -130,5 +130,109 @@ describe('courtyard remote players', () => {
     expect(model.position.x).toBe(1);
     remote.dispose();
     expect(scene.children).toHaveLength(0);
+  });
+
+  it('根据远端插值位移驱动步态、悬停与滑翔，复用姿态但不影响本地模板资源', () => {
+    const scene = new Group();
+    const templateParent = new Group();
+    const template = new LandAvatar(templateParent);
+    template.setVisible(true);
+    const templateArm = template.root.getObjectByName('player-arm-pivot--1') as Group;
+    const remote = new CourtyardRemotePlayers(scene, template.root, false);
+    const player = { id: '1', ...MULTIPLAYER.spawn, yaw: 0 };
+    remote.apply({ type: 'snapshot', tick: 1, changed: [player], removed: [] }, 0);
+    const model = scene.getObjectByName('remote-player-1') as Group;
+    const arm = model.getObjectByName('player-arm-pivot--1') as Group;
+    const leg = model.getObjectByName('player-leg-pivot--1') as Group;
+    const body = model.getObjectByName('player-body') as Mesh;
+    let sharedResourcesDisposed = 0;
+    body.geometry.addEventListener('dispose', () => sharedResourcesDisposed++);
+    (body.material as MeshStandardMaterial).addEventListener(
+      'dispose',
+      () => sharedResourcesDisposed++,
+    );
+
+    const walking = { ...player, x: player.x + 1 };
+    remote.apply({ type: 'snapshot', tick: 2, changed: [walking], removed: [] }, 0);
+    remote.update(25);
+    expect(leg.rotation.x).not.toBe(0);
+    expect(templateArm.rotation.z).toBe(0);
+    remote.update(MULTIPLAYER.tickMs);
+
+    remote.apply(
+      {
+        type: 'snapshot',
+        tick: 3,
+        changed: [{ ...walking, flying: true, y: walking.y + LAND_FLIGHT.minAltitude }],
+        removed: [],
+      },
+      MULTIPLAYER.tickMs,
+    );
+    remote.update(MULTIPLAYER.tickMs + MULTIPLAYER.tickMs / 2);
+    expect(Math.abs(arm.rotation.z)).toBeGreaterThan(0.15);
+    remote.update(MULTIPLAYER.tickMs * 2);
+    remote.update(MULTIPLAYER.tickMs + 1000);
+    expect(model.position.y).toBeCloseTo(walking.y + LAND_FLIGHT.minAltitude);
+    expect(Math.abs(arm.rotation.z)).toBeCloseTo(LAND_AVATAR.motion.flight.hoverArmSpread, 2);
+    expect(leg.rotation.x).toBeCloseTo(LAND_AVATAR.motion.flight.hoverLegPitch, 2);
+
+    const gliding = {
+      ...walking,
+      flying: true as const,
+      x: walking.x + LAND_FLIGHT.horizontalSpeed * (MULTIPLAYER.tickMs / 1000),
+      y: walking.y + LAND_FLIGHT.minAltitude,
+    };
+    const flightSnapshotAt = MULTIPLAYER.tickMs + 1000;
+    remote.apply({ type: 'snapshot', tick: 4, changed: [gliding], removed: [] }, flightSnapshotAt);
+    remote.update(flightSnapshotAt + MULTIPLAYER.tickMs / 2);
+    expect(Math.abs(arm.rotation.z)).toBeGreaterThan(LAND_AVATAR.motion.flight.hoverArmSpread);
+    const stoppedAt = flightSnapshotAt + MULTIPLAYER.tickMs + 1000;
+    remote.update(stoppedAt);
+    const settledAt = stoppedAt + 250;
+    remote.update(settledAt);
+    expect(Math.abs(arm.rotation.z)).toBeCloseTo(LAND_AVATAR.motion.flight.hoverArmSpread, 2);
+
+    const descending = { ...gliding, y: gliding.y - 0.2 };
+    remote.apply({ type: 'snapshot', tick: 5, changed: [descending], removed: [] }, settledAt);
+    remote.update(settledAt + MULTIPLAYER.tickMs / 2);
+    expect(Math.abs(arm.rotation.z)).toBeLessThan(LAND_AVATAR.motion.flight.hoverArmSpread);
+
+    remote.apply(
+      { type: 'snapshot', tick: 6, changed: [], removed: ['1'] },
+      settledAt + MULTIPLAYER.tickMs,
+    );
+    expect(scene.getObjectByName('remote-player-1')).toBeUndefined();
+    expect(sharedResourcesDisposed).toBe(0);
+    template.dispose();
+    expect(sharedResourcesDisposed).toBe(2);
+    remote.dispose();
+  });
+
+  it('减少动态效果时远端角色直接落位且动作保持中性', () => {
+    const scene = new Group();
+    const templateParent = new Group();
+    const template = new LandAvatar(templateParent);
+    template.setVisible(true);
+    const remote = new CourtyardRemotePlayers(scene, template.root, true);
+    const player = { id: '1', ...MULTIPLAYER.spawn, yaw: 0 };
+    remote.apply({ type: 'snapshot', tick: 1, changed: [player], removed: [] }, 0);
+    const model = scene.getObjectByName('remote-player-1') as Group;
+    const arm = model.getObjectByName('player-arm-pivot--1') as Group;
+    const leg = model.getObjectByName('player-leg-pivot--1') as Group;
+    const flying = {
+      ...player,
+      flying: true as const,
+      x: player.x + 1,
+      y: player.y + LAND_FLIGHT.minAltitude,
+    };
+    remote.apply({ type: 'snapshot', tick: 2, changed: [flying], removed: [] }, 100);
+    remote.update(1000);
+    expect(model.position.x).toBe(flying.x);
+    expect(model.position.y).toBe(flying.y);
+    expect(arm.rotation.x).toBe(0);
+    expect(arm.rotation.z).toBe(0);
+    expect(leg.rotation.x).toBe(0);
+    remote.dispose();
+    template.dispose();
   });
 });
