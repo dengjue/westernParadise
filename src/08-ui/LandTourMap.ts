@@ -4,6 +4,7 @@ type Stop = (typeof LAND_STOPS)[number];
 const WIDTH = 180,
   HEIGHT = 108,
   PAD = 14;
+const SINGLE_STOP_SPAN = 60;
 
 /** 同一比例投影 X/Z，负 Z（北）指向图面上方；单轴路线也能正常居中。 */
 export function tourProjection(stops: readonly Stop[]) {
@@ -14,8 +15,8 @@ export function tourProjection(stops: readonly Stop[]) {
     z0 = Math.min(...zs),
     z1 = Math.max(...zs);
   const scale = Math.min(
-    (WIDTH - 2 * PAD) / Math.max(1, x1 - x0),
-    (HEIGHT - 2 * PAD) / Math.max(1, z1 - z0),
+    (WIDTH - 2 * PAD) / Math.max(stops.length === 1 ? SINGLE_STOP_SPAN : 1, x1 - x0),
+    (HEIGHT - 2 * PAD) / Math.max(stops.length === 1 ? SINGLE_STOP_SPAN : 1, z1 - z0),
   );
   return (x: number, z: number) => ({
     x: WIDTH / 2 + (x - (x0 + x1) / 2) * scale,
@@ -73,9 +74,13 @@ export function mountLandTourMap() {
     },
     route(stops: readonly Stop[], stage: number) {
       const current = stops[stage];
+      const single = stops.length === 1;
+      legend.textContent = single ? '金色：目的地' : '金色：当前站 · 绿色：已完成 · 灰色：待游';
       root.setAttribute(
         'aria-label',
-        `游线示意图，北向上，编号对应站点清单；${current ? `当前第 ${stage + 1} 站：${current.name}` : '全部站点已完成'}`,
+        single
+          ? `${current!.name}周边位置示意图，北向上`
+          : `游线示意图，北向上，编号对应站点清单；${current ? `当前第 ${stage + 1} 站：${current.name}` : '全部站点已完成'}`,
       );
       const projection = tourProjection(stops);
       project = projection;

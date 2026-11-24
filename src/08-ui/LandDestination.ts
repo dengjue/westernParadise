@@ -120,9 +120,19 @@ export function mountLandDestination() {
   // 名单只在选择或确认站次时重建，不随每次距离更新写入。
   function refreshPreview() {
     const tour = LAND_TOURS.find((t) => t.id === selector.value);
-    preview.hidden = !tour;
-    if (!tour) preview.open = false;
+    const single = LAND_STOPS.find((stop) => stop.id === selector.value);
+    preview.hidden = !tour && !single;
+    if (preview.hidden) preview.open = false;
     list.replaceChildren();
+    progress.hidden = !tour;
+    if (single) {
+      map.route([single], 0);
+      summary.textContent = `${single.name} · 位置与观景`;
+      const item = document.createElement('li');
+      item.textContent = LAND_STOP_NOTES[single.id];
+      list.append(item);
+      list.setAttribute('aria-label', '目的地观景说明');
+    }
     if (!tour) return;
     map.route(tour.stops, stage);
     const { legs, total } = measureTour(tour.stops);
