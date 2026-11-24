@@ -155,6 +155,41 @@ describe('LandAvatar 程序化角色（规范 W2）', () => {
     fineFrames.dispose();
     coarseFrame.dispose();
   });
+
+  it('起飞、悬停、滑翔与着陆姿势平滑切换，减少动态效果时复位', () => {
+    const avatar = new LandAvatar(new Group());
+    const leftArm = avatar.root.getObjectByName('player-arm-pivot--1') as Group;
+    const leftLeg = avatar.root.getObjectByName('player-leg-pivot--1') as Group;
+    const upperBody = avatar.root.getObjectByName('player-upper-body') as Group;
+    const flight = LAND_AVATAR.motion.flight;
+
+    avatar.updateFlightMotion(0.5, 'takeoff', 0, LAND_FLIGHT.verticalSpeed, true);
+    expect(Math.abs(leftArm.rotation.z)).toBeCloseTo(flight.takeoffArmSpread, 2);
+    expect(upperBody.rotation.x).toBeCloseTo(flight.takeoffBodyPitch, 2);
+    avatar.updateFlightMotion(0.5, 'takeoff', 0, LAND_FLIGHT.verticalSpeed, true);
+    expect(Math.abs(leftArm.rotation.z)).toBeLessThan(flight.takeoffArmSpread);
+
+    avatar.updateFlightMotion(1, 'glide', 0, 0, true);
+    const hoverSpread = Math.abs(leftArm.rotation.z);
+    expect(hoverSpread).toBeCloseTo(flight.hoverArmSpread, 3);
+    avatar.updateFlightMotion(1, 'glide', LAND_FLIGHT.horizontalSpeed, 0, true);
+    const glideSpread = Math.abs(leftArm.rotation.z);
+    expect(glideSpread).toBeGreaterThan(hoverSpread);
+
+    avatar.updateFlightMotion(1, 'landing', 0, -LAND_FLIGHT.verticalSpeed, true);
+    expect(Math.abs(leftArm.rotation.z)).toBeCloseTo(flight.landingArmSpread, 3);
+    expect(leftLeg.rotation.x).toBeCloseTo(flight.landingLegPitch, 3);
+    expect(upperBody.position.y).toBeLessThan(0);
+
+    avatar.updateFlightMotion(1, 'ground', 0, 0, true);
+    expect(Math.abs(leftArm.rotation.z)).toBeLessThan(0.001);
+    avatar.updateFlightMotion(0.1, 'ground', 0, 0, false);
+    expect(leftArm.rotation.z).toBe(0);
+    expect(leftLeg.rotation.x).toBe(0);
+    expect(upperBody.rotation.x).toBe(0);
+    expect(upperBody.position.y).toBe(0);
+    avatar.dispose();
+  });
 });
 
 describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
@@ -446,6 +481,24 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     f.control.dispose();
   });
 
+  it('飞行控制器按起飞、悬停和水平巡航切换角色姿势', () => {
+    const f = fixture();
+    f.control.startWalking(true);
+    f.events.emit('land:flightToggle', {});
+    f.advance(0.35);
+    const arm = f.avatar.root.getObjectByName('player-arm-pivot--1') as Group;
+    expect(Math.abs(arm.rotation.z)).toBeCloseTo(LAND_AVATAR.motion.flight.takeoffArmSpread, 1);
+
+    f.advance(2);
+    const hoverSpread = Math.abs(arm.rotation.z);
+    expect(hoverSpread).toBeCloseTo(LAND_AVATAR.motion.flight.hoverArmSpread, 2);
+    f.advance(13);
+    f.input.moveAxis.x = 1;
+    f.advance(3);
+    expect(Math.abs(arm.rotation.z)).toBeGreaterThan(hoverSpread);
+    f.control.dispose();
+  });
+
   it('第三人称可沿南侧门户步行进入东区并停在灰盒边界', () => {
     const f = fixture();
     f.control.startWalking(true);
@@ -486,6 +539,9 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
       '正在平稳降落…',
     ]);
     expect(f.control.isFlying).toBe(true);
+    f.advance(0.2);
+    const landingArm = f.avatar.root.getObjectByName('player-arm-pivot--1') as Group;
+    expect(Math.abs(landingArm.rotation.z)).toBeLessThan(LAND_AVATAR.motion.flight.hoverArmSpread);
     f.advance(15);
     expect(f.control.isFlying).toBe(false);
     expect(f.control.isWalking).toBe(true);

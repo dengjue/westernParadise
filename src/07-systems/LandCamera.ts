@@ -238,7 +238,7 @@ export class LandCamera {
     if (this.input.consumeFlightToggle()) this.toggleFlight();
     if (this.modal || this.suspended) return;
     if (this.flying) {
-      // 地面步态不能冻结在起飞姿势；第四轮再由飞行状态驱动空中姿态。
+      // 清除地面摆步，再由本帧的起飞/滑翔/着陆状态接管空中姿态。
       this.avatar?.updateGroundMotion(dt, 0, false);
       this.updateFlight(dt, controls, zoom, axis, verticalAxis);
       this.updateNavigation(deltaMs);
@@ -278,6 +278,7 @@ export class LandCamera {
         (floor + restHeight - this.position.y) * (1 - Math.exp(-dt * J.heightEase));
       if (this.avatar) {
         this.avatar.root.position.copy(this.position);
+        this.avatar.updateFlightMotion(dt, 'ground', 0, 0, !this.reducedMotion);
         this.avatar.updateGroundMotion(dt, traveledDistance, !this.reducedMotion);
         if (movedX !== 0 || movedZ !== 0) {
           this.avatar.faceYaw(Math.atan2(movedX, movedZ), dt);
@@ -521,6 +522,22 @@ export class LandCamera {
     this.avatar?.root.position.copy(this.position);
     if (!this.landing && (this.flightVelocity.x !== 0 || this.flightVelocity.z !== 0)) {
       this.avatar?.faceYaw(Math.atan2(this.flightVelocity.x, this.flightVelocity.z), dt);
+    }
+    if (this.avatar) {
+      const mode = !this.flying
+        ? 'ground'
+        : this.landing
+          ? 'landing'
+          : this.takeoffClimbing
+            ? 'takeoff'
+            : 'glide';
+      this.avatar.updateFlightMotion(
+        dt,
+        mode,
+        Math.hypot(this.flightVelocity.x, this.flightVelocity.z),
+        this.flightVelocity.y,
+        !this.reducedMotion,
+      );
     }
     this.updateThirdPersonArm(dt);
   }

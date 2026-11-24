@@ -39,6 +39,27 @@ export const LAND_AVATAR = Object.freeze({
     walkBodyBob: 0.009,
     /** 起步与停步时动作混合的趋近速度（每秒）。 */
     blendRate: 10,
+    /** 空中姿态参数：悬停收臂，水平提速后舒展；起降时四肢与上身略作收势。 */
+    flight: Object.freeze({
+      hoverArmSpread: 0.28,
+      glideArmSpread: 0.78,
+      /** 起飞初始姿势停留时间；之后即使仍在爬升也平滑过渡到悬停姿势。 */
+      takeoffPoseSeconds: 0.75,
+      takeoffArmSpread: 0.52,
+      landingArmSpread: 0.2,
+      glideArmPitch: -0.1,
+      takeoffArmPitch: -0.25,
+      landingArmPitch: 0.14,
+      hoverLegPitch: 0.04,
+      glideLegPitch: 0.16,
+      takeoffLegPitch: -0.12,
+      landingLegPitch: -0.18,
+      takeoffBodyPitch: 0.12,
+      glideBodyPitch: 0.04,
+      landingBodyPitch: 0.13,
+      verticalBodyPitch: 0.08,
+      landingLowering: 0.025,
+    }),
   }),
   camera: Object.freeze({
     /** 弹簧臂默认臂长与滚轮可调范围。 */

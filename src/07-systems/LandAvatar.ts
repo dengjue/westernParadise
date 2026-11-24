@@ -10,7 +10,7 @@ import {
   TorusGeometry,
 } from 'three';
 import type { Material, Object3D, Vector3 } from 'three';
-import { LAND_AVATAR, companionColor } from '@/01-shared';
+import { LAND_AVATAR, LAND_FLIGHT, companionColor } from '@/01-shared';
 import { shortestAngle } from './turn';
 
 const FULL_TURN = Math.PI * 2;
@@ -34,6 +34,12 @@ export class LandAvatar {
   private idlePhase = 0;
   private walkPhase = 0;
   private walkBlend = 0;
+  private flightBlend = 0;
+  private takeoffBlend = 0;
+  private takeoffElapsedSeconds = 0;
+  private previousFlightMode: 'ground' | 'takeoff' | 'glide' | 'landing' = 'ground';
+  private landingBlend = 0;
+  private flightLowering = 0;
   private disposed = false;
 
   constructor(parent: Object3D) {
@@ -52,6 +58,7 @@ export class LandAvatar {
     this.root.position.copy(position);
     this.yawRad = yawRad;
     this.root.rotation.y = yawRad;
+    this.resetFlightMotion();
     this.resetGroundMotion();
     this.root.visible = true;
   }
@@ -130,17 +137,102 @@ export class LandAvatar {
     const idleWeight = 1 - this.walkBlend;
     this.upperBody.position.y =
       Math.sin(this.idlePhase) * motion.idleBreath * idleWeight +
-      Math.sin(this.walkPhase * 2) * motion.walkBodyBob * this.walkBlend;
+      Math.sin(this.walkPhase * 2) * motion.walkBodyBob * this.walkBlend -
+      this.flightLowering;
+  }
+
+  /**
+   * 混合起飞、滑翔、悬停与着地姿势。空中手臂舒展程度由水平速度决定，
+   * 纵向速度只轻微带动上身俯仰；动作不影响角色根节点或飞行物理。
+   */
+  updateFlightMotion(
+    deltaSeconds: number,
+    mode: 'ground' | 'takeoff' | 'glide' | 'landing',
+    horizontalSpeed: number,
+    verticalSpeed: number,
+    enabled: boolean,
+  ): void {
+    if (!enabled) {
+      this.resetFlightMotion();
+      return;
+    }
+    const motion = LAND_AVATAR.motion;
+    const flight = motion.flight;
+    const dt = Math.max(0, deltaSeconds);
+    if (mode === 'takeoff') {
+      if (this.previousFlightMode !== 'takeoff') this.takeoffElapsedSeconds = 0;
+      this.takeoffElapsedSeconds += dt;
+    } else {
+      this.takeoffElapsedSeconds = 0;
+    }
+    if (dt > 0) {
+      const ease = 1 - Math.exp(-motion.blendRate * dt);
+      this.flightBlend += ((mode === 'ground' ? 0 : 1) - this.flightBlend) * ease;
+      const takeoffPose =
+        mode === 'takeoff' && this.takeoffElapsedSeconds < flight.takeoffPoseSeconds ? 1 : 0;
+      this.takeoffBlend += (takeoffPose - this.takeoffBlend) * ease;
+      this.landingBlend += ((mode === 'landing' ? 1 : 0) - this.landingBlend) * ease;
+    }
+    this.previousFlightMode = mode;
+    // 起飞和着陆占用飞行混合权重的独立部分，剩余权重自然过渡到悬停/滑翔。
+    const glideBlend = Math.max(0, this.flightBlend - this.takeoffBlend - this.landingBlend);
+    const cruise = Math.min(1, Math.max(0, horizontalSpeed / LAND_FLIGHT.horizontalSpeed));
+    const glideSpread =
+      flight.hoverArmSpread + (flight.glideArmSpread - flight.hoverArmSpread) * cruise;
+    const armSpread =
+      this.takeoffBlend * flight.takeoffArmSpread +
+      glideBlend * glideSpread +
+      this.landingBlend * flight.landingArmSpread;
+    const armPitch =
+      this.takeoffBlend * flight.takeoffArmPitch +
+      glideBlend * flight.glideArmPitch +
+      this.landingBlend * flight.landingArmPitch;
+    const legPitch =
+      this.takeoffBlend * flight.takeoffLegPitch +
+      glideBlend * (flight.hoverLegPitch + (flight.glideLegPitch - flight.hoverLegPitch) * cruise) +
+      this.landingBlend * flight.landingLegPitch;
+    const verticalLean =
+      (Math.min(1, Math.max(-1, verticalSpeed / LAND_FLIGHT.verticalSpeed)) *
+        flight.verticalBodyPitch +
+        flight.glideBodyPitch) *
+      glideBlend;
+    this.upperBody.rotation.x =
+      this.takeoffBlend * flight.takeoffBodyPitch +
+      verticalLean +
+      this.landingBlend * flight.landingBodyPitch;
+    this.flightLowering = this.landingBlend * flight.landingLowering;
+    this.upperBody.position.y = this.flightLowering === 0 ? 0 : -this.flightLowering;
+    for (let index = 0; index < this.armPivots.length; index++) {
+      const side = index === 0 ? -1 : 1;
+      this.armPivots[index]!.rotation.x = armPitch;
+      this.armPivots[index]!.rotation.z = side * armSpread;
+      this.legPivots[index]!.rotation.x = legPitch;
+    }
   }
 
   private resetGroundMotion(): void {
     this.idlePhase = 0;
     this.walkPhase = 0;
     this.walkBlend = 0;
-    this.upperBody.position.y = 0;
+    this.upperBody.position.y = this.flightLowering === 0 ? 0 : -this.flightLowering;
     for (let index = 0; index < this.legPivots.length; index++) {
       this.legPivots[index]!.rotation.x = 0;
       this.armPivots[index]!.rotation.x = 0;
+    }
+  }
+
+  private resetFlightMotion(): void {
+    this.flightBlend = 0;
+    this.takeoffBlend = 0;
+    this.takeoffElapsedSeconds = 0;
+    this.previousFlightMode = 'ground';
+    this.landingBlend = 0;
+    this.flightLowering = 0;
+    this.upperBody.rotation.x = 0;
+    this.upperBody.position.y = 0;
+    for (let index = 0; index < this.armPivots.length; index++) {
+      this.armPivots[index]!.rotation.z = 0;
+      this.legPivots[index]!.rotation.x = 0;
     }
   }
 
