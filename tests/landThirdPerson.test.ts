@@ -104,6 +104,15 @@ describe('LandAvatar 程序化角色（规范 W2）', () => {
     const avatar = new LandAvatar(parent);
     expect(avatar.root.visible).toBe(false);
     expect(parent.children).toContain(avatar.root);
+    const parts = new Map<string, unknown>();
+    avatar.root.traverse((node) => {
+      if (node.name.startsWith('player-')) parts.set(node.name, node);
+    });
+    expect(parts.has('player-body')).toBe(true);
+    expect(parts.has('player-head')).toBe(true);
+    expect(parts.has('player-pack')).toBe(true);
+    expect(parts.has('player-arm-pivot--1')).toBe(true);
+    expect(parts.has('player-leg-pivot-1')).toBe(true);
 
     avatar.place({ x: 1, y: 0.5, z: 2 } as never, Math.PI);
     expect(avatar.root.visible).toBe(true);
@@ -229,11 +238,16 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
   it('释放第三人称角色时移除场景节点并只释放独占资源一次', () => {
     const parent = new Group();
     const avatar = new LandAvatar(parent);
-    const meshes = avatar.root.children.filter((child): child is Mesh => child instanceof Mesh);
-    const geometries = meshes.map(({ geometry }) => geometry);
-    const materials = meshes.flatMap(({ material }) =>
-      Array.isArray(material) ? material : [material],
-    );
+    const meshes: Mesh[] = [];
+    avatar.root.traverse((node) => {
+      if (node instanceof Mesh) meshes.push(node);
+    });
+    const geometries = [...new Set(meshes.map(({ geometry }) => geometry))];
+    const materials = [
+      ...new Set(
+        meshes.flatMap(({ material }) => (Array.isArray(material) ? material : [material])),
+      ),
+    ];
     const geometryDisposals = geometries.map(() => 0);
     const materialDisposals = materials.map(() => 0);
     geometries.forEach((geometry, index) =>
@@ -253,8 +267,8 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     avatar.dispose();
 
     expect(parent.children).not.toContain(avatar.root);
-    expect(geometryDisposals).toEqual([1, 1]);
-    expect(materialDisposals).toEqual([1, 1]);
+    expect(geometryDisposals.every((count) => count === 1)).toBe(true);
+    expect(materialDisposals.every((count) => count === 1)).toBe(true);
   });
 
   it('步行推进角色并保持背后跟随，角色面向移动方向', () => {

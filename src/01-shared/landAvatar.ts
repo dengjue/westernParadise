@@ -1,21 +1,28 @@
-/**
- * 第三人称角色（LandAvatar）与跟随相机配置。
- *
- * 原型口径见 `02-方案/20-阶段1-第三人称交互原型实施规范.md`：
- * 角色是极简胶囊 + 头部的程序化人形，非交互、非仪式化；相机是环绕角色的弹簧臂，
- * 遮挡回拉用限频 raycast。所有数值集中在这一处，逻辑代码不出现魔法数字。
- * 单位：米、秒、弧度、像素。
- */
+const APPEARANCE = Object.freeze({
+  bodyColor: 0x628579,
+  headColor: 0xd4b894,
+  hairColor: 0x343b36,
+  trouserColor: 0x435a53,
+  shoeColor: 0x51463b,
+  packColor: 0x8a6b4a,
+  accentColor: 0xb39157,
+  featureColor: 0x403931,
+  roughness: 0.84,
+  torso: Object.freeze({ topRadius: 0.2, bottomRadius: 0.285, height: 0.62, centerY: 1.13 }),
+  head: Object.freeze({ radius: 0.155, centerY: 1.59 }),
+  shoulder: Object.freeze({ x: 0.255, y: 1.34, limbRadius: 0.066, limbLength: 0.34 }),
+  hip: Object.freeze({ x: 0.115, y: 0.8, limbRadius: 0.09, limbLength: 0.4 }),
+  foot: Object.freeze({ width: 0.15, height: 0.12, depth: 0.25, forward: 0.055 }),
+  backpack: Object.freeze({ radius: 0.115, height: 0.14, y: 1.15, z: -0.19 }),
+});
+
+/** 第三人称访客的比例、配色与跟随相机参数；长度用米、角度用弧度。 */
 export const LAND_AVATAR = Object.freeze({
-  /** 胶囊身体：半径与柱段高度；总身高 ≈ bodyHeight + 2 × bodyRadius。 */
-  bodyRadius: 0.32,
-  bodyHeight: 1.15,
-  bodyColor: 0x64716b,
-  headColor: 0xc6ad7f,
-  roughness: 0.82,
-  /** 头部球体半径与球心离脚底高度。 */
-  headRadius: 0.17,
-  headHeight: 1.62,
+  appearance: APPEARANCE,
+  /** 角色碰撞/网络间距仍按外套宽度和真实头顶计算。 */
+  bodyRadius: APPEARANCE.torso.bottomRadius,
+  headRadius: APPEARANCE.head.radius,
+  headHeight: APPEARANCE.head.centerY + APPEARANCE.head.radius,
   /** 朝向缓动角速度（弧度/秒）：角色面向移动方向，而不是瞬间转向。 */
   turnSpeed: 9,
   camera: Object.freeze({
