@@ -53,8 +53,13 @@ export function mountLandDestination() {
   const list = document.createElement('ol');
   const progress = document.createElement('div');
   progress.className = 'land-tour-progress';
+  const locate = document.createElement('button');
+  locate.type = 'button';
+  locate.className = 'land-stop-next land-stop-locate';
+  locate.textContent = '查看当前站';
+  locate.hidden = true;
   const map = mountLandTourMap();
-  preview.append(summary, progress, map.root, map.scaleBar, map.legend, map.caption, list);
+  preview.append(summary, locate, progress, map.root, map.scaleBar, map.legend, map.caption, list);
   root.append(preview);
   preview.hidden = true;
   let latest: AppEventMap['land:navigation'] | undefined;
@@ -125,6 +130,7 @@ export function mountLandDestination() {
     if (preview.hidden) preview.open = false;
     list.replaceChildren();
     progress.hidden = !tour;
+    locate.hidden = !tour || stage >= tour.stops.length;
     if (single) {
       map.route([single], 0);
       summary.textContent = `${single.name} · 位置与观景`;
@@ -164,6 +170,15 @@ export function mountLandDestination() {
       map.position(latest.x, latest.z, latest.headingDeg, latest.flying);
   }
   preview.addEventListener('toggle', updateMap);
+  locate.addEventListener('click', () => {
+    const detail = list.querySelector<HTMLDetailsElement>('[aria-current="step"] details');
+    if (!detail) return;
+    detail.open = true;
+    const title = detail.querySelector('summary');
+    // 只在用户主动点击时定位，不随低频导航采样抢焦点或滚动页面。
+    title?.focus({ preventScroll: true });
+    title?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  });
   function resetTour() {
     paused = false;
     near = false;
