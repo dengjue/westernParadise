@@ -27,6 +27,19 @@ export const LAND_AVATAR = Object.freeze({
   headHeight: APPEARANCE.head.centerY + APPEARANCE.head.radius,
   /** 朝向缓动角速度（弧度/秒）：角色面向移动方向，而不是瞬间转向。 */
   turnSpeed: 9,
+  motion: Object.freeze({
+    /** 完整左右步态周期对应的实际行进距离；相位按位移而非帧时间推进。 */
+    walkCycleDistance: 1.25,
+    /** 行走时四肢最大摆幅（弧度），控制在舒缓散步范围。 */
+    legSwing: 0.34,
+    armSwing: 0.2,
+    /** 站立呼吸周期及上身细微起伏（米）。 */
+    idleCycleSeconds: 5.2,
+    idleBreath: 0.012,
+    walkBodyBob: 0.009,
+    /** 起步与停步时动作混合的趋近速度（每秒）。 */
+    blendRate: 10,
+  }),
   camera: Object.freeze({
     /** 弹簧臂默认臂长与滚轮可调范围。 */
     defaultDistance: 4.4,

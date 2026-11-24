@@ -238,6 +238,8 @@ export class LandCamera {
     if (this.input.consumeFlightToggle()) this.toggleFlight();
     if (this.modal || this.suspended) return;
     if (this.flying) {
+      // 地面步态不能冻结在起飞姿势；第四轮再由飞行状态驱动空中姿态。
+      this.avatar?.updateGroundMotion(dt, 0, false);
       this.updateFlight(dt, controls, zoom, axis, verticalAxis);
       this.updateNavigation(deltaMs);
       return;
@@ -263,7 +265,8 @@ export class LandCamera {
       moveLandPosition(this.position, dx, dz, this.avatar !== undefined, this.allowsGroundStep);
       const movedX = this.position.x - oldX;
       const movedZ = this.position.z - oldZ;
-      this.steps += Math.hypot(movedX, movedZ);
+      const traveledDistance = Math.hypot(movedX, movedZ);
+      this.steps += traveledDistance;
       if (this.steps >= J.stepDistance) {
         this.steps %= J.stepDistance;
         this.events.emit('player:step', this.stepEvent);
@@ -275,6 +278,7 @@ export class LandCamera {
         (floor + restHeight - this.position.y) * (1 - Math.exp(-dt * J.heightEase));
       if (this.avatar) {
         this.avatar.root.position.copy(this.position);
+        this.avatar.updateGroundMotion(dt, traveledDistance, !this.reducedMotion);
         if (movedX !== 0 || movedZ !== 0) {
           this.avatar.faceYaw(Math.atan2(movedX, movedZ), dt);
         }

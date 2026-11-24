@@ -21,13 +21,19 @@ const MODEL = LAND_AVATAR.appearance;
  *
  * 姿势骨架只负责视觉表现，不承载玩法数值；
  * 根节点原点位于脚底，y 由地面采样决定。相比旧庭院 `Character`，这里只负责
- * 「视觉表现 + 朝向缓动」，移动与碰撞仍由 LandCamera 的步行分支统一处理，
+ * 「视觉表现、地面动作与朝向缓动」，移动与碰撞仍由 LandCamera 的步行分支统一处理，
  * 保证第一人称/第三人称使用同一条移动、贴地与步频逻辑。
  */
 export class LandAvatar {
   readonly root: Group;
 
+  private upperBody!: Group;
+  private readonly armPivots: Group[] = [];
+  private readonly legPivots: Group[] = [];
   private yawRad = 0;
+  private idlePhase = 0;
+  private walkPhase = 0;
+  private walkBlend = 0;
   private disposed = false;
 
   constructor(parent: Object3D) {
@@ -46,6 +52,7 @@ export class LandAvatar {
     this.root.position.copy(position);
     this.yawRad = yawRad;
     this.root.rotation.y = yawRad;
+    this.resetGroundMotion();
     this.root.visible = true;
   }
 
@@ -93,8 +100,56 @@ export class LandAvatar {
     return difference;
   }
 
+  /**
+   * 更新地面呼吸与步态。步态相位只由真实位移推进，停步时相位冻结并平滑回到站姿；
+   * reduced motion 下完全回到中性姿态。该方法不创建临时对象，供每帧调用。
+   */
+  updateGroundMotion(deltaSeconds: number, traveledDistance: number, enabled: boolean): void {
+    if (!enabled) {
+      this.resetGroundMotion();
+      return;
+    }
+    const motion = LAND_AVATAR.motion;
+    const dt = Math.max(0, deltaSeconds);
+    if (dt > 0) {
+      this.idlePhase = (this.idlePhase + (dt / motion.idleCycleSeconds) * FULL_TURN) % FULL_TURN;
+      this.walkBlend +=
+        ((traveledDistance > 0 ? 1 : 0) - this.walkBlend) * (1 - Math.exp(-motion.blendRate * dt));
+    }
+    if (traveledDistance > 0) {
+      this.walkPhase =
+        (this.walkPhase + (traveledDistance / motion.walkCycleDistance) * FULL_TURN) % FULL_TURN;
+    }
+
+    const gait = Math.sin(this.walkPhase) * this.walkBlend;
+    for (let index = 0; index < this.legPivots.length; index++) {
+      const side = index === 0 ? -1 : 1;
+      this.legPivots[index]!.rotation.x = side * gait * motion.legSwing;
+      this.armPivots[index]!.rotation.x = -side * gait * motion.armSwing;
+    }
+    const idleWeight = 1 - this.walkBlend;
+    this.upperBody.position.y =
+      Math.sin(this.idlePhase) * motion.idleBreath * idleWeight +
+      Math.sin(this.walkPhase * 2) * motion.walkBodyBob * this.walkBlend;
+  }
+
+  private resetGroundMotion(): void {
+    this.idlePhase = 0;
+    this.walkPhase = 0;
+    this.walkBlend = 0;
+    this.upperBody.position.y = 0;
+    for (let index = 0; index < this.legPivots.length; index++) {
+      this.legPivots[index]!.rotation.x = 0;
+      this.armPivots[index]!.rotation.x = 0;
+    }
+  }
+
   private createVisual(): Group {
     const group = new Group();
+    const upperBody = new Group();
+    upperBody.name = 'player-upper-body';
+    group.add(upperBody);
+    this.upperBody = upperBody;
     const material = (color: number) =>
       new MeshStandardMaterial({ color, roughness: MODEL.roughness, flatShading: true });
     const coat = material(MODEL.bodyColor);
@@ -105,7 +160,7 @@ export class LandAvatar {
     const packMaterial = material(MODEL.packColor);
     const accent = material(MODEL.accentColor);
     const features = material(MODEL.featureColor);
-    const add = (mesh: Mesh, name: string, parent: Group = group) => {
+    const add = (mesh: Mesh, name: string, parent: Group = upperBody) => {
       mesh.name = name;
       mesh.castShadow = false;
       mesh.receiveShadow = false;
@@ -113,7 +168,7 @@ export class LandAvatar {
       return mesh;
     };
 
-    // 收肩、略收腰的短行旅外衣，避免原胶囊轮廓；步态骨骼后续可围绕躯干混合。
+    // 上身独立分组，呼吸起伏不会带动脚底位置；衣着继续沿用克制的低多边形轮廓。
     const torso = new Mesh(
       new CylinderGeometry(MODEL.torso.topRadius, MODEL.torso.bottomRadius, MODEL.torso.height, 9),
       coat,
@@ -138,7 +193,7 @@ export class LandAvatar {
     const face = new Group();
     face.position.set(0, MODEL.head.centerY, 0.13);
     face.name = 'player-face';
-    group.add(face);
+    upperBody.add(face);
     const eyeGeometry = new SphereGeometry(0.018, 6, 5);
     for (const side of [-1, 1]) {
       const eye = new Mesh(eyeGeometry, features);
@@ -150,7 +205,7 @@ export class LandAvatar {
     nose.position.set(0, -0.012, 0.045);
     add(nose, 'player-nose', face);
 
-    // 肩部与髋部各自作为旋转枢轴，为后续真实步态保留层级。
+    // 肩部与髋部各自作为旋转枢轴，供步行时手臂与双腿自然交替摆动。
     const armGeometry = new CapsuleGeometry(
       MODEL.shoulder.limbRadius,
       MODEL.shoulder.limbLength,
@@ -162,7 +217,8 @@ export class LandAvatar {
       const arm = new Group();
       arm.position.set(side * MODEL.shoulder.x, MODEL.shoulder.y, 0);
       arm.name = `player-arm-pivot-${side}`;
-      group.add(arm);
+      upperBody.add(arm);
+      this.armPivots.push(arm);
       const sleeve = new Mesh(armGeometry, coat);
       sleeve.position.y = -0.19;
       add(sleeve, `player-arm-${side}`, arm);
@@ -174,6 +230,7 @@ export class LandAvatar {
       leg.position.set(side * MODEL.hip.x, MODEL.hip.y, 0);
       leg.name = `player-leg-pivot-${side}`;
       group.add(leg);
+      this.legPivots.push(leg);
       const trousersLeg = new Mesh(
         new CapsuleGeometry(MODEL.hip.limbRadius, MODEL.hip.limbLength, 2, 7),
         trousers,

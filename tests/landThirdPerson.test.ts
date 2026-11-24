@@ -127,6 +127,34 @@ describe('LandAvatar 程序化角色（规范 W2）', () => {
     avatar.faceYaw(Math.PI / 2 + Math.PI, 0.1);
     expect(avatar.yaw).toBeCloseTo(-Math.PI / 2, 6);
   });
+
+  it('按实际行进距离驱动步态，停步回到呼吸站姿，减少动态效果时复位', () => {
+    const fineFrames = new LandAvatar(new Group());
+    const coarseFrame = new LandAvatar(new Group());
+    const pivot = (avatar: LandAvatar, name: string) => avatar.root.getObjectByName(name) as Group;
+
+    for (let frame = 0; frame < 10; frame++) fineFrames.updateGroundMotion(0.02, 0.04, true);
+    coarseFrame.updateGroundMotion(0.2, 0.4, true);
+    const leftLeg = pivot(fineFrames, 'player-leg-pivot--1');
+    const rightLeg = pivot(fineFrames, 'player-leg-pivot-1');
+    const leftArm = pivot(fineFrames, 'player-arm-pivot--1');
+    const leftLegSwing = leftLeg.rotation.x;
+    expect(leftLegSwing).not.toBe(0);
+    expect(rightLeg.rotation.x).toBeCloseTo(-leftLegSwing, 6);
+    expect(leftArm.rotation.x * leftLegSwing).toBeLessThan(0);
+    expect(pivot(coarseFrame, 'player-leg-pivot--1').rotation.x).toBeCloseTo(leftLegSwing, 6);
+
+    fineFrames.updateGroundMotion(1.2, 0, true);
+    expect(leftLeg.rotation.x).toBeCloseTo(0, 3);
+    expect(pivot(fineFrames, 'player-upper-body').position.y).not.toBe(0);
+
+    fineFrames.updateGroundMotion(0.1, 1, false);
+    expect(leftLeg.rotation.x).toBe(0);
+    expect(leftArm.rotation.x).toBe(0);
+    expect(pivot(fineFrames, 'player-upper-body').position.y).toBe(0);
+    fineFrames.dispose();
+    coarseFrame.dispose();
+  });
 });
 
 describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
@@ -283,6 +311,22 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     // yaw = π 时前进方向为 -z，角色面向 -z 即 yaw ≈ π。
     expect(Math.abs(Math.abs(f.avatar.yaw) - Math.PI)).toBeLessThan(0.05);
     expect(f.camera.position.z).toBeGreaterThan(f.avatar.root.position.z);
+    f.control.dispose();
+  });
+
+  it('步态随真实位移摆动，松开方向后平滑回到静止', () => {
+    const f = fixture();
+    f.control.startWalking(true);
+    f.input.moveAxis.z = 1;
+    f.advance(0.3);
+    const leg = f.avatar.root.getObjectByName('player-leg-pivot--1') as Group;
+    const movingSwing = Math.abs(leg.rotation.x);
+    expect(movingSwing).toBeGreaterThan(0.05);
+
+    f.input.moveAxis.z = 0;
+    f.advance(1);
+    expect(leg.rotation.x).toBeCloseTo(0, 3);
+    expect(f.avatar.root.getObjectByName('player-upper-body')?.position.y).not.toBe(0);
     f.control.dispose();
   });
 
