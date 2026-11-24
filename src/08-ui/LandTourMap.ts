@@ -5,7 +5,6 @@ const WIDTH = 180,
   HEIGHT = 108,
   PAD = 14;
 const SINGLE_STOP_SPAN = 60;
-const SCALE_METERS = 20;
 
 /** 同一比例投影 X/Z，负 Z（北）指向图面上方；单轴路线也能正常居中。 */
 export function tourProjection(stops: readonly Stop[]) {
@@ -43,17 +42,6 @@ export function mountLandTourMap() {
     stroke: '#133849',
     'stroke-width': 1,
   });
-  const caption = document.createElement('small');
-  caption.className = 'land-tour-map-caption';
-  const legend = document.createElement('small');
-  legend.className = 'land-tour-map-legend';
-  legend.textContent = '金色：当前站 · 绿色：已完成 · 灰色：待游';
-  const scaleBar = svg('svg', {
-    class: 'land-tour-scale',
-    viewBox: `0 0 ${WIDTH} 22`,
-    role: 'img',
-    'aria-label': `水平比例尺 ${SCALE_METERS} 米`,
-  });
   const root = svg('svg', {
     class: 'land-tour-map',
     viewBox: `0 0 ${WIDTH} ${HEIGHT}`,
@@ -62,16 +50,10 @@ export function mountLandTourMap() {
   });
   return {
     root,
-    caption,
-    legend,
-    scaleBar,
-    position(x: number, z: number, headingDeg: number, flying: boolean) {
+    position(x: number, z: number, headingDeg: number) {
       if (!project) return;
       const pos = project(x, z);
       const inside = pos.x >= 0 && pos.x <= WIDTH && pos.y >= 0 && pos.y <= HEIGHT;
-      const location = inside ? '蓝色箭头：自己与朝向' : '当前位置在图外 · 请参考目的地方向';
-      const text = `${location} · ${flying ? '飞行中（仅水平位置）' : '地面游历'}`;
-      if (caption.textContent !== text) caption.textContent = text;
       if (!inside) {
         arrow.setAttribute('visibility', 'hidden');
         return;
@@ -83,7 +65,6 @@ export function mountLandTourMap() {
     route(stops: readonly Stop[], stage: number) {
       const current = stops[stage];
       const single = stops.length === 1;
-      legend.textContent = single ? '金色：目的地' : '金色：当前站 · 绿色：已完成 · 灰色：待游';
       root.setAttribute(
         'aria-label',
         single
@@ -92,16 +73,6 @@ export function mountLandTourMap() {
       );
       const projection = tourProjection(stops);
       project = projection;
-      // 比例尺复用地图投影的横向比例；独立图行避免遮挡站点与玩家箭头。
-      const length = projection(SCALE_METERS, 0).x - projection(0, 0).x;
-      const bar = svg('path', {
-        d: `M4 10 V16 H${4 + length} V10`,
-        fill: 'none',
-        stroke: 'currentColor',
-      });
-      const scaleLabel = svg('text', { x: 4, y: 8, fill: 'currentColor', 'font-size': 8 });
-      scaleLabel.textContent = `${SCALE_METERS} m`;
-      scaleBar.replaceChildren(bar, scaleLabel);
       const points = stops.map(({ point: [x, z] }) => projection(x, z));
       const line = svg('polyline', {
         points: points.map((p) => `${p.x},${p.y}`).join(' '),
@@ -109,15 +80,21 @@ export function mountLandTourMap() {
         stroke: '#b8b395',
         'stroke-width': 2,
       });
-      const north = svg('text', { x: 4, y: 12, fill: '#e7dfc5', 'font-size': 9 });
-      north.textContent = '↑ 北';
+      // 用简单朝北指针取代方位说明文字；地图本身的 aria-label 保留语义。
+      const north = svg('path', {
+        d: 'M8 5 L5 12 L8 10 L11 12 Z',
+        fill: '#e7dfc5',
+        'aria-hidden': 'true',
+      });
       root.replaceChildren(line, north);
       points.forEach(({ x, y }, i) => {
         const dot = svg('circle', {
           cx: x,
           cy: y,
-          r: 6,
+          r: i === stage ? 6 : 4.5,
           fill: i === stage ? '#f1d196' : i < stage ? '#abd6b5' : '#d3d4c9',
+          stroke: i === stage ? '#fff0cc' : '#203832',
+          'stroke-width': i === stage ? 1.2 : 0.6,
         });
         const num = svg('text', {
           x,

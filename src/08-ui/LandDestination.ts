@@ -6,7 +6,6 @@ import {
   LAND_STOPS,
   LAND_TOURS,
   LAND_STOP_NOTES,
-  measureTour,
   landStopArrival,
 } from '@/01-shared';
 
@@ -59,7 +58,7 @@ export function mountLandDestination() {
   locate.textContent = '查看当前站';
   locate.hidden = true;
   const map = mountLandTourMap();
-  preview.append(summary, locate, progress, map.root, map.scaleBar, map.legend, map.caption, list);
+  preview.append(summary, locate, progress, map.root, list);
   root.append(preview);
   preview.hidden = true;
   let latest: AppEventMap['land:navigation'] | undefined;
@@ -89,13 +88,9 @@ export function mountLandDestination() {
         noteText = LAND_STOP_NOTES[stop.id];
       }
       near = arrival !== 'away';
-      text =
-        arrival === 'arrived'
-          ? `已抵达：${stop.name}`
-          : arrival === 'overhead'
-            ? `${stop.name} · 正在上空经过`
-            : `${stop.name} · ${direction} ${Math.round(distance)} m（水平直线）`;
-      if (tour) text = `第 ${stage + 1}/${tour.stops.length} 站 · ${text}`;
+      if (arrival === 'arrived') text = tour ? '已抵达' : `已抵达：${stop.name}`;
+      else if (arrival === 'overhead') text = tour ? '正在上空经过' : `${stop.name} · 正在上空经过`;
+      else text = `${stop.name} · ${direction} ${Math.round(distance)} m`;
     }
     if (tour && !stop) text = `${tour.name}已完成 · 可改选自由游历或其他目的地`;
     if (tour && stop && paused) text = `${tour.name}已暂停 · 保留第 ${stage + 1} 站`;
@@ -133,7 +128,7 @@ export function mountLandDestination() {
     locate.hidden = !tour || stage >= tour.stops.length;
     if (single) {
       map.route([single], 0);
-      summary.textContent = `${single.name} · 位置与观景`;
+      summary.textContent = single.name;
       const item = document.createElement('li');
       item.textContent = LAND_STOP_NOTES[single.id];
       list.append(item);
@@ -141,20 +136,21 @@ export function mountLandDestination() {
     }
     if (!tour) return;
     map.route(tour.stops, stage);
-    const { legs, total } = measureTour(tour.stops);
-    // stage 是已手动确认的站数；排除通向当前站的路段，避免误作实时剩余路程。
-    const following = legs.slice(stage + 1).reduce((sum, distance) => sum + distance, 0);
-    progress.textContent = `已确认 ${stage}/${tour.stops.length} 站`;
-    if (stage < tour.stops.length)
-      progress.textContent += ` · 当前站之后约 ${Math.round(following)} m（不含前往当前站）`;
-    summary.textContent = `游线站点 · 全程约 ${Math.round(total)} m`;
+    const totalStops = tour.stops.length;
+    const currentStop = Math.min(stage + 1, totalStops);
+    progress.textContent = `${String(currentStop).padStart(2, '0')} / ${String(totalStops).padStart(2, '0')}`;
+    progress.setAttribute('aria-label', `路线进度 ${currentStop} / ${totalStops}`);
+    summary.textContent = '沿途';
     tour.stops.forEach((stop, i) => {
       const item = document.createElement('li');
       const detail = document.createElement('details');
       detail.className = 'land-stop-description';
       const title = document.createElement('summary');
-      title.textContent = `${stop.name} · ${i < stage ? '已完成' : i === stage ? '当前' : '待游'}`;
-      if (i > 0) title.textContent += ` · 距上站约 ${Math.round(legs[i]!)} m`;
+      title.textContent = stop.name;
+      title.setAttribute(
+        'aria-label',
+        `${stop.name}，第 ${i + 1} 站，${i < stage ? '已完成' : i === stage ? '当前' : '待游'}`,
+      );
       const description = document.createElement('p');
       description.textContent = LAND_STOP_NOTES[stop.id];
       detail.append(title, description);
@@ -162,12 +158,12 @@ export function mountLandDestination() {
       if (i === stage) item.setAttribute('aria-current', 'step');
       list.append(item);
     });
-    list.setAttribute('aria-label', '各站间水平直线距离');
+    list.setAttribute('aria-label', `${tour.name}站点`);
   }
   refreshPreview();
   function updateMap() {
     if (preview.open && !preview.hidden && latest)
-      map.position(latest.x, latest.z, latest.headingDeg, latest.flying);
+      map.position(latest.x, latest.z, latest.headingDeg);
   }
   preview.addEventListener('toggle', updateMap);
   locate.addEventListener('click', () => {

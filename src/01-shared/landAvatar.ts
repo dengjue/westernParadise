@@ -19,6 +19,8 @@ const APPEARANCE = Object.freeze({
 /** 第三人称访客的比例、配色与跟随相机参数；长度用米、角度用弧度。 */
 export const LAND_AVATAR = Object.freeze({
   appearance: APPEARANCE,
+  /** 第三人称漫游步行速度；第一人称速度保持历史配置。 */
+  walkSpeed: 2.4,
   /** 角色碰撞/网络间距仍按外套宽度和真实头顶计算。 */
   bodyRadius: APPEARANCE.torso.bottomRadius,
   headRadius: APPEARANCE.head.radius,

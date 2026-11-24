@@ -30,9 +30,9 @@ describe('MultiplayerRoom', () => {
     const a = room.join();
     if (a.type !== 'welcome' || !a.spawn) throw Error('missing spawn');
     expect(a.population).toBe(1);
-    for (let i = 1; i <= 50; i++) {
+    for (let i = 1; i <= 80; i++) {
       now += 100;
-      expect(room.move(a.id, { ...a.spawn, type: 'move', seq: i, z: a.spawn.z - i * 0.5 })).toBe(
+      expect(room.move(a.id, { ...a.spawn, type: 'move', seq: i, z: a.spawn.z - i * 0.3 })).toBe(
         true,
       );
     }
@@ -74,7 +74,7 @@ describe('MultiplayerRoom', () => {
     const ground = room.collectSnapshots().get(a.id)!.changed[0]!;
     let seq = 0;
     const send = (height: number, flying: boolean, x = ground.x) => {
-      now += 100;
+      now += 125;
       return room.move(b.id, {
         ...ground,
         type: 'move',

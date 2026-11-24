@@ -255,8 +255,9 @@ export class LandCamera {
       }
       const forwardX = Math.sin(this.yaw),
         forwardZ = Math.cos(this.yaw);
-      const dx = (forwardX * axis.z - forwardZ * axis.x) * PURE_LAND.walkSpeed * dt;
-      const dz = (forwardZ * axis.z + forwardX * axis.x) * PURE_LAND.walkSpeed * dt;
+      const walkSpeed = this.avatar ? LAND_AVATAR.walkSpeed : PURE_LAND.walkSpeed;
+      const dx = (forwardX * axis.z - forwardZ * axis.x) * walkSpeed * dt;
+      const dz = (forwardZ * axis.z + forwardX * axis.x) * walkSpeed * dt;
       const oldX = this.position.x,
         oldZ = this.position.z;
       moveLandPosition(this.position, dx, dz, this.avatar !== undefined, this.allowsGroundStep);

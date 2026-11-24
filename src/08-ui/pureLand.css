@@ -429,15 +429,10 @@
   background: #203832;
   border-radius: 4px;
 }
-.land-tour-map-legend,
-.land-tour-map-caption {
-  display: block;
-}
-.land-tour-scale {
-  display: block;
-  width: 180px;
-  max-width: 100%;
-  margin-inline: auto;
+.land-tour-progress {
+  color: var(--land-gold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
 }
 .land-stop-description summary {
   line-height: 1.5;

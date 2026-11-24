@@ -279,7 +279,7 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     f.advance(1);
     f.input.moveAxis.z = 0;
     f.advance(0.5);
-    expect(f.avatar.root.position.z).toBeLessThan(startZ);
+    expect(startZ - f.avatar.root.position.z).toBeCloseTo(LAND_AVATAR.walkSpeed, 2);
     // yaw = π 时前进方向为 -z，角色面向 -z 即 yaw ≈ π。
     expect(Math.abs(Math.abs(f.avatar.yaw) - Math.PI)).toBeLessThan(0.05);
     expect(f.camera.position.z).toBeGreaterThan(f.avatar.root.position.z);
@@ -359,7 +359,7 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     expect(open.control.isWalking).toBe(false);
     open.advance(1);
     expect(open.avatar.root.position.y).toBeLessThan(LAND_FLIGHT.minAltitude);
-    open.advance(11);
+    open.advance(14);
     expect(open.avatar.root.position.y).toBeCloseTo(LAND_FLIGHT.minAltitude, 2);
     open.control.dispose();
   });
@@ -368,7 +368,7 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     const f = fixture();
     f.control.startWalking(true);
     f.events.emit('land:flightToggle', {});
-    f.advance(12);
+    f.advance(15);
     f.setVertical(1);
     f.advance(20);
     expect(f.avatar.root.position.y).toBe(LAND_FLIGHT.maxAltitude);
@@ -376,8 +376,29 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     const maxX = LAND_WORLD.prototype.bounds.maxX - LAND_FLIGHT.worldInset;
     f.avatar.root.position.x = maxX - 0.1;
     f.input.moveAxis.x = 1;
-    f.advance(60);
+    f.advance(100);
     expect(f.avatar.root.position.x).toBe(maxX);
+    f.control.dispose();
+  });
+
+  it('飞行爬升与巡航速度按慢速配置执行', () => {
+    const f = fixture();
+    f.control.startWalking(true);
+    f.events.emit('land:flightToggle', {});
+    f.advance(15);
+
+    f.setVertical(1);
+    f.advance(2);
+    const y = f.avatar.root.position.y;
+    f.advance(1);
+    expect(f.avatar.root.position.y - y).toBeCloseTo(LAND_FLIGHT.verticalSpeed, 1);
+
+    f.setVertical(0);
+    f.input.moveAxis.x = 1;
+    f.advance(2);
+    const x = f.avatar.root.position.x;
+    f.advance(1);
+    expect(f.avatar.root.position.x - x).toBeCloseTo(LAND_FLIGHT.horizontalSpeed, 1);
     f.control.dispose();
   });
 
@@ -385,7 +406,7 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     const f = fixture();
     f.control.startWalking(true);
     f.input.moveAxis.x = 1;
-    f.advance(60);
+    f.advance(150);
     f.input.moveAxis.x = 0;
     expect(f.avatar.root.position.x).toBeGreaterThan(350);
     expect(f.avatar.root.position.x).toBeLessThan(LAND_WORLD.prototype.bounds.maxX);
@@ -400,7 +421,7 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     f.control.startWalking(true);
     f.events.emit('land:flightToggle', {});
     expect(notices).toEqual(['已起飞：WASD 平移，E/Q 升降，V 请求降落。']);
-    f.advance(12);
+    f.advance(15);
     expect(f.avatar.root.position.y).toBeCloseTo(LAND_FLIGHT.minAltitude, 2);
     const flightAnchor = f.avatar.root.position.clone();
     flightAnchor.y += LAND_AVATAR.camera.lookAtHeight;
@@ -421,7 +442,7 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
       '正在平稳降落…',
     ]);
     expect(f.control.isFlying).toBe(true);
-    f.advance(12);
+    f.advance(15);
     expect(f.control.isFlying).toBe(false);
     expect(f.control.isWalking).toBe(true);
     expect(f.avatar.root.position.y).toBeLessThan(LAND_FLIGHT.minAltitude);
@@ -440,13 +461,13 @@ describe('LandCamera 第三人称步行（规范 W3/W4/W5）', () => {
     f.events.on('land:flightNotice', ({ message }) => notices.push(message));
     f.control.startWalking(true);
     f.events.emit('land:flightToggle', {});
-    f.advance(12);
+    f.advance(15);
     // 先沿世界 +x 飞到东区，再朝北飞至莲池上方、避开桥面。
     f.input.moveAxis.x = 1;
-    f.advance(30);
+    f.advance(60);
     f.input.moveAxis.x = 0;
     f.input.moveAxis.z = 1;
-    f.advance(7.5);
+    f.advance(15);
     f.input.moveAxis.z = 0;
     const before = f.avatar.root.position.clone();
     f.events.emit('land:flightToggle', {});

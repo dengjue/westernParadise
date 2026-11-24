@@ -4,7 +4,7 @@ import type {
   MultiplayerSnapshot,
   MultiplayerWelcome,
 } from '@/00-types';
-import { MULTIPLAYER, LAND_JOURNEY, LAND_FLIGHT, LAND_PEERS } from '@/01-shared';
+import { MULTIPLAYER, LAND_JOURNEY, LAND_FLIGHT, LAND_PEERS, LAND_AVATAR } from '@/01-shared';
 import { sampleLandHeight } from './landNavigation';
 import { parseMultiplayerMove } from './multiplayerProtocol';
 
@@ -42,7 +42,7 @@ export class MultiplayerRoom {
     private readonly capacity: number = MULTIPLAYER.capacity,
     private readonly land = false,
   ) {
-    this.speed = land ? LAND_JOURNEY.walkSpeed * 1.5 : MULTIPLAYER.maxSpeed;
+    this.speed = land ? LAND_AVATAR.walkSpeed * 1.5 : MULTIPLAYER.maxSpeed;
     this.burstDistance = (this.speed * MULTIPLAYER.moveBurstMs) / 1000;
     const [x, z] = LAND_JOURNEY.entries[0];
     this.spawn = land

@@ -11,8 +11,8 @@ export const LAND_FLIGHT = Object.freeze({
   worldInset: 4,
   minAltitude: 42,
   maxAltitude: 64,
-  horizontalSpeed: 9,
-  verticalSpeed: 6,
+  horizontalSpeed: 4.5,
+  verticalSpeed: 3,
   acceleration: 5,
   braking: 7,
   /** 飞行观察更远的跟随距离与轻微俯视角；步行时恢复进入飞行前的相机状态。 */
