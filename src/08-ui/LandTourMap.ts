@@ -5,6 +5,7 @@ const WIDTH = 180,
   HEIGHT = 108,
   PAD = 14;
 const SINGLE_STOP_SPAN = 60;
+const SCALE_METERS = 20;
 
 /** 同一比例投影 X/Z，负 Z（北）指向图面上方；单轴路线也能正常居中。 */
 export function tourProjection(stops: readonly Stop[]) {
@@ -47,6 +48,12 @@ export function mountLandTourMap() {
   const legend = document.createElement('small');
   legend.className = 'land-tour-map-legend';
   legend.textContent = '金色：当前站 · 绿色：已完成 · 灰色：待游';
+  const scaleBar = svg('svg', {
+    class: 'land-tour-scale',
+    viewBox: `0 0 ${WIDTH} 22`,
+    role: 'img',
+    'aria-label': `水平比例尺 ${SCALE_METERS} 米`,
+  });
   const root = svg('svg', {
     class: 'land-tour-map',
     viewBox: `0 0 ${WIDTH} ${HEIGHT}`,
@@ -57,6 +64,7 @@ export function mountLandTourMap() {
     root,
     caption,
     legend,
+    scaleBar,
     position(x: number, z: number, headingDeg: number, flying: boolean) {
       if (!project) return;
       const pos = project(x, z);
@@ -84,6 +92,16 @@ export function mountLandTourMap() {
       );
       const projection = tourProjection(stops);
       project = projection;
+      // 比例尺复用地图投影的横向比例；独立图行避免遮挡站点与玩家箭头。
+      const length = projection(SCALE_METERS, 0).x - projection(0, 0).x;
+      const bar = svg('path', {
+        d: `M4 10 V16 H${4 + length} V10`,
+        fill: 'none',
+        stroke: 'currentColor',
+      });
+      const scaleLabel = svg('text', { x: 4, y: 8, fill: 'currentColor', 'font-size': 8 });
+      scaleLabel.textContent = `${SCALE_METERS} m`;
+      scaleBar.replaceChildren(bar, scaleLabel);
       const points = stops.map(({ point: [x, z] }) => projection(x, z));
       const line = svg('polyline', {
         points: points.map((p) => `${p.x},${p.y}`).join(' '),

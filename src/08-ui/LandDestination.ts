@@ -54,7 +54,7 @@ export function mountLandDestination() {
   const progress = document.createElement('div');
   progress.className = 'land-tour-progress';
   const map = mountLandTourMap();
-  preview.append(summary, progress, map.root, map.legend, map.caption, list);
+  preview.append(summary, progress, map.root, map.scaleBar, map.legend, map.caption, list);
   root.append(preview);
   preview.hidden = true;
   let latest: AppEventMap['land:navigation'] | undefined;

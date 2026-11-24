@@ -433,6 +433,12 @@
 .land-tour-map-caption {
   display: block;
 }
+.land-tour-scale {
+  display: block;
+  width: 180px;
+  max-width: 100%;
+  margin-inline: auto;
+}
 .land-stop-description summary {
   line-height: 1.5;
   padding-block: 10px;
