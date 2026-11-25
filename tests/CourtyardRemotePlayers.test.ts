@@ -1,4 +1,4 @@
-import { Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
+import { Group, Mesh, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { LAND_AVATAR, LAND_FLIGHT, MULTIPLAYER, companionHint, rendezvousHint } from '@/01-shared';
 import { CourtyardRemotePlayers, LandAvatar } from '@/07-systems';
@@ -122,6 +122,25 @@ describe('courtyard remote players', () => {
     expect(model.rotation.y).toBe(next.yaw);
     remote.apply({ type: 'snapshot', tick: 3, changed: [], removed: ['1'] }, 300);
     expect(scene.getObjectByName('remote-player-1')).toBeUndefined();
+  });
+
+  it('远端步行朝向与位移近乎相反时改为面向实际行进方向', () => {
+    const scene = new Group();
+    const template = new LandAvatar(new Group());
+    template.setVisible(true);
+    const remote = new CourtyardRemotePlayers(scene, template.root, false);
+    const player = { id: '1', ...MULTIPLAYER.spawn, yaw: Math.PI };
+    remote.apply({ type: 'snapshot', tick: 1, changed: [player], removed: [] }, 0);
+    const model = scene.getObjectByName('remote-player-1') as Group;
+    const walkingBackward = { ...player, x: player.x + 1, yaw: -Math.PI / 2 };
+    remote.apply({ type: 'snapshot', tick: 2, changed: [walkingBackward], removed: [] }, 100);
+    remote.update(200);
+    expect(model.rotation.y).toBeCloseTo(Math.PI / 2);
+    model.updateMatrixWorld(true);
+    const facePosition = model.getObjectByName('player-face')!.getWorldPosition(new Vector3());
+    expect((facePosition.x - model.position.x) * (walkingBackward.x - player.x)).toBeGreaterThan(0);
+    remote.dispose();
+    template.dispose();
   });
 
   it('snaps in reduced motion and clears all roles when disposed', () => {

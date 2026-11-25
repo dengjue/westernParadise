@@ -11,6 +11,7 @@ interface RemotePlayer {
   readonly origin: Vector3;
   readonly previousPosition: Vector3;
   startYaw: number;
+  targetYaw: number;
   yawDelta: number;
   target: MultiplayerPlayer;
   startedAt: number | null;
@@ -92,12 +93,13 @@ export class CourtyardRemotePlayers {
       const remote = this.players.get(target.id);
       if (remote) {
         // 从当前可见姿态继续插值，快照到达时间不规则时也不会先跳到上一目标。
+        remote.targetYaw = resolveRemoteYaw(remote, target);
         remote.origin.copy(remote.model.position);
         remote.startYaw = remote.model.rotation.y;
-        remote.yawDelta = shortestAngle(target.yaw - remote.startYaw);
+        remote.yawDelta = shortestAngle(remote.targetYaw - remote.startYaw);
         remote.target = target;
         remote.startedAt = now;
-        if (this.reducedMotion) setPose(remote.model, target);
+        if (this.reducedMotion) setPose(remote.model, target, remote.targetYaw);
         continue;
       }
       const model = this.template.clone();
@@ -120,7 +122,7 @@ export class CourtyardRemotePlayers {
         // 其他玩家是视觉节点，不能触发镜头避墙或阻止起飞。
         node.raycast = ignoreRaycast;
       });
-      setPose(model, target);
+      setPose(model, target, target.yaw);
       if (!avatar) this.group.add(model);
       this.players.set(target.id, {
         model,
@@ -128,6 +130,7 @@ export class CourtyardRemotePlayers {
         origin: model.position.clone(),
         previousPosition: model.position.clone(),
         startYaw: target.yaw,
+        targetYaw: target.yaw,
         yawDelta: 0,
         target,
         startedAt: null,
@@ -146,7 +149,7 @@ export class CourtyardRemotePlayers {
       if (startedAt !== null) {
         const t = Math.min(1, Math.max(0, (now - startedAt) / MULTIPLAYER.tickMs));
         if (t === 1) {
-          setPose(model, target);
+          setPose(model, target, remote.targetYaw);
           remote.startedAt = null;
         } else {
           model.position.set(
@@ -207,6 +210,18 @@ export class CourtyardRemotePlayers {
 
 function ignoreRaycast(): void {}
 
+/** 步行朝向若与实际位移近乎相反，优先信任位移，避免远端角色倒着走。 */
+function resolveRemoteYaw(remote: RemotePlayer, target: MultiplayerPlayer): number {
+  if (!remote.avatar || target.flying) return target.yaw;
+  const dx = target.x - remote.model.position.x;
+  const dz = target.z - remote.model.position.z;
+  if (dx * dx + dz * dz < 0.000001) return target.yaw;
+  const movementYaw = Math.atan2(dx, dz);
+  return Math.abs(shortestAngle(target.yaw - movementYaw)) > (Math.PI * 3) / 4
+    ? movementYaw
+    : target.yaw;
+}
+
 function towardsContact(rx: number, rz: number, dx: number, dz: number, length2: number): boolean {
   const dot = rx * dx + rz * dz;
   if (dot >= 0) return false;
@@ -214,7 +229,7 @@ function towardsContact(rx: number, rz: number, dx: number, dz: number, length2:
   return (rx + t * dx) ** 2 + (rz + t * dz) ** 2 < LAND_PEERS.distance ** 2;
 }
 
-function setPose(model: Group, { x, y, z, yaw }: MultiplayerPlayer): void {
+function setPose(model: Group, { x, y, z }: MultiplayerPlayer, yaw: number): void {
   model.position.set(x, y, z);
   model.rotation.y = yaw;
 }
