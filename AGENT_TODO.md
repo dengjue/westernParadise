@@ -144,7 +144,7 @@
 - [x] 用户授权 720 × 720m / 3 × 3 作为灰盒候选基线；实现中心庭园 + 东侧水院跨区灰盒、区域与门户元数据、稳定 cell 原点、区域 seed 派生、导航/碰撞和第三人称飞行边界。最终地图尺寸仍待密度与设备数据复核，其余七区未生成。
 - [x] 阶段 3 固定路线自动验收：进入东区、跨桥/折返、回到中心、左键快速转向、步行/飞行及 X/Z 边界；离线 Chrome 零运行时异常/HTTP(S) 请求，默认第一人称加载、步行和 HUD/飞行入口回归通过。
 - [x] `npm run verify` 全绿（31 个测试文件 / 194 项）；单文件 832,063 字节，MD5 `612d881a3d606db94b9118643d5e1bf5`。24m/48m cell 归属与 SwiftShader 单次结构对照见 22 号方案；不代表真机性能。
-- [~] 阶段 4 运行时原型已接入：东区姿态驱动规划/有界队列（并发 2、排队 14、单次最多 16，均为临时值），同步构建按更新批次节流，路面共面条纹已修复；本机 Firefox/Chrome smoke 覆盖步行/飞行往返、多机位、焦点暂停/恢复、dispose/restart、WebGL context restore、24 张静态抽查、四档真实 RAF 步行流式往返及 16 格驻留下 BFCache 恢复。cell factory 剖析未支持降面/调预算；真实单文件 Firefox 首帧前约 4s，热点在核心建筑生成，零 yaw/轴向量微优化未证实启动收益。已为 `LandBuilder` 增加 abort、可取消的按 cell `flushSteps()` 和 architecture/roof/LOD generator API，几何输出回归相同但尚未接入启动调度。下一步接第三人称 loading 分帧 driver，继续拆 sculpture/garden/partition/flush，详见 23 号规范；东区灰盒稀疏、目标设备和原生 C0 仍待验收。
+- [~] 阶段 4 运行时原型已接入：东区姿态驱动规划/有界队列（并发 2、排队 14、单次最多 16，均为临时值）、同步构建按更新批次节流、第三人称核心构建分帧和 PMREM 图集并行启动均有自动/桌面回归。2026-11-25 用户确认的东区试作已实现 5 组双树花台与桥至主路铺装支路，24m/48m cell 边界、连续性、地基切分和释放回归通过；全量 49 文件 / 314 项测试、类型/门禁、双构建及单文件静态检查通过。Chrome headless SwiftShader low/high 固定姿态复拍见 23 号规范，主路机位 draw calls 增加 12–14、桥北连接机位增加 2；另完成 CDP 键盘固定步进、headed AMD WebGL2 连续 RAF 键鼠路线及同位点 cell 重载 smoke。固定朝向下 cell key 集合重复一致、队列稳定，返核心 `0/0`；`renderer.info`/GL buffer 总量受静态 LOD 首次渲染影响，不作为 cell 回收或 VRAM 结论。报告与限制见 23 号规范。桌面自动化不替代人工游玩/视觉评审或性能验收；灰盒整体密度/构图、目标设备与原生 C0 仍待验收。
 - [!] 阶段 1/2 人工手感、A4、B0 真机及 C0 生命周期继续保持未关闭/阻塞。
 
 ### 2026-11-16 · 第三人称首次核心构建分帧接线
@@ -236,6 +236,13 @@
 - [x] 隔离重建完整图集正式基线（commit `3ad585d`），与 128px 截断正式产物（源码 `9f0cc31`）对照。Firefox 160 / WebGL2 / `file://` / high / 减动效 / 1280×714，进入第三人称后固定诊断姿态，在 dawn/noon/dusk 三时段均逐像素一致（MAE=0、max channel diff=0）；两边 13/13 cell、atlas bake/GL/Resource Timing/JS error 均为 0。截图与报告在 `/tmp/opencode/land-pmrem-dynamic-matrix-20261120/formal-build-ab/`。
 - [x] Chrome 157.0.8103.78 / ANGLE AMD Radeon / WebGL2 / X11 对同两份正式 `file://` high 单文件复测：dawn/noon/dusk PNG 的 SHA-256 均逐对相同（MAE=0），两边 13/13 cell、atlas bake 与 Resource Timing 为 0，运行期 JS/unhandled error 为 0。报告与截图：`/tmp/opencode/land-pmrem-dynamic-matrix-20261120/chromium-formal-build-ab/`；本轮未检查 `gl.getError()`，不扩张为 GL 错误验收。
 - [!] 姿态由 debug probe 固定，不是人工游玩或目标设备结论；灰盒稀疏度/构图与阶段 4 最终视觉仍待人工评审，A4、B0、C0、阶段 1/2 手感保持未关闭。
+
+### 2026-11-20 · Chrome headless CDP / W3C 动态流式路线
+
+- [x] 以 Chrome 157 headless 单独启动本轮会话，不连接旧 `9222` 页面、不干预 X11 `:1` 屏保；通过 CDP 采集页面状态/截图，入口点击和 `D/A` 持续键盘操作使用 W3C WebDriver。运行正式 high `file://` 单文件（`1,450,573 B`，MD5 `651a6ebe0a3d84fb79d85f8cd23dc1b4`），1280×714 / DPR 1；WebGL2 renderer 为 ANGLE AMD Radeon（非 SwiftShader）。
+- [x] 东行到 `x≈131/182/237` 时需求/挂载分别稳定为 `9/9`、`13/13`、`16/16`，稳定检查时 queue 全零；`A` 返航到 `x≈1.9` 后需求、挂载与 queued/loading/ready/errors/active/pending 全归零。第三人称 atlas source / PMREM bake 为 `prebaked-atlas / 0`，Resource Timing 条目、外部请求、fatal、JS 异常、browser SEVERE 均为 0；console 仅有 Three.js `PCFSoftShadowMap` 兼容 warning。`gl.getError()` 未采样。
+- [x] 启动分段记录：解码 `125.5ms`、world build `5,136.5ms`、14,004 steps、最高单步 `27.6ms`；这些是本机自动化 smoke 数据，不能当 FPS、A4 或设备性能结论。完整报告、265 点 trace 与 CDP 截图位于 `/tmp/opencode/land-pmrem-dynamic-matrix-20261120/chromium-headless-cdp-w3c-flow/`。
+- [!] headless 自动输入/真实 RAF 与 AMD WebGL2 扩充了桌面路线证据，但不替代人工操作手感、截图/灰盒构图复核、目标设备、原生 C0 或阶段 4 最终视觉验收；A4、B0、C0、阶段 1/2 手感门槛均保持开放。
 
 ### 2026-11-13 · 后续性能/设备验收（历史执行摘要）
 

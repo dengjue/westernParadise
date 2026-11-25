@@ -64,10 +64,17 @@ describe('大世界区域契约与阶段 3 东侧灰盒', () => {
   });
 
   it('水面不可步行，桥面连通且护栏/观景台柱阻挡角色', () => {
-    const { pond, landmark } = LAND_WORLD.prototype.east;
+    const { east } = LAND_WORLD.prototype;
+    const { pond, landmark } = east;
     expect(sampleEastPrototypeHeight(pond.x + pond.radius, pond.z)).toBeNull();
     expect(sampleEastPrototypeHeight(pond.bridge.centerX, pond.z)).toBeCloseTo(
       LAND_REGION_SURFACE_HEIGHT + pond.bridge.rise,
+    );
+    expect(sampleEastPrototypeHeight(pond.bridge.centerX, pond.bridge.maxZ + 1)).toBe(
+      LAND_REGION_SURFACE_HEIGHT,
+    );
+    expect(sampleEastPrototypeHeight(pond.bridge.centerX, east.route.minZ + 1)).toBe(
+      LAND_REGION_SURFACE_HEIGHT,
     );
     expect(
       sampleEastPrototypeHeight(pond.bridge.centerX + pond.bridge.width / 2 - 0.18, 16),
@@ -85,7 +92,7 @@ describe('大世界区域契约与阶段 3 东侧灰盒', () => {
   });
 
   it.each([24, 48])('%d 米灰盒东区地面按稳定 cell 网格铺设', (cellSize) => {
-    const ownedMaterials = Array.from({ length: 6 }, () => new MeshStandardMaterial());
+    const ownedMaterials = Array.from({ length: 8 }, () => new MeshStandardMaterial());
     const materials = {
       stone: ownedMaterials[0]!,
       carvedStone: ownedMaterials[1]!,
@@ -93,6 +100,8 @@ describe('大世界区域契约与阶段 3 东侧灰盒', () => {
       jade: ownedMaterials[3]!,
       goldDark: ownedMaterials[4]!,
       gold: ownedMaterials[5]!,
+      wood: ownedMaterials[6]!,
+      leaf: ownedMaterials[7]!,
     } as unknown as PureLandMaterials;
     const root = new Group();
     const dispose = createEastRegionPrototype(root, materials, cellSize);

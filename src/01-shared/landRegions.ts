@@ -175,6 +175,34 @@ export const LAND_WORLD = Object.freeze({
           railHeight: 0.85,
         },
       },
+      /** 接通步桥北端与主路南缘；高度沿用陆地铺装，不改变行走采样。 */
+      bridgeApproach: {
+        width: 8,
+      },
+      /** 东区路侧的小尺度双树花台，位置避开主路、支路和 24m/48m cell 接缝。 */
+      roadsidePlanting: {
+        beds: [
+          { x: 132, z: 60 },
+          { x: 180, z: 108 },
+          { x: 228, z: 60 },
+          { x: 276, z: 108 },
+          { x: 324, z: 60 },
+        ],
+        bedWidth: 10,
+        bedDepth: 7.2,
+        bedHeight: 0.32,
+        soilInset: 0.45,
+        soilThickness: 0.14,
+        treeSpacing: 4.8,
+        trunkRadius: 0.22,
+        trunkHeight: 2.6,
+        canopy: {
+          lowerOffset: 0.55,
+          lowerSize: [3.4, 2.4, 3.4],
+          upperOffset: 1.45,
+          upperSize: [2.3, 2.1, 2.3],
+        },
+      },
       landmark: {
         x: 314,
         z: 40,

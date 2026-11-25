@@ -18,6 +18,55 @@ export interface EastRegionCellPayload {
   dispose(): void;
 }
 
+type EastRoadsideBed = (typeof LAND_WORLD.prototype.east.roadsidePlanting.beds)[number];
+type EastRoadsidePlanting = typeof LAND_WORLD.prototype.east.roadsidePlanting;
+
+/** 将一组双树花台作为静态合批构件写入唯一所属 cell。 */
+function buildEastRoadsidePlanting(
+  builder: LandBuilder,
+  materials: PureLandMaterials,
+  bed: EastRoadsideBed,
+  config: EastRoadsidePlanting,
+  surfaceHeight: number,
+): void {
+  builder.box(
+    materials.carvedStone,
+    [bed.x, surfaceHeight + config.bedHeight / 2, bed.z],
+    [config.bedWidth, config.bedHeight, config.bedDepth],
+  );
+
+  const soilTop = surfaceHeight + config.bedHeight + config.soilThickness;
+  builder.box(
+    materials.dark,
+    [bed.x, surfaceHeight + config.bedHeight + config.soilThickness / 2, bed.z],
+    [
+      config.bedWidth - config.soilInset * 2,
+      config.soilThickness,
+      config.bedDepth - config.soilInset * 2,
+    ],
+  );
+
+  for (const side of [-1, 1] as const) {
+    const treeX = bed.x + side * (config.treeSpacing / 2);
+    builder.cylinder(
+      materials.wood,
+      [treeX, soilTop + config.trunkHeight / 2, bed.z],
+      config.trunkRadius,
+      config.trunkHeight,
+    );
+    builder.sphere(
+      materials.leaf,
+      [treeX, soilTop + config.trunkHeight + config.canopy.lowerOffset, bed.z],
+      config.canopy.lowerSize,
+    );
+    builder.sphere(
+      materials.leaf,
+      [treeX, soilTop + config.trunkHeight + config.canopy.upperOffset, bed.z],
+      config.canopy.upperSize,
+    );
+  }
+}
+
 /** 独立构建东侧水院的一个 cell；payload 可直接交给有界队列管理。 */
 export function createEastRegionCellPayload(
   coordinates: EastRegionCellCoordinates,
@@ -65,6 +114,14 @@ export function createEastRegionCellPayload(
   const cellMinZ = LAND_WORLD.cellOrigin.z + row * cellSize;
   const cellMaxZ = cellMinZ + cellSize;
   const route = east.route;
+  const bridge = east.pond.bridge;
+  const approach = east.bridgeApproach;
+  const approachStartZ = bridge.maxZ;
+  const approachEndZ = route.minZ;
+  const approachMinX = Math.max(bridge.centerX - approach.width / 2, cellMinX);
+  const approachMaxX = Math.min(bridge.centerX + approach.width / 2, cellMaxX);
+  const approachMinZ = Math.max(approachStartZ, cellMinZ);
+  const approachMaxZ = Math.min(approachEndZ, cellMaxZ);
   const contains = (x: number, z: number): boolean =>
     Math.floor((x - LAND_WORLD.cellOrigin.x) / cellSize) === column &&
     Math.floor((z - LAND_WORLD.cellOrigin.z) / cellSize) === row;
@@ -89,17 +146,29 @@ export function createEastRegionCellPayload(
         routeCoversCellX && routeMaxZ > routeMinZ
           ? [[cellMinZ, routeMinZ] as const, [routeMaxZ, cellMaxZ] as const]
           : [[cellMinZ, cellMaxZ] as const];
-      for (const [groundMinZ, groundMaxZ] of groundRanges) {
-        if (groundMaxZ <= groundMinZ) continue;
+      const addGround = (minX: number, maxX: number, minZ: number, maxZ: number): void => {
+        if (maxX <= minX || maxZ <= minZ) return;
         builder.box(
           materials.dark,
-          [
-            cellMinX + cellSize / 2,
-            groundTop - east.groundThickness / 2,
-            (groundMinZ + groundMaxZ) / 2,
-          ],
-          [cellSize, east.groundThickness, groundMaxZ - groundMinZ],
+          [(minX + maxX) / 2, groundTop - east.groundThickness / 2, (minZ + maxZ) / 2],
+          [maxX - minX, east.groundThickness, maxZ - minZ],
         );
+      };
+      for (const [groundMinZ, groundMaxZ] of groundRanges) {
+        if (groundMaxZ <= groundMinZ) continue;
+        const cutMinZ = Math.max(groundMinZ, approachMinZ);
+        const cutMaxZ = Math.min(groundMaxZ, approachMaxZ);
+        const cutsApproach = approachMaxX > approachMinX && cutMaxZ > cutMinZ;
+        if (!cutsApproach) {
+          addGround(cellMinX, cellMaxX, groundMinZ, groundMaxZ);
+          continue;
+        }
+
+        // 铺装下不保留同高地基，避免支路区域出现共面闪烁；两侧地面仍覆盖本 cell。
+        addGround(cellMinX, cellMaxX, groundMinZ, cutMinZ);
+        addGround(cellMinX, approachMinX, cutMinZ, cutMaxZ);
+        addGround(approachMaxX, cellMaxX, cutMinZ, cutMaxZ);
+        addGround(cellMinX, cellMaxX, cutMaxZ, groundMaxZ);
       }
     }
 
@@ -127,6 +196,33 @@ export function createEastRegionCellPayload(
           );
         }
       }
+    }
+
+    // 支路从桥北端接到主路南缘；按 cell 的 X/Z 边界切片，不留下跨格悬空几何。
+    if (approachMaxX > approachMinX && approachMaxZ > approachMinZ) {
+      const paving = LAND_CRAFT.floor.courtPavingThickness;
+      builder.box(
+        materials.stone,
+        [
+          (approachMinX + approachMaxX) / 2,
+          LAND_REGION_SURFACE_HEIGHT - paving / 2,
+          (approachMinZ + approachMaxZ) / 2,
+        ],
+        [approachMaxX - approachMinX, paving, approachMaxZ - approachMinZ],
+      );
+    }
+
+    // 花台按中心归属 cell；尺寸在共享配置中留出两种 cell 网格的接缝余量。
+    const planting = east.roadsidePlanting;
+    for (const bed of planting.beds) {
+      if (!contains(bed.x, bed.z)) continue;
+      const fitsCell =
+        bed.x - planting.bedWidth / 2 >= cellMinX &&
+        bed.x + planting.bedWidth / 2 <= cellMaxX &&
+        bed.z - planting.bedDepth / 2 >= cellMinZ &&
+        bed.z + planting.bedDepth / 2 <= cellMaxZ;
+      if (!fitsCell) throw new RangeError(`路侧花台 ${bed.x},${bed.z} 必须完整归属单一 cell`);
+      buildEastRoadsidePlanting(builder, materials, bed, planting, groundTop);
     }
 
     // 外缘栏杆按构件中心归属一个 cell，西侧保持门户畅通。
