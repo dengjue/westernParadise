@@ -43,11 +43,12 @@
 
 用 Tabbit 打开生产 `dist/single/index.html?q=high&tod=dusk&seed=20261113&bench`，调用采样脚本的 `benchmarkPureLand(page)`。low 单独重载后再采样；不要让后台页面、开发热更新或临时切换画质混入同一组数据。
 
-下面从项目的固定路径打开独立采样页面。重复运行时使用新的 request-id；将 `q=high` 换成 `q=low` 可复测低档。
+下面从项目根目录执行，并通过 `PROJECT_ROOT` 传入仓库路径，以免在可公开的复跑说明里写入本机绝对用户目录。重复运行时使用新的 request-id；将 `q=high` 换成 `q=low` 可复测低档。
 
 ```bash
-"$HOME/.local/bin/tabbit-cli" nodejs --task "极乐世界性能基准" --request-id sample-high --timeout-ms 120000 <<'JS'
-const root = '/Users/dj/文件/网上寺庙';
+PROJECT_ROOT="$PWD" "$HOME/.local/bin/tabbit-cli" nodejs --task "极乐世界性能基准" --request-id sample-high --timeout-ms 120000 <<'JS'
+const root = process.env.PROJECT_ROOT;
+if (!root) throw new Error('请设置 PROJECT_ROOT 为仓库根目录');
 const { pathToFileURL } = await import('node:url');
 const { writeFile } = await import('node:fs/promises');
 const { benchmarkPureLand } = await import(pathToFileURL(`${root}/scripts/benchmark-pure-land.mjs`).href);

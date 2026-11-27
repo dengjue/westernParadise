@@ -139,7 +139,8 @@ def scan(source: str, source_path: Path) -> ScanResult:
 
     # ---- 1. 元信息 ----
     r.meta = {
-        "source_path": str(source_path),
+        # 扫描结果会随仓库公开；只记录来源文件名，避免写入扫描机器的本地绝对路径。
+        "source_path": source_path.name,
         "bytes": source_path.stat().st_size,
         "characters": len(source),
         "lines": source.count("\n") + 1,
@@ -443,12 +444,12 @@ def main() -> int:
     result = scan(source, args.input)
     written = write_reports(result, source, args.output_dir, args.extract_css, args.extract_js)
 
-    print(f"分析完成：{args.input}")
+    print(f"分析完成：{args.input.name}")
     print(f"体积 {result.meta['bytes']:,} 字节 / {result.meta['lines']:,} 行")
     print(f"还原原始模块 {result.modules['total']} 个")
     print(f"输出 {len(written)} 个文件：")
     for p in written:
-        print(f"  - {p}")
+        print(f"  - {p.name}")
     return 0
 
 
