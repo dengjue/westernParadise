@@ -1,597 +1,987 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>一座还没建完的数字园林 · 60s 母版</title>
-<style>
-:root{
-  --paper:#F5F2EA;
-  --paper-2:#E8E4D9;
-  --ink:#2E322F;
-  --moss:#4C6B52;
-  --water:#A8C3C0;
-  --gold:#B08D57;
-  --serif:"Songti SC","Noto Serif SC","STSong",serif;
-  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-}
-*{box-sizing:border-box;}
-html,body{margin:0;padding:0;width:100%;height:100%;background:#d9d6cd;overflow:hidden;}
-#viewport{width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
-#shell{position:relative;flex:none;}
-#stage{
-  position:relative;width:1080px;height:1920px;overflow:hidden;
-  transform-origin:top left;
-  background:linear-gradient(180deg,var(--paper) 0%,var(--paper-2) 100%);
-}
-body.render #viewport{display:block;width:1080px;height:1920px;}
-body.render #stage{transform:none !important;}
-body.render #shell{width:1080px;height:1920px;}
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>一座还没建完的数字园林 · 60s 母版</title>
+    <style>
+      :root {
+        --paper: #f5f2ea;
+        --paper-2: #e8e4d9;
+        --ink: #2e322f;
+        --moss: #4c6b52;
+        --water: #a8c3c0;
+        --gold: #b08d57;
+        --serif: 'Songti SC', 'Noto Serif SC', 'STSong', serif;
+        --sans: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #d9d6cd;
+        overflow: hidden;
+      }
+      #viewport {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #shell {
+        position: relative;
+        flex: none;
+      }
+      #stage {
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        transform-origin: top left;
+        background: linear-gradient(180deg, var(--paper) 0%, var(--paper-2) 100%);
+      }
+      body.render #viewport {
+        display: block;
+        width: 1080px;
+        height: 1920px;
+      }
+      body.render #stage {
+        transform: none !important;
+      }
+      body.render #shell {
+        width: 1080px;
+        height: 1920px;
+      }
 
-#grain{position:absolute;inset:0;opacity:.16;mix-blend-mode:multiply;pointer-events:none;}
-#art{position:absolute;inset:0;width:1080px;height:1920px;}
+      #grain {
+        position: absolute;
+        inset: 0;
+        opacity: 0.16;
+        mix-blend-mode: multiply;
+        pointer-events: none;
+      }
+      #art {
+        position: absolute;
+        inset: 0;
+        width: 1080px;
+        height: 1920px;
+      }
 
-/* 录屏窗口：位置与安全区见文档第 6.1 节 */
-#clipBox{
-  position:absolute;left:60px;top:560px;width:960px;height:600px;
-  border-radius:24px;overflow:hidden;opacity:0;
-  box-shadow:0 18px 60px rgba(46,50,47,.14);
-}
-#clipCanvas{display:block;width:960px;height:600px;filter:blur(.6px) saturate(.94);}
-.fog-top{position:absolute;left:0;top:0;width:100%;height:40%;
-  background:linear-gradient(180deg,rgba(245,242,234,.46),rgba(245,242,234,0));}
-.mask-left{position:absolute;left:0;top:0;width:19%;height:100%;
-  background:linear-gradient(90deg,rgba(245,242,234,.78) 0%,rgba(245,242,234,.34) 52%,rgba(245,242,234,0) 100%);}
-.edge{position:absolute;pointer-events:none;}
-.edge-t{left:0;top:0;right:0;height:38px;background:linear-gradient(180deg,var(--paper),rgba(245,242,234,0));}
-.edge-b{left:0;bottom:0;right:0;height:38px;background:linear-gradient(0deg,var(--paper),rgba(245,242,234,0));}
-.edge-r{top:0;right:0;bottom:0;width:38px;background:linear-gradient(270deg,var(--paper),rgba(245,242,234,0));}
-#clipDim{position:absolute;inset:0;background:rgba(46,50,47,.10);opacity:0;}
-#clipBorder{position:absolute;left:60px;top:560px;width:960px;height:600px;
-  border:1px solid rgba(46,50,47,.22);border-radius:24px;opacity:0;pointer-events:none;}
+      /* 录屏窗口：位置与安全区见文档第 6.1 节 */
+      #clipBox {
+        position: absolute;
+        left: 60px;
+        top: 560px;
+        width: 960px;
+        height: 600px;
+        border-radius: 24px;
+        overflow: hidden;
+        opacity: 0;
+        box-shadow: 0 18px 60px rgba(46, 50, 47, 0.14);
+      }
+      #clipCanvas {
+        display: block;
+        width: 960px;
+        height: 600px;
+        filter: blur(0.6px) saturate(0.94);
+      }
+      .fog-top {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 40%;
+        background: linear-gradient(180deg, rgba(245, 242, 234, 0.46), rgba(245, 242, 234, 0));
+      }
+      .mask-left {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 19%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          rgba(245, 242, 234, 0.78) 0%,
+          rgba(245, 242, 234, 0.34) 52%,
+          rgba(245, 242, 234, 0) 100%
+        );
+      }
+      .edge {
+        position: absolute;
+        pointer-events: none;
+      }
+      .edge-t {
+        left: 0;
+        top: 0;
+        right: 0;
+        height: 38px;
+        background: linear-gradient(180deg, var(--paper), rgba(245, 242, 234, 0));
+      }
+      .edge-b {
+        left: 0;
+        bottom: 0;
+        right: 0;
+        height: 38px;
+        background: linear-gradient(0deg, var(--paper), rgba(245, 242, 234, 0));
+      }
+      .edge-r {
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 38px;
+        background: linear-gradient(270deg, var(--paper), rgba(245, 242, 234, 0));
+      }
+      #clipDim {
+        position: absolute;
+        inset: 0;
+        background: rgba(46, 50, 47, 0.1);
+        opacity: 0;
+      }
+      #clipBorder {
+        position: absolute;
+        left: 60px;
+        top: 560px;
+        width: 960px;
+        height: 600px;
+        border: 1px solid rgba(46, 50, 47, 0.22);
+        border-radius: 24px;
+        opacity: 0;
+        pointer-events: none;
+      }
 
-/* 三层文字：主文字 / 辅信息 / 字幕 */
-#textLayer{position:absolute;inset:0;pointer-events:none;}
-.main{
-  position:absolute;left:90px;right:90px;top:292px;text-align:center;
-  font-family:var(--serif);font-weight:300;font-size:80px;line-height:1.38;
-  letter-spacing:.12em;color:var(--ink);opacity:0;
-}
-.sub{
-  position:absolute;left:90px;right:90px;top:1372px;text-align:center;
-  font-family:var(--sans);font-size:34px;letter-spacing:.08em;
-  color:rgba(46,50,47,.72);opacity:0;
-}
-.cap{
-  position:absolute;left:150px;right:150px;top:1596px;text-align:center;
-  font-family:var(--sans);font-size:42px;font-weight:500;line-height:1.5;
-  color:#fff;opacity:0;
-}
-.cap span{display:inline-block;padding:10px 26px;border-radius:14px;
-  background:rgba(46,50,47,.46);}
-#labels{position:absolute;left:90px;right:90px;top:1432px;
-  display:flex;flex-wrap:wrap;gap:14px 18px;justify-content:center;}
-#labels .chip{
-  font-family:var(--sans);font-size:30px;letter-spacing:.04em;
-  color:var(--ink);padding:10px 22px;border-radius:999px;
-  border:1px solid rgba(76,107,82,.42);background:rgba(255,255,255,.42);
-  opacity:0;
-}
-.brand{position:absolute;left:90px;right:90px;bottom:128px;text-align:center;
-  font-family:var(--sans);font-size:26px;letter-spacing:.14em;
-  color:rgba(46,50,47,.50);opacity:0;}
-.hint{position:absolute;left:90px;right:90px;top:420px;text-align:center;
-  font-family:var(--sans);font-size:28px;letter-spacing:.1em;
-  color:rgba(46,50,47,.46);opacity:0;}
-/* GitHub 证据幕：与录屏窗口同尺寸，右侧已由素材自带纸面渐隐 */
-#shotBox{
-  position:absolute;left:60px;top:560px;width:960px;height:600px;
-  border-radius:24px;overflow:hidden;opacity:0;background:#fff;
-  box-shadow:0 18px 60px rgba(46,50,47,.14);
-}
-#shotImg{display:block;width:960px;height:600px;transform-origin:50% 50%;}
-#shotBorder{position:absolute;left:60px;top:560px;width:960px;height:600px;
-  border:1px solid rgba(46,50,47,.22);border-radius:24px;opacity:0;pointer-events:none;}
-#shotNote{position:absolute;right:54px;bottom:44px;
-  font-family:var(--sans);font-size:30px;letter-spacing:.08em;
-  color:rgba(46,50,47,.62);opacity:0;}
-/* 常驻角标：全片持续提示「这是一支邀请共建的片子」 */
-.invite{position:absolute;left:90px;right:90px;top:196px;text-align:center;
-  font-family:var(--sans);font-size:26px;letter-spacing:.18em;
-  color:rgba(46,50,47,.48);opacity:0;}
+      /* 三层文字：主文字 / 辅信息 / 字幕 */
+      #textLayer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      .main {
+        position: absolute;
+        left: 90px;
+        right: 90px;
+        top: 292px;
+        text-align: center;
+        font-family: var(--serif);
+        font-weight: 300;
+        font-size: 80px;
+        line-height: 1.38;
+        letter-spacing: 0.12em;
+        color: var(--ink);
+        opacity: 0;
+      }
+      .sub {
+        position: absolute;
+        left: 90px;
+        right: 90px;
+        top: 1372px;
+        text-align: center;
+        font-family: var(--sans);
+        font-size: 34px;
+        letter-spacing: 0.08em;
+        color: rgba(46, 50, 47, 0.72);
+        opacity: 0;
+      }
+      .cap {
+        position: absolute;
+        left: 150px;
+        right: 150px;
+        top: 1596px;
+        text-align: center;
+        font-family: var(--sans);
+        font-size: 42px;
+        font-weight: 500;
+        line-height: 1.5;
+        color: #fff;
+        opacity: 0;
+      }
+      .cap span {
+        display: inline-block;
+        padding: 10px 26px;
+        border-radius: 14px;
+        background: rgba(46, 50, 47, 0.46);
+      }
+      #labels {
+        position: absolute;
+        left: 90px;
+        right: 90px;
+        top: 1432px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px 18px;
+        justify-content: center;
+      }
+      #labels .chip {
+        font-family: var(--sans);
+        font-size: 30px;
+        letter-spacing: 0.04em;
+        color: var(--ink);
+        padding: 10px 22px;
+        border-radius: 999px;
+        border: 1px solid rgba(76, 107, 82, 0.42);
+        background: rgba(255, 255, 255, 0.42);
+        opacity: 0;
+      }
+      .brand {
+        position: absolute;
+        left: 90px;
+        right: 90px;
+        bottom: 128px;
+        text-align: center;
+        font-family: var(--sans);
+        font-size: 26px;
+        letter-spacing: 0.14em;
+        color: rgba(46, 50, 47, 0.5);
+        opacity: 0;
+      }
+      .hint {
+        position: absolute;
+        left: 90px;
+        right: 90px;
+        top: 420px;
+        text-align: center;
+        font-family: var(--sans);
+        font-size: 28px;
+        letter-spacing: 0.1em;
+        color: rgba(46, 50, 47, 0.46);
+        opacity: 0;
+      }
+      /* GitHub 证据幕：与录屏窗口同尺寸，右侧已由素材自带纸面渐隐 */
+      #shotBox {
+        position: absolute;
+        left: 60px;
+        top: 560px;
+        width: 960px;
+        height: 600px;
+        border-radius: 24px;
+        overflow: hidden;
+        opacity: 0;
+        background: #fff;
+        box-shadow: 0 18px 60px rgba(46, 50, 47, 0.14);
+      }
+      #shotImg {
+        display: block;
+        width: 960px;
+        height: 600px;
+        transform-origin: 50% 50%;
+      }
+      #shotBorder {
+        position: absolute;
+        left: 60px;
+        top: 560px;
+        width: 960px;
+        height: 600px;
+        border: 1px solid rgba(46, 50, 47, 0.22);
+        border-radius: 24px;
+        opacity: 0;
+        pointer-events: none;
+      }
+      #shotNote {
+        position: absolute;
+        right: 54px;
+        bottom: 44px;
+        font-family: var(--sans);
+        font-size: 30px;
+        letter-spacing: 0.08em;
+        color: rgba(46, 50, 47, 0.62);
+        opacity: 0;
+      }
+      /* 常驻角标：全片持续提示「这是一支邀请共建的片子」 */
+      .invite {
+        position: absolute;
+        left: 90px;
+        right: 90px;
+        top: 196px;
+        text-align: center;
+        font-family: var(--sans);
+        font-size: 26px;
+        letter-spacing: 0.18em;
+        color: rgba(46, 50, 47, 0.48);
+        opacity: 0;
+      }
 
-/* 预览控制条（渲染模式下隐藏） */
-#controls{
-  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
-  display:flex;align-items:center;gap:14px;padding:10px 18px;
-  background:rgba(255,255,255,.94);border:1px solid rgba(46,50,47,.16);
-  border-radius:14px;font-family:var(--sans);font-size:13px;color:var(--ink);
-  box-shadow:0 6px 24px rgba(0,0,0,.10);z-index:20;
-}
-body.render #controls{display:none;}
-#controls button{cursor:pointer;border:1px solid rgba(46,50,47,.24);
-  background:#fff;border-radius:8px;padding:6px 12px;font-family:var(--sans);font-size:13px;}
-#seek{flex:1;min-width:220px;}
-#time{min-width:88px;text-align:right;font-variant-numeric:tabular-nums;}
-</style>
-</head>
-<body>
-<div id="viewport">
-  <div id="shell">
-    <div id="stage">
-      <svg id="grain" viewBox="0 0 1080 1920" aria-hidden="true">
-        <filter id="paperNoise"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/></filter>
-        <rect width="1080" height="1920" filter="url(#paperNoise)" opacity=".18"/>
-      </svg>
+      /* 预览控制条（渲染模式下隐藏） */
+      #controls {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 18px;
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid rgba(46, 50, 47, 0.16);
+        border-radius: 14px;
+        font-family: var(--sans);
+        font-size: 13px;
+        color: var(--ink);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+        z-index: 20;
+      }
+      body.render #controls {
+        display: none;
+      }
+      #controls button {
+        cursor: pointer;
+        border: 1px solid rgba(46, 50, 47, 0.24);
+        background: #fff;
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-family: var(--sans);
+        font-size: 13px;
+      }
+      #seek {
+        flex: 1;
+        min-width: 220px;
+      }
+      #time {
+        min-width: 88px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewport">
+      <div id="shell">
+        <div id="stage">
+          <svg id="grain" viewBox="0 0 1080 1920" aria-hidden="true">
+            <filter id="paperNoise">
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.8"
+                numOctaves="2"
+                stitchTiles="stitch"
+              />
+            </filter>
+            <rect width="1080" height="1920" filter="url(#paperNoise)" opacity=".18" />
+          </svg>
 
-      <svg id="art" viewBox="0 0 1080 1920" aria-hidden="true">
-        <defs>
-          <marker id="none"></marker>
-        </defs>
-        <g id="dots"></g>
-        <circle id="enso" cx="540" cy="760" r="226" fill="none" stroke="#2E322F"
-                stroke-width="2.4" stroke-linecap="round" stroke-dasharray="1420" stroke-dashoffset="1420"
-                transform="rotate(-118 540 760)" opacity="0"/>
-        <circle id="glow" cx="410" cy="830" r="150" fill="#B08D57" opacity="0"/>
-        <g id="strokes" fill="none" stroke="#2E322F" stroke-linecap="round" opacity="0">
-          <path id="eave1" d="M170 742 Q540 620 910 742" stroke-width="3" stroke-dasharray="780" stroke-dashoffset="780"/>
-          <path id="eave2" d="M232 800 Q540 700 848 800" stroke-width="2" stroke-dasharray="650" stroke-dashoffset="650"/>
-          <g id="columns" stroke-width="1.6"></g>
-          <path id="stair" d="M540 1180 L372 900 M540 1180 L708 900" stroke-width="1.2" stroke-dasharray="640" stroke-dashoffset="640"/>
-        </g>
-        <g id="lotus" fill="#4C6B52" opacity="0"></g>
-        <g id="grid" stroke="#4C6B52" stroke-width=".8" opacity="0"></g>
-        <g id="nodes"></g>
-        <g id="links" stroke="#B08D57" stroke-width="1.2" opacity="0"></g>
-        <g id="rings" fill="none" stroke="#4C6B52" stroke-width="1.4" opacity="0"></g>
-        <circle id="revealRing" cx="540" cy="860" r="0" fill="none" stroke="#F5F2EA" stroke-width="80" opacity="0"/>
-        <line id="bottomLine" x1="90" y1="1736" x2="990" y2="1736" stroke="#2E322F"
-              stroke-width="1.2" stroke-dasharray="900" stroke-dashoffset="900" opacity="0"/>
-        <circle id="finalDot" cx="540" cy="960" r="5" fill="#4C6B52" opacity="0"/>
-      </svg>
+          <svg id="art" viewBox="0 0 1080 1920" aria-hidden="true">
+            <defs>
+              <marker id="none"></marker>
+            </defs>
+            <g id="dots"></g>
+            <circle
+              id="enso"
+              cx="540"
+              cy="760"
+              r="226"
+              fill="none"
+              stroke="#2E322F"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              stroke-dasharray="1420"
+              stroke-dashoffset="1420"
+              transform="rotate(-118 540 760)"
+              opacity="0"
+            />
+            <circle id="glow" cx="410" cy="830" r="150" fill="#B08D57" opacity="0" />
+            <g id="strokes" fill="none" stroke="#2E322F" stroke-linecap="round" opacity="0">
+              <path
+                id="eave1"
+                d="M170 742 Q540 620 910 742"
+                stroke-width="3"
+                stroke-dasharray="780"
+                stroke-dashoffset="780"
+              />
+              <path
+                id="eave2"
+                d="M232 800 Q540 700 848 800"
+                stroke-width="2"
+                stroke-dasharray="650"
+                stroke-dashoffset="650"
+              />
+              <g id="columns" stroke-width="1.6"></g>
+              <path
+                id="stair"
+                d="M540 1180 L372 900 M540 1180 L708 900"
+                stroke-width="1.2"
+                stroke-dasharray="640"
+                stroke-dashoffset="640"
+              />
+            </g>
+            <g id="lotus" fill="#4C6B52" opacity="0"></g>
+            <g id="grid" stroke="#4C6B52" stroke-width=".8" opacity="0"></g>
+            <g id="nodes"></g>
+            <g id="links" stroke="#B08D57" stroke-width="1.2" opacity="0"></g>
+            <g id="rings" fill="none" stroke="#4C6B52" stroke-width="1.4" opacity="0"></g>
+            <circle
+              id="revealRing"
+              cx="540"
+              cy="860"
+              r="0"
+              fill="none"
+              stroke="#F5F2EA"
+              stroke-width="80"
+              opacity="0"
+            />
+            <line
+              id="bottomLine"
+              x1="90"
+              y1="1736"
+              x2="990"
+              y2="1736"
+              stroke="#2E322F"
+              stroke-width="1.2"
+              stroke-dasharray="900"
+              stroke-dashoffset="900"
+              opacity="0"
+            />
+            <circle id="finalDot" cx="540" cy="960" r="5" fill="#4C6B52" opacity="0" />
+          </svg>
 
-      <div id="clipBox">
-        <canvas id="clipCanvas" width="960" height="600"></canvas>
-        <div id="clipDim"></div>
-        <div class="fog-top"></div>
-        <div class="mask-left"></div>
-        <div class="edge edge-t"></div>
-        <div class="edge edge-b"></div>
-        <div class="edge edge-r"></div>
-      </div>
-      <div id="clipBorder"></div>
-      <div id="shotBox">
-        <img id="shotImg" src="./assets/github-shot.png" alt="">
-        <div id="shotNote">代码 · 讨论 · 都开着</div>
-        <div class="edge edge-t"></div>
-        <div class="edge edge-b"></div>
-      </div>
-      <div id="shotBorder"></div>
+          <div id="clipBox">
+            <canvas id="clipCanvas" width="960" height="600"></canvas>
+            <div id="clipDim"></div>
+            <div class="fog-top"></div>
+            <div class="mask-left"></div>
+            <div class="edge edge-t"></div>
+            <div class="edge edge-b"></div>
+            <div class="edge edge-r"></div>
+          </div>
+          <div id="clipBorder"></div>
+          <div id="shotBox">
+            <img id="shotImg" src="./assets/github-shot.png" alt="" />
+            <div id="shotNote">代码 · 讨论 · 都开着</div>
+            <div class="edge edge-t"></div>
+            <div class="edge edge-b"></div>
+          </div>
+          <div id="shotBorder"></div>
 
-      <div id="textLayer">
-        <div class="invite" id="inviteTag">一个邀请 · 一起共建</div>
-        <div class="main" id="mainText"></div>
-        <div class="hint" id="hintText"></div>
-        <div class="sub" id="subText"></div>
-        <div class="cap" id="caption"><span></span></div>
-        <div id="labels"></div>
-        <div class="brand" id="brand">数字庭院 · GitHub 开源共建 · 邀请中</div>
+          <div id="textLayer">
+            <div class="invite" id="inviteTag">一个邀请 · 一起共建</div>
+            <div class="main" id="mainText"></div>
+            <div class="hint" id="hintText"></div>
+            <div class="sub" id="subText"></div>
+            <div class="cap" id="caption"><span></span></div>
+            <div id="labels"></div>
+            <div class="brand" id="brand">数字庭院 · GitHub 开源共建 · 邀请中</div>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-</div>
 
-<div id="controls">
-  <button id="btnPlay">播放</button>
-  <input id="seek" type="range" min="0" max="60" step="0.1" value="0">
-  <span id="time">00.0 / 60.0</span>
-  <button id="btnMute">静音</button>
-  <button id="btnReplay">重播</button>
-</div>
+    <div id="controls">
+      <button id="btnPlay">播放</button>
+      <input id="seek" type="range" min="0" max="60" step="0.1" value="0" />
+      <span id="time">00.0 / 60.0</span>
+      <button id="btnMute">静音</button>
+      <button id="btnReplay">重播</button>
+    </div>
 
-<script>
-"use strict";
+    <script>
+      'use strict';
 
-/* =========================================================================
- * 配置区：尺寸、时间轴、文案、素材全部集中在此。
- * 渲染逻辑只读取配置，不出现散落的魔法数字。
- * 依据：05-宣发/01-宣传片脚本与分镜编排.md 第 4 / 6 / 8 节
- * ========================================================================= */
-const CFG = Object.freeze({
-  W: 1080, H: 1920, FPS: 30, DURATION: 60,
-  WINDOW: Object.freeze({ x: 60, y: 560, w: 960, h: 600 }),
-  CLIPS: Object.freeze([
-    Object.freeze({ key: "a", t0: 13, t1: 23, count: 300, fadeIn: 0.42, fadeOut: 0.30 }),
-    Object.freeze({ key: "b", t0: 33, t1: 43, count: 300, fadeIn: 0.26, fadeOut: 0.30 }),
-  ]),
-  SCENES: Object.freeze([
-    Object.freeze({ id: "M1", t0: 0,  t1: 6  }),
-    Object.freeze({ id: "M2", t0: 6,  t1: 13 }),
-    Object.freeze({ id: "M3", t0: 13, t1: 24 }),
-    Object.freeze({ id: "M4", t0: 24, t1: 33 }),
-    Object.freeze({ id: "M5", t0: 33, t1: 45 }),
-    Object.freeze({ id: "M6", t0: 45, t1: 54 }),
-    Object.freeze({ id: "M7", t0: 54, t1: 60 }),
-  ]),
-  /* GitHub 证据幕：真实仓库页实截，见 tools/make-github-shot.mjs */
-  SHOT: Object.freeze({ t0: 45.0, t1: 53.4, fadeIn: 0.45, fadeOut: 0.40 }),
-  FRAME_DIR: "./.render/frames/",
-  BGM: "./assets/bgm.wav",
-});
+      /* =========================================================================
+       * 配置区：尺寸、时间轴、文案、素材全部集中在此。
+       * 渲染逻辑只读取配置，不出现散落的魔法数字。
+       * 依据：05-宣发/01-宣传片脚本与分镜编排.md 第 4 / 6 / 8 节
+       * ========================================================================= */
+      const CFG = Object.freeze({
+        W: 1080,
+        H: 1920,
+        FPS: 30,
+        DURATION: 60,
+        WINDOW: Object.freeze({ x: 60, y: 560, w: 960, h: 600 }),
+        CLIPS: Object.freeze([
+          Object.freeze({ key: 'a', t0: 13, t1: 23, count: 300, fadeIn: 0.42, fadeOut: 0.3 }),
+          Object.freeze({ key: 'b', t0: 33, t1: 43, count: 300, fadeIn: 0.26, fadeOut: 0.3 }),
+        ]),
+        SCENES: Object.freeze([
+          Object.freeze({ id: 'M1', t0: 0, t1: 6 }),
+          Object.freeze({ id: 'M2', t0: 6, t1: 13 }),
+          Object.freeze({ id: 'M3', t0: 13, t1: 24 }),
+          Object.freeze({ id: 'M4', t0: 24, t1: 33 }),
+          Object.freeze({ id: 'M5', t0: 33, t1: 45 }),
+          Object.freeze({ id: 'M6', t0: 45, t1: 54 }),
+          Object.freeze({ id: 'M7', t0: 54, t1: 60 }),
+        ]),
+        /* GitHub 证据幕：真实仓库页实截，见 tools/make-github-shot.mjs */
+        SHOT: Object.freeze({ t0: 45.0, t1: 53.4, fadeIn: 0.45, fadeOut: 0.4 }),
+        FRAME_DIR: './.render/frames/',
+        BGM: './assets/bgm.wav',
+      });
 
-/* 主文字（L4）：整句淡入，与口播同句时只显示一次。
+      /* 主文字（L4）：整句淡入，与口播同句时只显示一次。
    v0.3 主线：从第 4 幕坦白起，每一句都指向「邀请共建」这个唯一目的。 */
-const MAIN_TEXT = Object.freeze([
-  { t0: 0.0,  t1: 2.6,  text: "今天，也很忙吧。" },
-  { t0: 6.0,  t1: 9.2,  text: "我在电脑里，画了一座园林" },
-  { t0: 9.2,  t1: 13.0, text: "屋檐 · 莲池 · 光影" },
-  { t0: 13.0, t1: 18.4, text: "不用赶路" },
-  { t0: 24.0, t1: 28.2, text: "还只是个原型" },
-  { t0: 28.2, t1: 33.0, text: "一个人，建不完" },
-  { t0: 33.0, t1: 38.2, text: "邀请你，一起建" },
-  { t0: 45.0, t1: 49.6, text: "项目就在这里" },
-  { t0: 49.6, t1: 54.0, text: "还缺一起建的人" },
-  { t0: 54.0, t1: 60.0, text: "来，一起建这个世界" },
-]);
+      const MAIN_TEXT = Object.freeze([
+        { t0: 0.0, t1: 2.6, text: '今天，也很忙吧。' },
+        { t0: 6.0, t1: 9.2, text: '我在电脑里，画了一座园林' },
+        { t0: 9.2, t1: 13.0, text: '屋檐 · 莲池 · 光影' },
+        { t0: 13.0, t1: 18.4, text: '不用赶路' },
+        { t0: 24.0, t1: 28.2, text: '还只是个原型' },
+        { t0: 28.2, t1: 33.0, text: '一个人，建不完' },
+        { t0: 33.0, t1: 38.2, text: '邀请你，一起建' },
+        { t0: 45.0, t1: 49.6, text: '项目就在这里' },
+        { t0: 49.6, t1: 54.0, text: '还缺一起建的人' },
+        { t0: 54.0, t1: 60.0, text: '来，一起建这个世界' },
+      ]);
 
-/* 辅信息（L6） */
-const SUB_TEXT = Object.freeze([
-  { t0: 2.2,  t1: 6.0,  text: "给自己 60 秒" },
-  { t0: 18.4, t1: 24.0, text: "慢慢走就好" },
-  { t0: 24.0, t1: 28.2, text: "开源协作 · 进行中" },
-]);
+      /* 辅信息（L6） */
+      const SUB_TEXT = Object.freeze([
+        { t0: 2.2, t1: 6.0, text: '给自己 60 秒' },
+        { t0: 18.4, t1: 24.0, text: '慢慢走就好' },
+        { t0: 24.0, t1: 28.2, text: '开源协作 · 进行中' },
+      ]);
 
-/* 顶部提示（L6 小字）：按时间表切换，不再硬编码单句 */
-const HINT_TEXT = Object.freeze([
-  { t0: 45.0, t1: 49.6, text: "GitHub · dengjue / westernParadise" },
-  { t0: 49.6, t1: 54.0, text: "想做成 · 打开浏览器就能走进去的地方" },
-  { t0: 57.6, t1: 60.0, text: "一座还没建完的数字园林" },
-]);
+      /* 顶部提示（L6 小字）：按时间表切换，不再硬编码单句 */
+      const HINT_TEXT = Object.freeze([
+        { t0: 45.0, t1: 49.6, text: 'GitHub · dengjue / westernParadise' },
+        { t0: 49.6, t1: 54.0, text: '想做成 · 打开浏览器就能走进去的地方' },
+        { t0: 57.6, t1: 60.0, text: '一座还没建完的数字园林' },
+      ]);
 
-/* 字幕（L5）：与口播逐句同步；同句已由主文字承担时不重复显示 */
-const CAPTIONS = Object.freeze([
-  { t0: 9.2,  t1: 13.0, text: "有屋檐，有莲池，有会移动的光" },
-  { t0: 13.0, t1: 18.4, text: "不用赶路，也不用完成什么" },
-  { t0: 24.0, t1: 28.2, text: "但它现在，还只是个原型" },
-  { t0: 33.0, t1: 38.2, text: "这是一个邀请：一起把它建起来" },
-  { t0: 38.2, t1: 45.0, text: "会写代码、会画、会听、会挑毛病，都算" },
-  { t0: 45.0, t1: 49.6, text: "代码和讨论，都在 GitHub" },
-  { t0: 49.6, t1: 54.0, text: "不赶时间，也不卖东西" },
-  { t0: 54.0, t1: 58.0, text: "评论区告诉我，你会什么" },
-]);
+      /* 字幕（L5）：与口播逐句同步；同句已由主文字承担时不重复显示 */
+      const CAPTIONS = Object.freeze([
+        { t0: 9.2, t1: 13.0, text: '有屋檐，有莲池，有会移动的光' },
+        { t0: 13.0, t1: 18.4, text: '不用赶路，也不用完成什么' },
+        { t0: 24.0, t1: 28.2, text: '但它现在，还只是个原型' },
+        { t0: 33.0, t1: 38.2, text: '这是一个邀请：一起把它建起来' },
+        { t0: 38.2, t1: 45.0, text: '会写代码、会画、会听、会挑毛病，都算' },
+        { t0: 45.0, t1: 49.6, text: '代码和讨论，都在 GitHub' },
+        { t0: 49.6, t1: 54.0, text: '不赶时间，也不卖东西' },
+        { t0: 54.0, t1: 58.0, text: '评论区告诉我，你会什么' },
+      ]);
 
-/* 六类参与方式：错峰淡入，间隔 0.3s */
-const LABELS = Object.freeze([
-  "体验反馈", "空间与建筑", "声音与氛围", "前端 / Three.js", "测试与性能", "文案与无障碍",
-]);
-const LABEL_START = 35.0;
-const LABEL_STEP = 0.30;
+      /* 六类参与方式：错峰淡入，间隔 0.3s */
+      const LABELS = Object.freeze([
+        '体验反馈',
+        '空间与建筑',
+        '声音与氛围',
+        '前端 / Three.js',
+        '测试与性能',
+        '文案与无障碍',
+      ]);
+      const LABEL_START = 35.0;
+      const LABEL_STEP = 0.3;
 
-/* =========================================================================
- * 工具函数：全部为纯函数，保证逐帧渲染结果确定、可复现
- * ========================================================================= */
-const clamp01 = (u) => Math.min(1, Math.max(0, u));
-const ease = (u) => 1 - Math.pow(1 - clamp01(u), 3);
-const prog = (t, t0, t1) => ease((t - t0) / (t1 - t0));
-const lerp = (a, b, u) => a + (b - a) * u;
-function fade(t, t0, t1, fin = 0.40, fout = 0.25) {
-  if (t < t0 || t > t1) return 0;
-  return Math.min(clamp01((t - t0) / fin), clamp01((t1 - t) / fout));
-}
-function svgEl(tag, attrs) {
-  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (const k in attrs) el.setAttribute(k, attrs[k]);
-  return el;
-}
-const $ = (id) => document.getElementById(id);
+      /* =========================================================================
+       * 工具函数：全部为纯函数，保证逐帧渲染结果确定、可复现
+       * ========================================================================= */
+      const clamp01 = (u) => Math.min(1, Math.max(0, u));
+      const ease = (u) => 1 - Math.pow(1 - clamp01(u), 3);
+      const prog = (t, t0, t1) => ease((t - t0) / (t1 - t0));
+      const lerp = (a, b, u) => a + (b - a) * u;
+      function fade(t, t0, t1, fin = 0.4, fout = 0.25) {
+        if (t < t0 || t > t1) return 0;
+        return Math.min(clamp01((t - t0) / fin), clamp01((t1 - t) / fout));
+      }
+      function svgEl(tag, attrs) {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for (const k in attrs) el.setAttribute(k, attrs[k]);
+        return el;
+      }
+      const $ = (id) => document.getElementById(id);
 
-/* =========================================================================
- * 静态 SVG 元素生成：网格、节点、墨点、柱列、莲叶、同心圆、连线
- * ========================================================================= */
-const DOTS = [], NODES = [], RINGS = [], LINKS = [], CHIPS = [];
+      /* =========================================================================
+       * 静态 SVG 元素生成：网格、节点、墨点、柱列、莲叶、同心圆、连线
+       * ========================================================================= */
+      const DOTS = [],
+        NODES = [],
+        RINGS = [],
+        LINKS = [],
+        CHIPS = [];
 
-(function buildStatic() {
-  const dotsG = $("dots");
-  for (let i = 0; i < 12; i++) {
-    const c = svgEl("circle", { cx: 540, cy: 760, r: 5 + (i % 3) * 2, fill: "#2E322F", opacity: 0 });
-    dotsG.appendChild(c); DOTS.push(c);
-  }
-  const cols = $("columns");
-  for (let i = 0; i < 7; i++) {
-    const x = 300 + i * 80;
-    const l = svgEl("line", { x1: x, y1: 806, x2: x, y2: 936, "stroke-width": 1.6,
-      "stroke-dasharray": 130, "stroke-dashoffset": 130 });
-    cols.appendChild(l);
-  }
-  const lotus = $("lotus");
-  for (let i = 0; i < 5; i++) {
-    const x = 250 + i * 145, y = 1010 + (i % 2) * 46;
-    lotus.appendChild(svgEl("ellipse", { cx: x, cy: y, rx: 34, ry: 13,
-      fill: "#4C6B52", opacity: 0.34, transform: `rotate(${-16 + i * 8} ${x} ${y})` }));
-  }
-  const grid = $("grid");
-  for (let i = 0; i <= 24; i++) {
-    const x = 90 + i * 37.5;
-    grid.appendChild(svgEl("line", { x1: x, y1: 480, x2: x, y2: 1440, opacity: 0.16 }));
-  }
-  for (let j = 0; j <= 26; j++) {
-    const y = 480 + j * 36.9;
-    grid.appendChild(svgEl("line", { x1: 90, y1: y, x2: 990, y2: y, opacity: 0.16 }));
-  }
-  const nodesG = $("nodes");
-  const seats = [[210, 640], [420, 700], [640, 620], [810, 760], [330, 980],
-                 [560, 900], [760, 1050], [200, 1200], [470, 1240], [700, 1300],
-                 [880, 1180], [300, 1360], [600, 1380], [850, 1420]];
-  seats.forEach((p, i) => {
-    const filled = i < 5;
-    const c = svgEl("circle", { cx: p[0], cy: p[1], r: filled ? 7 : 10,
-      fill: filled ? "#4C6B52" : "none", stroke: "#4C6B52",
-      "stroke-width": 1.2, "stroke-dasharray": filled ? "none" : "3 4", opacity: 0 });
-    nodesG.appendChild(c); NODES.push({ el: c, filled, i });
-  });
-  const ringsG = $("rings");
-  for (let i = 0; i < 3; i++) {
-    const c = svgEl("circle", { cx: 540, cy: 960, r: 0, opacity: 0 });
-    ringsG.appendChild(c); RINGS.push(c);
-  }
-  const linksG = $("links");
-  for (let i = 0; i < 8; i++) {
-    const ang = (i / 8) * Math.PI * 2;
-    const l = svgEl("line", { x1: 540, y1: 960,
-      x2: 540 + Math.cos(ang) * 300, y2: 960 + Math.sin(ang) * 300,
-      "stroke-dasharray": 300, "stroke-dashoffset": 300, opacity: 0 });
-    linksG.appendChild(l); LINKS.push(l);
-  }
-  const labels = $("labels");
-  LABELS.forEach((text) => {
-    const chip = document.createElement("span");
-    chip.className = "chip"; chip.textContent = text;
-    labels.appendChild(chip); CHIPS.push(chip);
-  });
-})();
+      (function buildStatic() {
+        const dotsG = $('dots');
+        for (let i = 0; i < 12; i++) {
+          const c = svgEl('circle', {
+            cx: 540,
+            cy: 760,
+            r: 5 + (i % 3) * 2,
+            fill: '#2E322F',
+            opacity: 0,
+          });
+          dotsG.appendChild(c);
+          DOTS.push(c);
+        }
+        const cols = $('columns');
+        for (let i = 0; i < 7; i++) {
+          const x = 300 + i * 80;
+          const l = svgEl('line', {
+            x1: x,
+            y1: 806,
+            x2: x,
+            y2: 936,
+            'stroke-width': 1.6,
+            'stroke-dasharray': 130,
+            'stroke-dashoffset': 130,
+          });
+          cols.appendChild(l);
+        }
+        const lotus = $('lotus');
+        for (let i = 0; i < 5; i++) {
+          const x = 250 + i * 145,
+            y = 1010 + (i % 2) * 46;
+          lotus.appendChild(
+            svgEl('ellipse', {
+              cx: x,
+              cy: y,
+              rx: 34,
+              ry: 13,
+              fill: '#4C6B52',
+              opacity: 0.34,
+              transform: `rotate(${-16 + i * 8} ${x} ${y})`,
+            }),
+          );
+        }
+        const grid = $('grid');
+        for (let i = 0; i <= 24; i++) {
+          const x = 90 + i * 37.5;
+          grid.appendChild(svgEl('line', { x1: x, y1: 480, x2: x, y2: 1440, opacity: 0.16 }));
+        }
+        for (let j = 0; j <= 26; j++) {
+          const y = 480 + j * 36.9;
+          grid.appendChild(svgEl('line', { x1: 90, y1: y, x2: 990, y2: y, opacity: 0.16 }));
+        }
+        const nodesG = $('nodes');
+        const seats = [
+          [210, 640],
+          [420, 700],
+          [640, 620],
+          [810, 760],
+          [330, 980],
+          [560, 900],
+          [760, 1050],
+          [200, 1200],
+          [470, 1240],
+          [700, 1300],
+          [880, 1180],
+          [300, 1360],
+          [600, 1380],
+          [850, 1420],
+        ];
+        seats.forEach((p, i) => {
+          const filled = i < 5;
+          const c = svgEl('circle', {
+            cx: p[0],
+            cy: p[1],
+            r: filled ? 7 : 10,
+            fill: filled ? '#4C6B52' : 'none',
+            stroke: '#4C6B52',
+            'stroke-width': 1.2,
+            'stroke-dasharray': filled ? 'none' : '3 4',
+            opacity: 0,
+          });
+          nodesG.appendChild(c);
+          NODES.push({ el: c, filled, i });
+        });
+        const ringsG = $('rings');
+        for (let i = 0; i < 3; i++) {
+          const c = svgEl('circle', { cx: 540, cy: 960, r: 0, opacity: 0 });
+          ringsG.appendChild(c);
+          RINGS.push(c);
+        }
+        const linksG = $('links');
+        for (let i = 0; i < 8; i++) {
+          const ang = (i / 8) * Math.PI * 2;
+          const l = svgEl('line', {
+            x1: 540,
+            y1: 960,
+            x2: 540 + Math.cos(ang) * 300,
+            y2: 960 + Math.sin(ang) * 300,
+            'stroke-dasharray': 300,
+            'stroke-dashoffset': 300,
+            opacity: 0,
+          });
+          linksG.appendChild(l);
+          LINKS.push(l);
+        }
+        const labels = $('labels');
+        LABELS.forEach((text) => {
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.textContent = text;
+          labels.appendChild(chip);
+          CHIPS.push(chip);
+        });
+      })();
 
-/* =========================================================================
- * 录屏帧预加载：用帧序列而非 <video>，保证逐帧渲染完全确定
- * ========================================================================= */
-const FRAMES = { a: [], b: [] };
-window.__readyFlag = false;
-const readyPromise = (async () => {
-  const jobs = [];
-  for (const c of CFG.CLIPS) {
-    for (let i = 1; i <= c.count; i++) {
-      const img = new Image();
-      const n = String(i).padStart(4, "0");
-      img.src = `${CFG.FRAME_DIR}${c.key}_${n}.jpg`;
-      FRAMES[c.key].push(img);
-      jobs.push(new Promise((res) => {
-        img.onload = res; img.onerror = res;
-      }));
-    }
-  }
-  const shotImg = $("shotImg");
-  const shotReady = new Promise((res) => {
-    if (shotImg.complete && shotImg.naturalWidth > 0) res();
-    else { shotImg.onload = res; shotImg.onerror = res; }
-  });
-  await Promise.all([...jobs, shotReady]);
-  await document.fonts.ready;
-  window.__readyFlag = true;
-})();
-window.__ready = readyPromise;
+      /* =========================================================================
+       * 录屏帧预加载：用帧序列而非 <video>，保证逐帧渲染完全确定
+       * ========================================================================= */
+      const FRAMES = { a: [], b: [] };
+      window.__readyFlag = false;
+      const readyPromise = (async () => {
+        const jobs = [];
+        for (const c of CFG.CLIPS) {
+          for (let i = 1; i <= c.count; i++) {
+            const img = new Image();
+            const n = String(i).padStart(4, '0');
+            img.src = `${CFG.FRAME_DIR}${c.key}_${n}.jpg`;
+            FRAMES[c.key].push(img);
+            jobs.push(
+              new Promise((res) => {
+                img.onload = res;
+                img.onerror = res;
+              }),
+            );
+          }
+        }
+        const shotImg = $('shotImg');
+        const shotReady = new Promise((res) => {
+          if (shotImg.complete && shotImg.naturalWidth > 0) res();
+          else {
+            shotImg.onload = res;
+            shotImg.onerror = res;
+          }
+        });
+        await Promise.all([...jobs, shotReady]);
+        await document.fonts.ready;
+        window.__readyFlag = true;
+      })();
+      window.__ready = readyPromise;
 
-const canvas = $("clipCanvas");
-const ctx = canvas.getContext("2d", { alpha: false });
+      const canvas = $('clipCanvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
 
-/* =========================================================================
- * 核心：按绝对时间求值，一帧内不依赖上一帧状态
- * ========================================================================= */
-function renderFrame(t) {
-  t = Math.min(CFG.DURATION, Math.max(0, t));
-  const S = (id) => CFG.SCENES.find((s) => s.id === id);
+      /* =========================================================================
+       * 核心：按绝对时间求值，一帧内不依赖上一帧状态
+       * ========================================================================= */
+      function renderFrame(t) {
+        t = Math.min(CFG.DURATION, Math.max(0, t));
+        const S = (id) => CFG.SCENES.find((s) => s.id === id);
 
-  /* ---- M1 墨点聚散 + 圆相 ---- */
-  const m1 = S("M1");
-  DOTS.forEach((d, i) => {
-    const ang = (i / DOTS.length) * Math.PI * 2;
-    const gather = prog(t, 0, 1.8);
-    const scatter = prog(t, 1.8, 3.5);
-    const r = lerp(430, 88, gather) + scatter * 250;
-    d.setAttribute("cx", (540 + Math.cos(ang) * r).toFixed(1));
-    d.setAttribute("cy", (760 + Math.sin(ang) * r * 0.72).toFixed(1));
-    d.setAttribute("opacity", (0.52 * (1 - scatter) * fade(t, -0.2, 3.8, 0.25, 0.55)).toFixed(3));
-  });
-  const ensoDraw = prog(t, 3.5, 5.9);
-  $("enso").setAttribute("stroke-dashoffset", (1420 * (1 - ensoDraw)).toFixed(1));
-  $("enso").setAttribute("opacity", (0.72 * fade(t, 3.4, 6.6, 0.4, 0.7)).toFixed(3));
+        /* ---- M1 墨点聚散 + 圆相 ---- */
+        const m1 = S('M1');
+        DOTS.forEach((d, i) => {
+          const ang = (i / DOTS.length) * Math.PI * 2;
+          const gather = prog(t, 0, 1.8);
+          const scatter = prog(t, 1.8, 3.5);
+          const r = lerp(430, 88, gather) + scatter * 250;
+          d.setAttribute('cx', (540 + Math.cos(ang) * r).toFixed(1));
+          d.setAttribute('cy', (760 + Math.sin(ang) * r * 0.72).toFixed(1));
+          d.setAttribute(
+            'opacity',
+            (0.52 * (1 - scatter) * fade(t, -0.2, 3.8, 0.25, 0.55)).toFixed(3),
+          );
+        });
+        const ensoDraw = prog(t, 3.5, 5.9);
+        $('enso').setAttribute('stroke-dashoffset', (1420 * (1 - ensoDraw)).toFixed(1));
+        $('enso').setAttribute('opacity', (0.72 * fade(t, 3.4, 6.6, 0.4, 0.7)).toFixed(3));
 
-  /* ---- M2 屋檐、柱列、阶道、莲叶逐笔生长 + 光晕右移 ---- */
-  const lineGrow = (t0, dur) => prog(t, t0, t0 + dur);
-  const e1 = lineGrow(6.2, 0.9), e2 = lineGrow(7.0, 0.9), st = lineGrow(8.6, 0.9);
-  $("eave1").setAttribute("stroke-dashoffset", (780 * (1 - e1)).toFixed(1));
-  $("eave2").setAttribute("stroke-dashoffset", (650 * (1 - e2)).toFixed(1));
-  $("stair").setAttribute("stroke-dashoffset", (640 * (1 - st)).toFixed(1));
-  $("columns").querySelectorAll("line").forEach((l, i) => {
-    const u = lineGrow(7.6 + i * 0.16, 0.7);
-    l.setAttribute("stroke-dashoffset", (130 * (1 - u)).toFixed(1));
-  });
-  $("strokes").setAttribute("opacity", fade(t, 6.0, 13.4, 0.4, 0.4).toFixed(3));
-  $("lotus").setAttribute("opacity", (0.9 * fade(t, 9.6, 13.4, 0.6, 0.4)).toFixed(3));
-  $("glow").setAttribute("cx", lerp(410, 560, prog(t, 9.0, 13.0)).toFixed(1));
-  $("glow").setAttribute("opacity", (0.09 * fade(t, 8.8, 13.4, 0.6, 0.5)).toFixed(3));
+        /* ---- M2 屋檐、柱列、阶道、莲叶逐笔生长 + 光晕右移 ---- */
+        const lineGrow = (t0, dur) => prog(t, t0, t0 + dur);
+        const e1 = lineGrow(6.2, 0.9),
+          e2 = lineGrow(7.0, 0.9),
+          st = lineGrow(8.6, 0.9);
+        $('eave1').setAttribute('stroke-dashoffset', (780 * (1 - e1)).toFixed(1));
+        $('eave2').setAttribute('stroke-dashoffset', (650 * (1 - e2)).toFixed(1));
+        $('stair').setAttribute('stroke-dashoffset', (640 * (1 - st)).toFixed(1));
+        $('columns')
+          .querySelectorAll('line')
+          .forEach((l, i) => {
+            const u = lineGrow(7.6 + i * 0.16, 0.7);
+            l.setAttribute('stroke-dashoffset', (130 * (1 - u)).toFixed(1));
+          });
+        $('strokes').setAttribute('opacity', fade(t, 6.0, 13.4, 0.4, 0.4).toFixed(3));
+        $('lotus').setAttribute('opacity', (0.9 * fade(t, 9.6, 13.4, 0.6, 0.4)).toFixed(3));
+        $('glow').setAttribute('cx', lerp(410, 560, prog(t, 9.0, 13.0)).toFixed(1));
+        $('glow').setAttribute('opacity', (0.09 * fade(t, 8.8, 13.4, 0.6, 0.5)).toFixed(3));
 
-  /* ---- M3 圆相 Reveal + 录屏段① ---- */
-  const reveal = prog(t, 13.0, 13.42);
-  $("revealRing").setAttribute("r", (reveal * 760).toFixed(1));
-  $("revealRing").setAttribute("opacity", (0.9 * (1 - prog(t, 13.42, 13.8))).toFixed(3));
-  DOTS.forEach((d, i) => {
-    if (i >= 4) return;
-    const drift = (t - 13) * 5;
-    d.setAttribute("cx", (180 + i * 240 + Math.sin(t * 0.5 + i) * 18).toFixed(1));
-    d.setAttribute("cy", (420 + ((drift + i * 90) % 1100)).toFixed(1));
-    d.setAttribute("opacity", (0.07 * fade(t, 13.0, 24.0, 0.6, 0.6)).toFixed(3));
-  });
+        /* ---- M3 圆相 Reveal + 录屏段① ---- */
+        const reveal = prog(t, 13.0, 13.42);
+        $('revealRing').setAttribute('r', (reveal * 760).toFixed(1));
+        $('revealRing').setAttribute('opacity', (0.9 * (1 - prog(t, 13.42, 13.8))).toFixed(3));
+        DOTS.forEach((d, i) => {
+          if (i >= 4) return;
+          const drift = (t - 13) * 5;
+          d.setAttribute('cx', (180 + i * 240 + Math.sin(t * 0.5 + i) * 18).toFixed(1));
+          d.setAttribute('cy', (420 + ((drift + i * 90) % 1100)).toFixed(1));
+          d.setAttribute('opacity', (0.07 * fade(t, 13.0, 24.0, 0.6, 0.6)).toFixed(3));
+        });
 
-  /* ---- M4 蓝图网格 + 空缺节点 ---- */
-  $("grid").setAttribute("opacity", (0.9 * fade(t, 24.0, 33.0, 0.5, 0.5)).toFixed(3));
-  NODES.forEach((n) => {
-    const appear = prog(t, 24.4 + n.i * 0.06, 25.2 + n.i * 0.06);
-    const pulse = n.filled ? 0 : Math.max(0, Math.sin((t - 28) * 2.2 + n.i * 0.7)) * 2.4;
-    n.el.setAttribute("r", ((n.filled ? 7 : 10) * appear + pulse).toFixed(1));
-    n.el.setAttribute("opacity", (appear * fade(t, 24.2, 45.0, 0.4, 0.6)).toFixed(3));
-  });
+        /* ---- M4 蓝图网格 + 空缺节点 ---- */
+        $('grid').setAttribute('opacity', (0.9 * fade(t, 24.0, 33.0, 0.5, 0.5)).toFixed(3));
+        NODES.forEach((n) => {
+          const appear = prog(t, 24.4 + n.i * 0.06, 25.2 + n.i * 0.06);
+          const pulse = n.filled ? 0 : Math.max(0, Math.sin((t - 28) * 2.2 + n.i * 0.7)) * 2.4;
+          n.el.setAttribute('r', ((n.filled ? 7 : 10) * appear + pulse).toFixed(1));
+          n.el.setAttribute('opacity', (appear * fade(t, 24.2, 45.0, 0.4, 0.6)).toFixed(3));
+        });
 
-  /* ---- M5 标签错峰淡入 + 三个空缺节点被点亮 ---- */
-  CHIPS.forEach((chip, i) => {
-    chip.style.opacity = fade(t, LABEL_START + i * LABEL_STEP, 45.0, 0.32, 0.6).toFixed(3);
-  });
-  [5, 6, 7].forEach((idx, k) => {
-    const lit = prog(t, 35.4 + k * 0.3, 36.1 + k * 0.3);
-    const el = NODES[idx].el;
-    el.setAttribute("fill", `rgba(76,107,82,${(0.15 + 0.75 * lit).toFixed(2)})`);
-    el.setAttribute("stroke-dasharray", "none");
-  });
-  $("clipDim").style.opacity = (0.55 * fade(t, 33.0, 43.0, 0.3, 0.3)).toFixed(3);
+        /* ---- M5 标签错峰淡入 + 三个空缺节点被点亮 ---- */
+        CHIPS.forEach((chip, i) => {
+          chip.style.opacity = fade(t, LABEL_START + i * LABEL_STEP, 45.0, 0.32, 0.6).toFixed(3);
+        });
+        [5, 6, 7].forEach((idx, k) => {
+          const lit = prog(t, 35.4 + k * 0.3, 36.1 + k * 0.3);
+          const el = NODES[idx].el;
+          el.setAttribute('fill', `rgba(76,107,82,${(0.15 + 0.75 * lit).toFixed(2)})`);
+          el.setAttribute('stroke-dasharray', 'none');
+        });
+        $('clipDim').style.opacity = (0.55 * fade(t, 33.0, 43.0, 0.3, 0.3)).toFixed(3);
 
-  /* ---- M6 同心圆扩散 + 连线延伸 ---- */
-  RINGS.forEach((c, i) => {
-    const u = prog(t, 45.0 + i * 0.16, 46.4 + i * 0.16);
-    c.setAttribute("r", (u * 520).toFixed(1));
-    c.setAttribute("opacity", (0.42 * (1 - u)).toFixed(3));
-  });
-  LINKS.forEach((l, i) => {
-    const u = prog(t, 47.0 + i * 0.05, 51.5);
-    l.setAttribute("stroke-dashoffset", (300 * (1 - u)).toFixed(1));
-    l.setAttribute("opacity", (0.5 * fade(t, 46.8, 53.6, 0.6, 0.8)).toFixed(3));
-  });
-  $("finalDot").setAttribute("opacity", fade(t, 52.2, 60.0, 0.5, 2.0).toFixed(3));
+        /* ---- M6 同心圆扩散 + 连线延伸 ---- */
+        RINGS.forEach((c, i) => {
+          const u = prog(t, 45.0 + i * 0.16, 46.4 + i * 0.16);
+          c.setAttribute('r', (u * 520).toFixed(1));
+          c.setAttribute('opacity', (0.42 * (1 - u)).toFixed(3));
+        });
+        LINKS.forEach((l, i) => {
+          const u = prog(t, 47.0 + i * 0.05, 51.5);
+          l.setAttribute('stroke-dashoffset', (300 * (1 - u)).toFixed(1));
+          l.setAttribute('opacity', (0.5 * fade(t, 46.8, 53.6, 0.6, 0.8)).toFixed(3));
+        });
+        $('finalDot').setAttribute('opacity', fade(t, 52.2, 60.0, 0.5, 2.0).toFixed(3));
 
-  /* ---- M7 圆相合拢 + 底部细线 ---- */
-  const closeU = prog(t, 54.0, 55.2);
-  $("enso").setAttribute("stroke-dashoffset", (1420 * closeU * 0.15).toFixed(1));
-  $("enso").setAttribute("opacity", (0.66 * fade(t, 54.0, 60.0, 0.5, 1.2)).toFixed(3));
-  const lineU = prog(t, 56.0, 57.8);
-  $("bottomLine").setAttribute("stroke-dashoffset", (900 * (1 - lineU)).toFixed(1));
-  $("bottomLine").setAttribute("opacity", fade(t, 55.8, 60.0, 0.4, 1.2).toFixed(3));
+        /* ---- M7 圆相合拢 + 底部细线 ---- */
+        const closeU = prog(t, 54.0, 55.2);
+        $('enso').setAttribute('stroke-dashoffset', (1420 * closeU * 0.15).toFixed(1));
+        $('enso').setAttribute('opacity', (0.66 * fade(t, 54.0, 60.0, 0.5, 1.2)).toFixed(3));
+        const lineU = prog(t, 56.0, 57.8);
+        $('bottomLine').setAttribute('stroke-dashoffset', (900 * (1 - lineU)).toFixed(1));
+        $('bottomLine').setAttribute('opacity', fade(t, 55.8, 60.0, 0.4, 1.2).toFixed(3));
 
-  /* ---- 录屏窗口 ---- */
-  const clip = CFG.CLIPS.find((c) => t >= c.t0 && t < c.t1);
-  if (clip && window.__readyFlag) {
-    const idx = Math.min(clip.count - 1, Math.max(0, Math.floor((t - clip.t0) * CFG.FPS)));
-    const img = FRAMES[clip.key][idx];
-    if (img && img.complete && img.naturalWidth > 0) ctx.drawImage(img, 0, 0, CFG.WINDOW.w, CFG.WINDOW.h);
-    const inn = clamp01((t - clip.t0) / clip.fadeIn);
-    const out = clamp01((clip.t1 - t) / clip.fadeOut);
-    const breathe = 0.94 + 0.06 * Math.sin((t - clip.t0) * 1.57);
-    $("clipBox").style.opacity = (Math.min(inn, out) * breathe).toFixed(3);
-    $("clipBorder").style.opacity = (Math.min(inn, out) * 0.7).toFixed(3);
-  } else {
-    $("clipBox").style.opacity = 0;
-    $("clipBorder").style.opacity = 0;
-  }
+        /* ---- 录屏窗口 ---- */
+        const clip = CFG.CLIPS.find((c) => t >= c.t0 && t < c.t1);
+        if (clip && window.__readyFlag) {
+          const idx = Math.min(clip.count - 1, Math.max(0, Math.floor((t - clip.t0) * CFG.FPS)));
+          const img = FRAMES[clip.key][idx];
+          if (img && img.complete && img.naturalWidth > 0)
+            ctx.drawImage(img, 0, 0, CFG.WINDOW.w, CFG.WINDOW.h);
+          const inn = clamp01((t - clip.t0) / clip.fadeIn);
+          const out = clamp01((clip.t1 - t) / clip.fadeOut);
+          const breathe = 0.94 + 0.06 * Math.sin((t - clip.t0) * 1.57);
+          $('clipBox').style.opacity = (Math.min(inn, out) * breathe).toFixed(3);
+          $('clipBorder').style.opacity = (Math.min(inn, out) * 0.7).toFixed(3);
+        } else {
+          $('clipBox').style.opacity = 0;
+          $('clipBorder').style.opacity = 0;
+        }
 
-  /* ---- GitHub 证据幕：真实仓库页实截，缓慢推进，不弹跳 ---- */
-  const SH = CFG.SHOT;   /* 勿与上方 SCENES 查找函数 S 重名 */
-  const shotOp = fade(t, SH.t0, SH.t1, SH.fadeIn, SH.fadeOut);
-  $("shotBox").style.opacity = shotOp.toFixed(3);
-  $("shotBorder").style.opacity = (shotOp * 0.7).toFixed(3);
-  $("shotImg").style.transform = `scale(${(1 + 0.014 * prog(t, SH.t0, SH.t1)).toFixed(4)})`;
-  $("shotNote").style.opacity = fade(t, 46.0, 53.4, 0.5, 0.5).toFixed(3);
+        /* ---- GitHub 证据幕：真实仓库页实截，缓慢推进，不弹跳 ---- */
+        const SH = CFG.SHOT; /* 勿与上方 SCENES 查找函数 S 重名 */
+        const shotOp = fade(t, SH.t0, SH.t1, SH.fadeIn, SH.fadeOut);
+        $('shotBox').style.opacity = shotOp.toFixed(3);
+        $('shotBorder').style.opacity = (shotOp * 0.7).toFixed(3);
+        $('shotImg').style.transform = `scale(${(1 + 0.014 * prog(t, SH.t0, SH.t1)).toFixed(4)})`;
+        $('shotNote').style.opacity = fade(t, 46.0, 53.4, 0.5, 0.5).toFixed(3);
 
-  /* ---- 文字层 ---- */
-  applyText($("mainText"), MAIN_TEXT, t, 0.40, 0.25);
-  applyText($("subText"), SUB_TEXT, t, 0.40, 0.30);
-  applyText($("hintText"), HINT_TEXT, t, 0.40, 0.35);
-  applyText($("caption").querySelector("span"), CAPTIONS, t, 0.25, 0.25, true);
-  /* 常驻角标：1.8s 起出现后不再淡出，片尾保持静止 */
-  $("inviteTag").style.opacity = (0.92 * clamp01((t - 1.8) / 0.6)).toFixed(3);
-  $("brand").style.opacity = Math.max(
-    fade(t, 24.0, 33.0, 0.5, 0.5),
-    fade(t, 54.0, 60.0, 0.5, 1.2),
-  ).toFixed(3);
-}
+        /* ---- 文字层 ---- */
+        applyText($('mainText'), MAIN_TEXT, t, 0.4, 0.25);
+        applyText($('subText'), SUB_TEXT, t, 0.4, 0.3);
+        applyText($('hintText'), HINT_TEXT, t, 0.4, 0.35);
+        applyText($('caption').querySelector('span'), CAPTIONS, t, 0.25, 0.25, true);
+        /* 常驻角标：1.8s 起出现后不再淡出，片尾保持静止 */
+        $('inviteTag').style.opacity = (0.92 * clamp01((t - 1.8) / 0.6)).toFixed(3);
+        $('brand').style.opacity = Math.max(
+          fade(t, 24.0, 33.0, 0.5, 0.5),
+          fade(t, 54.0, 60.0, 0.5, 1.2),
+        ).toFixed(3);
+      }
 
-/* 文字项：找到当前生效项，整句淡入淡出；同时避免每帧重复写 DOM */
-const TEXT_CACHE = new WeakMap();
-function applyText(el, list, t, fin, fout, wrapSpan = false) {
-  const item = list.find((x) => t >= x.t0 && t <= x.t1);
-  const op = item ? fade(t, item.t0, item.t1, fin, fout) : 0;
-  const target = wrapSpan ? el.parentElement : el;
-  target.style.opacity = op.toFixed(3);
-  if (item && TEXT_CACHE.get(el) !== item.text) {
-    el.textContent = item.text;
-    TEXT_CACHE.set(el, item.text);
-  }
-}
+      /* 文字项：找到当前生效项，整句淡入淡出；同时避免每帧重复写 DOM */
+      const TEXT_CACHE = new WeakMap();
+      function applyText(el, list, t, fin, fout, wrapSpan = false) {
+        const item = list.find((x) => t >= x.t0 && t <= x.t1);
+        const op = item ? fade(t, item.t0, item.t1, fin, fout) : 0;
+        const target = wrapSpan ? el.parentElement : el;
+        target.style.opacity = op.toFixed(3);
+        if (item && TEXT_CACHE.get(el) !== item.text) {
+          el.textContent = item.text;
+          TEXT_CACHE.set(el, item.text);
+        }
+      }
 
-/* =========================================================================
- * 播放控制（预览模式）与确定性 seek（渲染模式）
- * ========================================================================= */
-const RENDER = new URLSearchParams(location.search).has("render");
-const audio = new Audio(CFG.BGM);
-audio.loop = false;
-let playing = false, clock = 0, lastTs = 0, muted = false;
+      /* =========================================================================
+       * 播放控制（预览模式）与确定性 seek（渲染模式）
+       * ========================================================================= */
+      const RENDER = new URLSearchParams(location.search).has('render');
+      const audio = new Audio(CFG.BGM);
+      audio.loop = false;
+      let playing = false,
+        clock = 0,
+        lastTs = 0,
+        muted = false;
 
-function setTime(t) {
-  clock = Math.min(CFG.DURATION, Math.max(0, t));
-  renderFrame(clock);
-  $("seek").value = clock.toFixed(1);
-  $("time").textContent = `${clock.toFixed(1).padStart(4, "0")} / 60.0`;
-}
-function tick(ts) {
-  if (!playing) return;
-  if (!lastTs) lastTs = ts;
-  clock += (ts - lastTs) / 1000;
-  lastTs = ts;
-  if (clock >= CFG.DURATION) { clock = CFG.DURATION; playing = false; $("btnPlay").textContent = "播放"; }
-  setTime(clock);
-  if (playing) requestAnimationFrame(tick);
-}
-function togglePlay() {
-  playing = !playing;
-  $("btnPlay").textContent = playing ? "暂停" : "播放";
-  if (playing) {
-    lastTs = 0;
-    if (!muted) { audio.currentTime = clock; audio.play().catch(() => {}); }
-    requestAnimationFrame(tick);
-  } else audio.pause();
-}
-function fitStage() {
-  if (RENDER) return;
-  const s = Math.min(window.innerWidth / CFG.W, window.innerHeight / CFG.H) * 0.94;
-  $("shell").style.width = `${CFG.W * s}px`;
-  $("shell").style.height = `${CFG.H * s}px`;
-  $("stage").style.transform = `scale(${s})`;
-}
+      function setTime(t) {
+        clock = Math.min(CFG.DURATION, Math.max(0, t));
+        renderFrame(clock);
+        $('seek').value = clock.toFixed(1);
+        $('time').textContent = `${clock.toFixed(1).padStart(4, '0')} / 60.0`;
+      }
+      function tick(ts) {
+        if (!playing) return;
+        if (!lastTs) lastTs = ts;
+        clock += (ts - lastTs) / 1000;
+        lastTs = ts;
+        if (clock >= CFG.DURATION) {
+          clock = CFG.DURATION;
+          playing = false;
+          $('btnPlay').textContent = '播放';
+        }
+        setTime(clock);
+        if (playing) requestAnimationFrame(tick);
+      }
+      function togglePlay() {
+        playing = !playing;
+        $('btnPlay').textContent = playing ? '暂停' : '播放';
+        if (playing) {
+          lastTs = 0;
+          if (!muted) {
+            audio.currentTime = clock;
+            audio.play().catch(() => {});
+          }
+          requestAnimationFrame(tick);
+        } else audio.pause();
+      }
+      function fitStage() {
+        if (RENDER) return;
+        const s = Math.min(window.innerWidth / CFG.W, window.innerHeight / CFG.H) * 0.94;
+        $('shell').style.width = `${CFG.W * s}px`;
+        $('shell').style.height = `${CFG.H * s}px`;
+        $('stage').style.transform = `scale(${s})`;
+      }
 
-/* 渲染脚本通过 __seek(t) 逐帧截图；播放控制不参与 */
-window.__seek = (t) => { playing = false; setTime(t); };
-window.__duration = CFG.DURATION;
-window.__fps = CFG.FPS;
+      /* 渲染脚本通过 __seek(t) 逐帧截图；播放控制不参与 */
+      window.__seek = (t) => {
+        playing = false;
+        setTime(t);
+      };
+      window.__duration = CFG.DURATION;
+      window.__fps = CFG.FPS;
 
-if (RENDER) {
-  document.body.classList.add("render");
-  audio.muted = true;
-} else {
-  $("btnPlay").addEventListener("click", togglePlay);
-  $("btnReplay").addEventListener("click", () => {
-    setTime(0); playing = false; $("btnPlay").textContent = "播放";
-    audio.currentTime = 0; audio.play().catch(() => {});
-    playing = true; lastTs = 0; $("btnPlay").textContent = "暂停";
-    requestAnimationFrame(tick);
-  });
-  $("btnMute").addEventListener("click", () => {
-    muted = !muted; audio.muted = muted;
-    $("btnMute").textContent = muted ? "取消静音" : "静音";
-  });
-  $("seek").addEventListener("input", (e) => {
-    setTime(parseFloat(e.target.value));
-    if (!muted && playing) audio.currentTime = clock;
-  });
-  window.addEventListener("resize", fitStage);
-  fitStage();
-}
+      if (RENDER) {
+        document.body.classList.add('render');
+        audio.muted = true;
+      } else {
+        $('btnPlay').addEventListener('click', togglePlay);
+        $('btnReplay').addEventListener('click', () => {
+          setTime(0);
+          playing = false;
+          $('btnPlay').textContent = '播放';
+          audio.currentTime = 0;
+          audio.play().catch(() => {});
+          playing = true;
+          lastTs = 0;
+          $('btnPlay').textContent = '暂停';
+          requestAnimationFrame(tick);
+        });
+        $('btnMute').addEventListener('click', () => {
+          muted = !muted;
+          audio.muted = muted;
+          $('btnMute').textContent = muted ? '取消静音' : '静音';
+        });
+        $('seek').addEventListener('input', (e) => {
+          setTime(parseFloat(e.target.value));
+          if (!muted && playing) audio.currentTime = clock;
+        });
+        window.addEventListener('resize', fitStage);
+        fitStage();
+      }
 
-readyPromise.then(() => { renderFrame(0); setTime(0); });
-</script>
-</body>
+      readyPromise.then(() => {
+        renderFrame(0);
+        setTime(0);
+      });
+    </script>
+  </body>
 </html>
